@@ -1,0 +1,7 @@
+/.vscode/
+/runs/
+__pycache__/
+/mini_lightning.egg-info/
+/build/
+/examples/exp/
+/dist/
