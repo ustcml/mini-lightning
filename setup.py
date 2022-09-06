@@ -21,12 +21,12 @@ classifiers = [
 ]
 setup(
     name="mini-lightning",
-    version="0.1.0",
+    version="0.1.1.dev0",
     description=description,
     long_description=long_description,
     long_description_content_type='text/markdown',
     license="MIT",
-    url="https://github.com/Jintao-Huang/mini-lightning",
+    url="https://github.com/ustcml/mini-lightning/",
     author="Jintao Huang",
     author_email="huangjintao@mail.ustc.edu.cn",
     packages=["mini_lightning"],

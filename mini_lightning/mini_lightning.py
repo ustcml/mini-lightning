@@ -46,7 +46,7 @@ class LModule:
         model: Module,
         optimizer: Optimizer,
         metrics: Dict[str, Metric],
-        get_core_metric: Union[Callable[[Dict[str, float]], float], str],
+        get_core_metric: Union[str, Callable[[Dict[str, float]], float], None],
         hparams: Optional[Dict[str, Any]] = None
     ) -> None:
         """
@@ -59,7 +59,8 @@ class LModule:
         self.metrics = metrics
         if isinstance(get_core_metric, str):
             metric_name = get_core_metric
-        self.get_core_metric = (lambda ms: ms[metric_name]) if isinstance(get_core_metric, str) else get_core_metric
+        self.get_core_metric: Callable[[Dict[str, float]], float] = (
+            lambda ms: ms[metric_name]) if isinstance(get_core_metric, str) else get_core_metric
         self.hparams: Dict[str, Any] = hparams if hparams is not None else {}
         self.trainer: Optional["Trainer"] = None
 
@@ -83,9 +84,6 @@ class LModule:
         prog_bar_mean: mean of values in epoch is showed in prog_bar. (e.g. loss, acc: True. lr: False)
             note: lr logs automatically, no manual log is required.
         """
-        if self.trainer is None:
-            raise ValueError(f"self.trainer: {self.trainer}")
-        #
         if isinstance(v, Tensor):
             v = v.item()
         self.trainer.new_mes[k] = v
@@ -213,7 +211,7 @@ class LModule:
 class LDataModule:
     def __init__(
         self,
-        train_dataset: Optional[Dataset],
+        train_dataset: Dataset,
         val_dataset: Optional[Dataset],
         test_dataset: Optional[Dataset],
         #
@@ -226,14 +224,12 @@ class LDataModule:
         pin_memory_train: bool = True
     ) -> None:
 
-        self.train_dataloader: DataLoader = None
-        self.val_dataloader: DataLoader = None
-        self.test_dataloader: DataLoader = None
+        self.train_dataloader = DataLoader(train_dataset, batch_size, shuffle=shuffle_train,
+                                           num_workers=num_workers, pin_memory=pin_memory_train,
+                                           drop_last=drop_last_train, collate_fn=collate_fn)
+        self.val_dataloader: Optional[DataLoader] = None
+        self.test_dataloader: Optional[DataLoader] = None
         #
-        if train_dataset:
-            self.train_dataloader = DataLoader(train_dataset, batch_size, shuffle=shuffle_train,
-                                               num_workers=num_workers, pin_memory=pin_memory_train,
-                                               drop_last=drop_last_train, collate_fn=collate_fn)
         rank = get_dist_setting()[0]
         for dataset, loader_name in zip([val_dataset, test_dataset], ["val_dataloader", "test_dataloader"]):
             if rank in {-1, 0} and dataset is not None:
@@ -248,7 +244,7 @@ class Trainer:
         self,
         lmodel: LModule,
         device_ids: List[int],
-        max_epochs: int, 
+        max_epochs: int,
         runs_dir: str,
         n_accumulate_grad: Union[int, Dict[int, int]] = 1,
         amp: bool = False,
@@ -333,6 +329,7 @@ class Trainer:
             cuda.set_device(self.local_rank)  # set current cuda
             assert dist.is_available()
             if not dist.is_initialized():
+                # nccl is not available in windows
                 backend = "nccl" if dist.is_nccl_available() else "gloo"
                 logger.info(f"Using Backend: {backend}")
                 dist.init_process_group(backend=backend, rank=self.rank, world_size=self.world_size)
