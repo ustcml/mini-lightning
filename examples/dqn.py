@@ -195,7 +195,7 @@ class MyLModule(ml.LModule):
 if __name__ == "__main__":
     ml.seed_everything(42, gpu_dtm=False)
     batch_size = 32
-    max_epochs = 10
+    max_epochs = 20
     hparams = {
         "device_ids": device_ids,
         "memo_capacity": 1000,

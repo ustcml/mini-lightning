@@ -130,7 +130,7 @@ def main(rank: int, world_size: int, device_ids: List[int]) -> None:
     def collect_res(seed: int) -> Dict[str, float]:
         # Different GPUs use different seeds. Each GPU behaves differently
         ml.seed_everything(seed + rank, gpu_dtm=False)
-        model = tvm.resnet50(**hparams["model_hparams"])
+        model = getattr(tvm, hparams["model_name"])(**hparams["model_hparams"])
         state_dict = torch.hub.load_state_dict_from_url(**hparams["model_pretrain_model"])
         state_dict = ml._remove_keys(state_dict, ["fc"])
         if rank in {-1, 0}:

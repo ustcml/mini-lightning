@@ -51,7 +51,7 @@ class LModule:
     ) -> None:
         """
         get_core_metric: Get the core_metric for saving the model. 
-            The higher, the better. If lower is better, you can return a negative number.
+            The higher, the better. If lower is better, you can return a negative number. 
         hparams: Hyperparameters to be saved
         """
         self.model = model
@@ -478,7 +478,8 @@ class Trainer:
             is_best = True
         #
         self._remove_ckpt("last")
-        ckpt_fname = f"last-epoch={self.global_epoch}-metric={metric:.6f}.ckpt"
+        metric_str = "None" if metric is None else f"{metric:.6f}"
+        ckpt_fname = f"last-epoch={self.global_epoch}-metric={metric_str}.ckpt"
         self.last_ckpt_path = os.path.join(self.ckpt_dir, ckpt_fname)
         self.lmodel.save_checkpoint(self.last_ckpt_path)
         # 2. result saving

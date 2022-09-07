@@ -103,6 +103,7 @@ if __name__ == "__main__":
         dataset["train"], dataset["validation"], dataset["test"], **hparams["dataloader_hparams"])
     #
     model = BertForSequenceClassification.from_pretrained(model_name)
+    ml.freeze_layers(model, ["bert.embeddings."] + [f"bert.encoder.layer.{i}." for i in range(2)], True)
     optimizer = getattr(optim, hparams["optim_name"])(model.parameters(), **hparams["optim_hparams"])
     metrics: Dict[str, Metric] = {
         "loss": MeanMetric(),

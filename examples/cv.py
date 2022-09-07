@@ -120,7 +120,7 @@ if __name__ == "__main__":
 
     def collect_res(seed: int) -> Dict[str, float]:
         ml.seed_everything(seed, gpu_dtm=False)
-        model = tvm.resnet50(**hparams["model_hparams"])
+        model = getattr(tvm, hparams["model_name"])(**hparams["model_hparams"])
         state_dict = torch.hub.load_state_dict_from_url(**hparams["model_pretrain_model"])
         state_dict = ml._remove_keys(state_dict, ["fc"])
         logger.info(model.load_state_dict(state_dict, strict=False))
