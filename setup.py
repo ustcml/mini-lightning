@@ -7,7 +7,7 @@ def read_file(path: str) -> str:
     return res
 
 
-description = "Mini-Lightning is a machine learning training library, which is a mini version of Pytorch Lightning with only 1k lines of code. It has the advantages of faster, more concise and more flexible."
+description = "Mini-Lightning is a Lightweight machine learning training library, which is a mini version of Pytorch-Lightning with only 1k lines of code. It has the advantages of faster, more concise and more flexible."
 long_description = read_file("README.md")
 install_requires = read_file("requirements.txt").splitlines(False)
 classifiers = [

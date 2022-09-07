@@ -3,6 +3,7 @@
 # Date:
 
 from typing import List, Dict
+import os
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 
 __all__ = ["tensorboard_smoothing", "read_tensorboard_file"]
@@ -13,6 +14,8 @@ def read_tensorboard_file(fpath: str) -> Dict[str, List[Item]]:
     """
     return: keys of dict: e.g. "train_loss"...
     """
+    if not os.path.isfile(fpath):
+        raise FileNotFoundError(f"fpath: {fpath}")
     ea = EventAccumulator(fpath)
     ea.Reload()
     res = {}

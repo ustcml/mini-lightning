@@ -94,9 +94,9 @@ class _CosineAnnealingLR(LRScheduler):
 
 class WarmupCosineAnnealingLR(_CosineAnnealingLR):
     """Note! In order to avoid LR to be 0 in the first step, we shifted one step to the left
-    iter_idx=-1: lr=0 
-    iter_idx=warmup-1: lr=cosine_annealing_lr(warmup-1)
-    iter_idx=T_max-1: lr=eta_min
+    iter_idx=-1: lr=0 or cosine_annealing_lr(0) * 0
+    iter_idx=warmup-1: lr=cosine_annealing_lr(warmup)
+    iter_idx=T_max-1: lr=eta_min or cosine_annealing_lr(T_max)
     """
 
     def __init__(self, optimizer: Optimizer, warmup: int, T_max: int, eta_min: float = 0.,
@@ -116,9 +116,9 @@ class WarmupCosineAnnealingLR(_CosineAnnealingLR):
 
 class WarmupCosineAnnealingLR2(_CosineAnnealingLR):
     """Note! In order to avoid LR to be 0 in the first step, we shifted one step to the left
-    iter_idx=-1: lr=0 
-    iter_idx=warmup-1: lr=initial_lr
-    iter_idx=warmup+T_max-1: lr=eta_min
+    iter_idx=-1: lr=0
+    iter_idx=warmup-1: lr=initial_lr or cosine_annealing_lr(0)
+    iter_idx=warmup+T_max-1: lr=eta_min or cosine_annealing_lr(T_max)
     """
 
     def __init__(self, optimizer: Optimizer, warmup: int, T_max: int, eta_min: float = 0.,

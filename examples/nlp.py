@@ -7,7 +7,6 @@ from transformers.models.bert.modeling_bert import BertForSequenceClassification
 from transformers.models.auto.tokenization_auto import AutoTokenizer
 from transformers.data.data_collator import DataCollatorWithPadding
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
-from transformers.modeling_utils import PreTrainedModel
 from datasets.load import load_dataset
 
 
@@ -103,7 +102,7 @@ if __name__ == "__main__":
     ldm = ml.LDataModule(
         dataset["train"], dataset["validation"], dataset["test"], **hparams["dataloader_hparams"])
     #
-    model: PreTrainedModel = BertForSequenceClassification.from_pretrained(model_name)
+    model = BertForSequenceClassification.from_pretrained(model_name)
     optimizer = getattr(optim, hparams["optim_name"])(model.parameters(), **hparams["optim_hparams"])
     metrics: Dict[str, Metric] = {
         "loss": MeanMetric(),
