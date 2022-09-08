@@ -50,7 +50,7 @@ class LModule:
         hparams: Optional[Dict[str, Any]] = None
     ) -> None:
         """
-        get_core_metric: Get the core_metric for saving the model. 
+        get_core_metric: Get the core_metric just for saving the model. (not log or save in tensorboard)
             The higher, the better. If lower is better, you can return a negative number. 
         hparams: Hyperparameters to be saved
         """
@@ -150,25 +150,29 @@ class LModule:
         return self._batch_to_device(batch, device)
 
     def optimizer_step(self) -> None:
+        # note: skipping the update behavior at the first step may result in a warning in lr_scheduler. 
+        #   Don't worry about that ~.
         if not self.trainer.found_nan and (self.trainer.amp or not self.trainer.found_inf):
             # With amp=False, using 'self.optimizer.step()' is the same.
             self.trainer.scaler.step(self.optimizer)
     #
 
-    def training_epoch_start(self) -> None:
-        self.model.train()
+    def _epoch_start(self, mode: Literal["train", "val", "test"]) -> None:
+        if mode == "train":
+            self.model.train()
+        else:
+            self.model.eval()
         for metric in self.metrics.values():
             metric.reset()
+
+    def training_epoch_start(self) -> None:
+        self._epoch_start("train")
 
     def validation_epoch_start(self) -> None:
-        self.model.eval()
-        for metric in self.metrics.values():
-            metric.reset()
+        self._epoch_start("val")
 
     def test_epoch_start(self) -> None:
-        self.model.eval()
-        for metric in self.metrics.values():
-            metric.reset()
+        self._epoch_start("test")
     #
 
     def training_step(self, batch: Any) -> Tensor:
@@ -264,7 +268,7 @@ class Trainer:
             note: DDP: multi-gpu/node will be used for training, while single gpu will be used for validation or test
                 to avoid the metrics error caused by the inability to evenly split the last batch
                 Ref: https://torchmetrics.readthedocs.io/en/stable/pages/overview.html#metrics-in-distributed-data-parallel-ddp-mode
-            note: DDP is recommended instead of DDP. 
+            note: DDP is recommended instead of DP. 
                 DDP uses multiple processes and DP uses multiple threads. DDP is faster than DP. 
                 In addition, DDP supports sync-BN.
         # 

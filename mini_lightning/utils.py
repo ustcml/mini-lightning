@@ -26,9 +26,9 @@ from torch.nn.modules.module import _IncompatibleKeys as IncompatibleKeys
 __all__ = [
     "get_dist_setting", "logger",
     "en_parallel", "de_parallel", "de_sync_batchnorm", "select_device",
-    "_remove_keys", "smart_load_state_dict",
+    "_remove_keys", "smart_load_state_dict", "freeze_layers",
     "test_time", "seed_everything", "time_synchronize", "multi_runs",
-    "print_model_info", "save_to_yaml", "freeze_layers"
+    "print_model_info", "save_to_yaml",
 ]
 #
 
@@ -162,6 +162,20 @@ def smart_load_state_dict(model: Module, state_dict: Dict[str, Tensor],
     return model.load_state_dict(state_dict, strict=strict)
 
 
+def freeze_layers(model: Module, layer_prefix_names: List[str], verbose: bool = True) -> None:
+    # e.g. ml.freeze_layers(model, ["bert.embeddings."] + [f"bert.encoder.layer.{i}." for i in range(2)], True)
+    layer_prefix_names = set(layer_prefix_names)
+    for n, p in model.named_parameters():
+        requires_grad = True
+        for lpn in layer_prefix_names:
+            if n.startswith(lpn):
+                requires_grad = False
+                break
+        if verbose:
+            logger.info(f"Setting {n}.requires_grad: {requires_grad}")
+        p.requires_grad_(requires_grad)
+
+
 def _stat(x: ndarray) -> Tuple[Tuple[float, float, float, float], str]:
     """statistics. return: (mean, std, max_, min_), stat_str"""
     mean = x.mean().item()
@@ -293,7 +307,7 @@ def print_model_info(model: Module, inputs: Optional[Tuple[Any, ...]] = None) ->
     s = [
         f"{model.__class__.__name__}: ",
         f"{n_layers} Layers, ",
-        # Grads: Trainable Params(no freeze). Params-Grads: freeze
+        # Grads: Trainable Params (no freeze). Params-Grads: freeze
         f"{n_params:.4f}M Params ({n_grads:.4f}M Grads), ",
         f"{n_buffers:.4f}M Buffers",
     ]
@@ -311,16 +325,3 @@ def print_model_info(model: Module, inputs: Optional[Tuple[Any, ...]] = None) ->
 def save_to_yaml(obj: Any, file_path: str, encoding: str = "utf-8", mode: str = "w") -> None:
     with open(file_path, mode, encoding=encoding) as f:
         yaml.dump(obj, f)
-
-
-def freeze_layers(model: Module, layer_prefix_names: List[str], verbose: bool = True) -> None:
-    # e.g. ml.freeze_layers(model, ["bert.embeddings."] + [f"bert.encoder.layer.{i}." for i in range(2)], True)
-    for n, p in model.named_parameters():
-        requires_grad = True
-        for lpn in layer_prefix_names:
-            if n.startswith(lpn):
-                requires_grad = False
-                break
-        if verbose:
-            logger.info(f"Setting {n}.requires_grad: {requires_grad}")
-        p.requires_grad_(requires_grad)

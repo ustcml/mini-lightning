@@ -2,7 +2,7 @@
 
 
 ## Introduction
-1. [Mini-Lightning](https://github.com/ustcml/mini-lightning/) is a Lightweight machine learning training library, which is a mini version of [Pytorch-Lightning](https://www.pytorchlightning.ai/) with only 1k lines of code. It has the advantages of faster, more concise and more flexible.
+1. [Mini-Lightning](https://github.com/ustcml/mini-lightning/) is a lightweight machine learning training library, which is a mini version of [Pytorch-Lightning](https://www.pytorchlightning.ai/) with only 1k lines of code. It has the advantages of faster, more concise and more flexible.
 2. Existing features: support for DDP(multi-node and multi-gpu), Sync-BN, DP, AMP, gradient accumulation, warmup and lr_scheduler, grad clip, tensorboard, model and result saving, beautiful console log, torchmetrics, etc.
 3. Only the minimal interfaces are exposed, keeping the features of simplicity, easy to read, use and extend.
 4. examples can be found in `examples/`
@@ -10,8 +10,9 @@
 
 
 ## Install
-1. Download the latest version(>=1.12) of Torch(corresponding CUDA version) from the [official website](https://pytorch.org/get-started/locally/) of Torch. It is not recommended to automatically install Torch (CUDA 10.2) using the Mini-Lightning dependency, which will cause CUDA version mismatch.
-2. Install mini-lightning
+1. Create a virtual environment and install Python (>= 3.8)
+2. Download the latest version (>=1.12) of Torch(corresponding CUDA version) from the [official website](https://pytorch.org/get-started/locally/) of Torch. It is not recommended to automatically install Torch (CUDA 10.2) using the Mini-Lightning dependency, which will cause CUDA version mismatch.
+3. Install mini-lightning
 ```bash
 # from pypi (v0.1.1)
 pip install mini-lightning
