@@ -22,7 +22,8 @@ os.makedirs(CHECKPOINTS_PATH, exist_ok=True)
 
 
 class MyLModule(ml.LModule):
-    def __init__(self, model: Module, optimizer: Optimizer, loss_fn: Module, lr_s: LRScheduler, hparams: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, model: Module, optimizer: Optimizer, loss_fn: Module,
+                 lr_s: LRScheduler, hparams: Optional[Dict[str, Any]] = None) -> None:
         metrics = {
             "acc":  Accuracy(),
             "loss": MeanMetric()
@@ -71,8 +72,8 @@ if __name__ == "__main__":
     device_ids: List[int] = opt.device_ids
     # Calculating mean std
     train_dataset = CIFAR10(root=DATASETS_PATH, train=True, download=True)
-    DATA_MEANS = (train_dataset.data / 255.0).mean(axis=(0, 1, 2))
-    DATA_STD = (train_dataset.data / 255.0).std(axis=(0, 1, 2))
+    DATA_MEANS: Tensor = (train_dataset.data / 255.0).mean(axis=(0, 1, 2))
+    DATA_STD: Tensor = (train_dataset.data / 255.0).std(axis=(0, 1, 2))
     logger.info((DATA_MEANS, DATA_STD))
     test_transform = tvt.Compose([
         tvt.ToTensor(),

@@ -150,7 +150,7 @@ class LModule:
         return self._batch_to_device(batch, device)
 
     def optimizer_step(self) -> None:
-        # note: skipping the update behavior at the first step may result in a warning in lr_scheduler. 
+        # note: skipping the update behavior at the first step may result in a warning in lr_scheduler.
         #   Don't worry about that ~.
         if not self.trainer.found_nan and (self.trainer.amp or not self.trainer.found_inf):
             # With amp=False, using 'self.optimizer.step()' is the same.
@@ -187,10 +187,7 @@ class LModule:
         raise NotImplementedError
     #
 
-    def training_epoch_end(self) -> None:
-        return
-
-    def _val_test_epoch_end(self, prefix: str) -> float:
+    def _val_test_epoch_end(self, mode: Literal["val", "test"]) -> float:
         mes: Dict[str, float] = {}
         for k, metric in self.metrics.items():
             v: Tensor = metric.compute()
@@ -200,16 +197,24 @@ class LModule:
                     mes[f"{k}_{i}"] = v[i].item()
             else:
                 mes[k] = v.item()
-        core_metric = self.get_core_metric(mes)
-        mes = {prefix + k: v for k, v in mes.items()}
+        #
+        if mode == "val":
+            core_metric = self.get_core_metric(mes)
+        else:  # test
+            core_metric = 0.
+        #
+        mes = {f"{mode}_{k}": v for k, v in mes.items()}
         self.log_dict(mes)
         return core_metric
 
+    def training_epoch_end(self) -> None:
+        return
+
     def validation_epoch_end(self) -> float:
-        return self._val_test_epoch_end("val_")
+        return self._val_test_epoch_end("val")
 
     def test_epoch_end(self) -> None:
-        self._val_test_epoch_end("test_")
+        self._val_test_epoch_end("test")
 
 
 class LDataModule:
@@ -273,10 +278,10 @@ class Trainer:
                 In addition, DDP supports sync-BN.
         # 
         device_ids: if len(device_ids) > 1, use DP. (by setting the `CUDA_VISIBLE_DEVICES` environment variable to select device)
-            e.g. []: stands for "cpu ", [0], [0, 1, 2]
+            e.g. []: stands for "cpu "; [0]; [0, 1, 2]
             note: DP: batch_size is split to each GPU. Make sure: batch_size % n_gpus == 0.
-                DDP: total batch_size = batch_size * world_size
-            note: DP, DDP, sync_bn will modify lmodel.model (en_parallel). You need to de_parallel manually.
+                DDP: total batch_size = batch_size * world_size. (different from DP)
+            note: DP, DDP, sync_bn will modify lmodel.model (en_parallel). You need to de_parallel, de_sync_batchnorm manually if you want to get original model.
         n_accumulate_grad: Accumulates gradient every n batch (Use mean accumulation instead of sum)
             Ref: https://pytorch-lightning.readthedocs.io/en/latest/_modules/pytorch_lightning/loops/optimization/optimizer_loop.html (Search: self.trainer.accumulate_grad_batches)
             if n_accumulate_grad is Dict[int, int]: e.g. {5:2, 20:4} or {0:1, 5:2, 20:4}. 
@@ -288,11 +293,11 @@ class Trainer:
             note: the unupdated grad of the last batch will be updated at the end of the epoch. Same behavior as PyTorch Lightning. `batch_idx %`
         amp: Whether to use mixed precision training.
             Ref: https://pytorch.org/docs/stable/notes/amp_examples.html
-            Effects: Speed up training and reduce video memory consumption. Slightly (or not) decrease performance.
+            Effects: Speed up training and reduce memory consumption. Slightly (or not) decrease performance.
             note: Recommended for use in large models. Small models do not speed up training. 
             note: some environments may not support AMP
-        gradient_clip_norm: gradient clipping (norm) to prevents gradient explosion and log `grad_norm` before scaling if verbose=True. It's usually set to 5, 10, 20.
-            note: inf and nan check is added if gradient_clip_norm. This can improve the stability of training.
+        gradient_clip_norm: gradient clipping (norm) to prevents gradient explosion and log `grad_norm` before clipping if verbose=True. It's usually set to 5, 10, 20.
+            note: inf and nan check is added if gradient_clip_norm is not None. This can improve the stability of training.
                 If inf or nan is found, this update will be skipped. (If amp=True, inf check is handled by amp)
         sync_bn: (valid only in DDP mode)
             This generally improves training accuracy and stability, but slightly slows down training speed.
@@ -320,7 +325,7 @@ class Trainer:
             verbose=False: not log in prog_bar, make prog_bar cleaner
         """
         self.rank, self.local_rank, self.world_size = get_dist_setting()
-        logger.info(f"local_rank: {self.local_rank}, rank: {self.rank}, world_size: {self.world_size}")
+        logger.info(f"Using local_rank: {self.local_rank}, rank: {self.rank}, world_size: {self.world_size}")
         #
         self.lmodel = lmodel
         self.device_ids = device_ids
@@ -335,7 +340,7 @@ class Trainer:
             if not dist.is_initialized():
                 # nccl is not available in windows
                 backend = "nccl" if dist.is_nccl_available() else "gloo"
-                logger.info(f"Using Backend: {backend}")
+                logger.info(f"Using backend: {backend}")
                 dist.init_process_group(backend=backend, rank=self.rank, world_size=self.world_size)
         self.parallel_mode: Literal["DP", "DDP", None] = parallel_mode
         self.sync_bn: bool = sync_bn
@@ -468,7 +473,7 @@ class Trainer:
         elif mode == "last" and self.last_ckpt_path:
             os.remove(self.last_ckpt_path)
 
-    def _epoch_end(self, mes: Dict[str, float], metric: Optional[float]) -> bool:
+    def _model_result_saving(self, mes: Dict[str, float], metric: Optional[float]) -> bool:
         # 1. model saving
         is_best = False
         if metric is not None and metric >= self.best_metric:  # >=
@@ -729,7 +734,7 @@ class Trainer:
                 mes.update(val_mes)
                 # if core_metric=None, then only save the last model.
                 if self.rank in {-1, 0}:
-                    is_best = self._epoch_end(mes, core_metric)  # save model and result
+                    is_best = self._model_result_saving(mes, core_metric)  # save model and result
                     mes.update({"global_epoch": self.global_epoch,
                                 "global_step": self.global_step})
                     if is_best:

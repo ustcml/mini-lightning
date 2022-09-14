@@ -81,9 +81,9 @@ if __name__ == "__main__":
     hparams = {
         "device_ids": device_ids,
         "model_name": model_name,
-        "optim_name": "SGD",  # Adam/AdamW is prone to overfitting, but more faster.
         "dataloader_hparams": {"batch_size": batch_size, "num_workers": 4, "collate_fn": collate_fn},
-        "optim_hparams": {"lr": 1e-2, "weight_decay": 1e-4, "momentum": 0.9},  #
+        "optim_name": "AdamW",
+        "optim_hparams": {"lr": 1e-4, "weight_decay": 1e-4},
         "trainer_hparams": {
             "max_epochs": max_epochs,
             "gradient_clip_norm": 10,
@@ -93,7 +93,7 @@ if __name__ == "__main__":
         "lrs_hparams": {
             "warmup": 30,  # 30 optim step
             "T_max": ...,
-            "eta_min": 1e-3
+            "eta_min": 4e-5
         }
     }
     hparams["lrs_hparams"]["T_max"] = ml.get_T_max(

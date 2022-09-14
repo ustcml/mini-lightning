@@ -26,7 +26,7 @@ from torch.nn.modules.module import _IncompatibleKeys as IncompatibleKeys
 __all__ = [
     "get_dist_setting", "logger",
     "en_parallel", "de_parallel", "de_sync_batchnorm", "select_device",
-    "_remove_keys", "smart_load_state_dict", "freeze_layers",
+    "_remove_keys", "smart_load_state_dict", "freeze_layers", "_stat", 
     "test_time", "seed_everything", "time_synchronize", "multi_runs",
     "print_model_info", "save_to_yaml",
 ]
