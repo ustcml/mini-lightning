@@ -557,8 +557,12 @@ class Trainer:
             nag_list: List[int] = sorted(self.n_accumulate_grad.keys())  # nag: n_accumulate_grad
             idx = nag_list[bisect_right(nag_list, self.global_epoch) - 1]
             n_accumulate_grad: int = self.n_accumulate_grad[idx]
+            if idx == self.global_epoch:
+                logger.info(f"Using n_accumulate_grad: {n_accumulate_grad}")
         elif isinstance(self.n_accumulate_grad, int):
             n_accumulate_grad = self.n_accumulate_grad
+            if self.global_epoch == 0:
+                logger.info(f"Using n_accumulate_grad: {n_accumulate_grad}")
         else:
             raise TypeError(f"self.n_accumulate_grad: {self.n_accumulate_grad}, type: {type(self.n_accumulate_grad)}")
         #

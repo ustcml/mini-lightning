@@ -7,4 +7,4 @@ __pycache__/
 /dist/
 /test/
 /asset/
-.pytest_cache/
+/.pytest_cache/
