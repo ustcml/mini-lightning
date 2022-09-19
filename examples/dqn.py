@@ -11,8 +11,8 @@ from gym import Env
 Training and exploration are decoupled.
 1. Each iteration will be trained once. The dataset used for training is randomly sampled from the memory pool.
 2. At the same time, the Agent also makes an exploration. 
-    Make some policy decision and take an action (random or model decision). 
-    Change from state to next_state. And then put it in the memory bank.
+    Make decision and take an action (random or model decision). 
+    Change from state to next_state. And then put it in the memory pool.
 It will warm up memory pool at first. Fill in some memory.
 """
 
