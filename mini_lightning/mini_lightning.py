@@ -565,14 +565,15 @@ class Trainer:
         else:
             raise TypeError(f"self.n_accumulate_grad: {self.n_accumulate_grad}, type: {type(self.n_accumulate_grad)}")
         #
+        new_mes = {}  # Avoid change in new_mes.keys()
         mean_metrics: Dict[str, MeanMetric] = {}  #
         prog_bar = tqdm(total=len(dataloader),
                         desc=f"Epoch {self.global_epoch}", dynamic_ncols=True, disable=self.rank > 0)  # mininterval=0.01
         batch_idx = -1  # avoid unbound
+        self.prog_bar_mean.clear()
         for batch_idx, batch in enumerate(dataloader):
             self.global_step += 1
             self.new_mes.clear()
-            self.prog_bar_mean.clear()
             #
             batch = lmodel.batch_to_device(batch, device)
             with autocast(device_type=self.device.type, enabled=self.amp):
@@ -604,21 +605,23 @@ class Trainer:
                 self.found_inf = False
                 self.found_nan = False
             #
-            self._metrics_update(mean_metrics, self.new_mes, self.prog_bar_mean, device,
+            new_mes.update(self.new_mes)
+            self._metrics_update(mean_metrics, new_mes, self.prog_bar_mean, device,
                                  ignore_inf_nan=True, sync_on_compute=self.rank >= 0)
 
             # prog_bar
             if (batch_idx + 1) % self.prog_bar_n_steps == 0:
                 mean_mes = self._metrics_compute(mean_metrics)
-                log_mes = self._get_log_mes(mean_mes, self.new_mes, self.prog_bar_mean, self.verbose)
+                log_mes = self._get_log_mes(mean_mes, new_mes, self.prog_bar_mean, self.verbose)
                 # rank > 0 disable.
                 prog_bar.set_postfix(log_mes, refresh=False)
                 prog_bar.update(self.prog_bar_n_steps)
             # tensorboard
             if self.global_step % self.log_every_n_steps == 0:
-                tb_mes = self._reduce_mes(self.new_mes, device)  # reduce all gpu
+                tb_mes = self._reduce_mes(new_mes, device)  # reduce all gpu
                 if self.rank in {-1, 0}:
                     self._logger_add_scalars(tb_mes, self.global_step)
+        # 
         prog_bar.update(batch_idx + 1 - prog_bar.n)
         prog_bar.close()
         # only log_mes in mean_metrics and log_mes in training_epoch_end
@@ -668,9 +671,9 @@ class Trainer:
         mean_metrics: Dict[str, MeanMetric] = {}
         prog_bar = tqdm(total=len(dataloader), desc=desc, dynamic_ncols=True)
         batch_idx = -1  # avoid unbound
+        self.prog_bar_mean.clear()
         for batch_idx, batch in enumerate(dataloader):
             self.new_mes.clear()
-            self.prog_bar_mean.clear()
             with torch.no_grad():
                 batch = lmodel.batch_to_device(batch, device)
                 val_test_step(batch)
@@ -693,7 +696,7 @@ class Trainer:
         if self.new_mes:
             print("- " + self._get_epoch_end_log_string(self.new_mes))
             res_mes.update(self.new_mes)
-        # 
+        #
         self._logger_add_scalars(res_mes, epoch_idx)
         # restore
         lmodel.model = model_r
