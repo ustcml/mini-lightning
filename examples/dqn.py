@@ -18,9 +18,7 @@ It will warm up memory pool at first. Fill in some memory.
 
 
 RENDER = True
-DATASETS_PATH = os.environ.get("DATASETS_PATH", os.path.join(RUNS_DIR, "datasets"))
 RUNS_DIR = os.path.join(RUNS_DIR, "dqn")
-os.makedirs(DATASETS_PATH, exist_ok=True)
 os.makedirs(RUNS_DIR, exist_ok=True)
 
 #

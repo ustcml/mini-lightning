@@ -11,9 +11,7 @@ from datasets.load import load_dataset
 
 
 #
-DATASETS_PATH = os.environ.get("DATASETS_PATH", os.path.join(RUNS_DIR, "datasets"))
 RUNS_DIR = os.path.join(RUNS_DIR, "nlp")
-os.makedirs(DATASETS_PATH, exist_ok=True)
 os.makedirs(RUNS_DIR, exist_ok=True)
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 

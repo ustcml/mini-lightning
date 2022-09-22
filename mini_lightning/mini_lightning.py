@@ -3,12 +3,12 @@
 # Date:
 
 import os
-import datetime
 import re
 import math
+import datetime
+import platform
 from bisect import bisect_right
 from typing import List, Any, Dict, Optional, Tuple, Callable, Union, Sequence, Mapping, Literal
-import platform
 #
 from tqdm import tqdm
 #

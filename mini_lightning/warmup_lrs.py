@@ -2,8 +2,8 @@
 # Email: huangjintao@mail.ustc.edu.cn
 # Date:
 
-from typing import List, Callable, Union, Dict
 import math
+from typing import List, Callable, Union, Dict
 #
 from torch.optim.lr_scheduler import _LRScheduler as LRScheduler
 from torch.optim import Optimizer

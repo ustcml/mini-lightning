@@ -2,24 +2,24 @@
 # Email: huangjintao@mail.ustc.edu.cn
 # Date:
 
-from typing import Any, Dict, List, Literal, Optional, Tuple, Callable, TypeVar
-from copy import deepcopy
 import logging
 import random
 import os
 import time
+from typing import Any, Dict, List, Literal, Optional, Tuple, Callable, TypeVar
+from copy import deepcopy
 from collections import defaultdict
 #
 import yaml
 import numpy as np
 from numpy import ndarray
 #
+import torch
+import torch.nn as nn
+import torch.cuda as cuda
 from torch.nn.parallel import DataParallel as DP, DistributedDataParallel as DDP
 from torch.nn import Module
-import torch.nn as nn
-import torch
 from torch import Tensor, device as Device
-import torch.cuda as cuda
 from torch.nn.modules.module import _IncompatibleKeys as IncompatibleKeys
 
 

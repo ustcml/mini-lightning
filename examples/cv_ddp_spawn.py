@@ -13,9 +13,7 @@ import torchvision.datasets as tvd
 import torchvision.models as tvm
 #
 CIFAR10 = tvd.CIFAR10
-DATASETS_PATH = os.environ.get("DATASETS_PATH", os.path.join(RUNS_DIR, "datasets"))
 RUNS_DIR = os.path.join(RUNS_DIR, "cv_ddp")
-os.makedirs(DATASETS_PATH, exist_ok=True)
 os.makedirs(RUNS_DIR, exist_ok=True)
 #
 

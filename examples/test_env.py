@@ -4,6 +4,8 @@
 
 from pre import *
 from torch.optim.lr_scheduler import MultiStepLR
+RUNS_DIR = os.path.join(RUNS_DIR, "test_env")
+os.makedirs(RUNS_DIR, exist_ok=True)
 
 
 class MLP_L2(Module):
@@ -85,7 +87,6 @@ if __name__ == "__main__":
     #
     model = MLP_L2(2, 4, 1)
     optimizer = optim.SGD(model.parameters(), 0.1, 0.9)
-    RUNS_DIR = os.path.join(RUNS_DIR, "test_env")
     loss_fn = nn.BCEWithLogitsLoss()
     lr_s = MultiStepLR(optimizer, [10, 50], 0.1)
     #

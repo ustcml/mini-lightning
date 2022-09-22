@@ -3,17 +3,18 @@
 # Date:
 
 # common
-from copy import copy, deepcopy
-from functools import partial
+
 import math
 import os
 import sys
+import logging
+import warnings
 from typing import List, Tuple, Dict, Callable, Optional, Union, Any, Deque, Iterator
 from collections import namedtuple, deque
 from pprint import pprint
-import logging
 from argparse import ArgumentParser, Namespace
-import warnings
+from copy import copy, deepcopy
+from functools import partial
 #
 from tqdm import tqdm
 import numpy as np
@@ -27,12 +28,12 @@ from torchmetrics.classification.auroc import AUROC
 from torchmetrics.functional.classification.accuracy import accuracy
 #
 import torch
+import torch.nn as nn
+import torch.optim as optim
 from torch import Tensor, device as Device
 from torch.nn import Module
 from torch.optim import Optimizer
 from torch.nn.parameter import Parameter
-import torch.nn as nn
-import torch.optim as optim
 from torch.optim import lr_scheduler as lrs
 from torch.optim.lr_scheduler import _LRScheduler as LRScheduler
 from torch.utils.data import Dataset, DataLoader, random_split, IterableDataset
@@ -42,4 +43,7 @@ import mini_lightning as ml
 logger = ml.logger
 #
 RUNS_DIR = "./runs"  # please run in mini-lightning folder
+DATASETS_PATH = os.environ.get("DATASETS_PATH", os.path.join(RUNS_DIR, "datasets"))
 os.makedirs(RUNS_DIR, exist_ok=True)
+os.makedirs(DATASETS_PATH, exist_ok=True)
+
