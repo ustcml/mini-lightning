@@ -65,7 +65,7 @@ if __name__ == "__main__":
     dataset = load_dataset("glue", "mrpc")
     model_name = "bert-base-uncased"
     tokenizer: PreTrainedTokenizerBase = AutoTokenizer.from_pretrained(model_name)
-
+    tokenizer.deprecation_warnings["Asking-to-pad-a-fast-tokenizer"] = True
     def tokenize_function(example):
         return tokenizer(example["sentence1"], example["sentence2"], truncation=True)
 

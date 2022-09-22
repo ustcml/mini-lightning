@@ -389,6 +389,7 @@ class Trainer:
         self.found_nan = False
         #
         if self.rank in {-1, 0}:
+            runs_dir = os.path.abspath(runs_dir)
             v = self._get_version(runs_dir)
             if platform.system().lower() == "windows":
                 time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")  # window not support `:`
@@ -565,7 +566,7 @@ class Trainer:
         else:
             raise TypeError(f"self.n_accumulate_grad: {self.n_accumulate_grad}, type: {type(self.n_accumulate_grad)}")
         #
-        new_mes = {}  # Avoid change in new_mes.keys()
+        new_mes: Dict[str, float] = {}  # Save the most recent mes
         mean_metrics: Dict[str, MeanMetric] = {}  #
         prog_bar = tqdm(total=len(dataloader),
                         desc=f"Epoch {self.global_epoch}", dynamic_ncols=True, disable=self.rank > 0)  # mininterval=0.01
@@ -621,7 +622,7 @@ class Trainer:
                 tb_mes = self._reduce_mes(new_mes, device)  # reduce all gpu
                 if self.rank in {-1, 0}:
                     self._logger_add_scalars(tb_mes, self.global_step)
-        # 
+        #
         prog_bar.update(batch_idx + 1 - prog_bar.n)
         prog_bar.close()
         # only log_mes in mean_metrics and log_mes in training_epoch_end
@@ -650,7 +651,8 @@ class Trainer:
         lmodel.model = de_parallel(lmodel.model)
         metrics_r: Dict[str, bool] = {k: m._to_sync for k, m in lmodel.metrics.items()}
         for m in lmodel.metrics.values():
-            # torchmetrics ==0.9.3 private variable. I wonder if it will be changed later. You can raise issue if finding error.
+            # torchmetrics ==0.9.3 private variable. I don't know whether it will be changed later. 
+            #   You can raise issue if finding error.
             # default: sync_on_compute = True
             m._to_sync = False
             m.sync_on_compute = False
@@ -668,6 +670,7 @@ class Trainer:
         #
         val_test_epoch_start()
         #
+        new_mes: Dict[str, float] = {}  # Save the most recent mes
         mean_metrics: Dict[str, MeanMetric] = {}
         prog_bar = tqdm(total=len(dataloader), desc=desc, dynamic_ncols=True)
         batch_idx = -1  # avoid unbound
@@ -677,7 +680,8 @@ class Trainer:
             with torch.no_grad():
                 batch = lmodel.batch_to_device(batch, device)
                 val_test_step(batch)
-            self._metrics_update(mean_metrics, self.new_mes, self.prog_bar_mean, device, False, False)
+            new_mes.update(self.new_mes)
+            self._metrics_update(mean_metrics, new_mes, self.prog_bar_mean, device, False, False)
             # prog_bar
             if (batch_idx + 1) % self.prog_bar_n_steps == 0:
                 mean_mes = self._metrics_compute(mean_metrics)
