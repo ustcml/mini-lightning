@@ -11,11 +11,10 @@ from datasets.load import load_dataset
 
 
 #
-RUNS_DIR = os.path.join(RUNS_DIR, "nlp")
 DATASETS_PATH = os.environ.get("DATASETS_PATH", os.path.join(RUNS_DIR, "datasets"))
-CHECKPOINTS_PATH = os.path.join(RUNS_DIR, "checkpoints")
+RUNS_DIR = os.path.join(RUNS_DIR, "nlp")
 os.makedirs(DATASETS_PATH, exist_ok=True)
-os.makedirs(CHECKPOINTS_PATH, exist_ok=True)
+os.makedirs(RUNS_DIR, exist_ok=True)
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
 #
@@ -113,11 +112,10 @@ if __name__ == "__main__":
         "recall": Recall(average="macro", num_classes=2),
         "f1": F1Score(average="none", num_classes=2)
     }
-    runs_dir = CHECKPOINTS_PATH
     loss_fn = nn.CrossEntropyLoss()
     lr_s = ml.WarmupCosineAnnealingLR(optimizer, **hparams["lrs_hparams"])
     lmodel = MyLModule(model, optimizer, metrics, loss_fn, lr_s, hparams)
-    trainer = ml.Trainer(lmodel, device_ids, runs_dir=runs_dir, **hparams["trainer_hparams"])
+    trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams["trainer_hparams"])
     try:
         logger.info(trainer.fit(ldm.train_dataloader, ldm.val_dataloader))
     except KeyboardInterrupt:

@@ -18,11 +18,10 @@ It will warm up memory pool at first. Fill in some memory.
 
 
 RENDER = True
-RUNS_DIR = os.path.join(RUNS_DIR, "dqn")
 DATASETS_PATH = os.environ.get("DATASETS_PATH", os.path.join(RUNS_DIR, "datasets"))
-CHECKPOINTS_PATH = os.path.join(RUNS_DIR, "checkpoints")
+RUNS_DIR = os.path.join(RUNS_DIR, "dqn")
 os.makedirs(DATASETS_PATH, exist_ok=True)
-os.makedirs(CHECKPOINTS_PATH, exist_ok=True)
+os.makedirs(RUNS_DIR, exist_ok=True)
 
 #
 device_ids = [0]
@@ -231,9 +230,8 @@ if __name__ == "__main__":
     #
     get_rand_p = partial(get_rand_p, **hparams["rand_p"])
     optimizer = getattr(optim, hparams["optim_name"])(model.parameters(), **hparams["optim_hparams"])
-    runs_dir = CHECKPOINTS_PATH
     loss_fn = nn.MSELoss()
 
     lmodel = MyLModule(model, optimizer, loss_fn, agent, get_rand_p, hparams)
-    trainer = ml.Trainer(lmodel, device_ids, runs_dir=runs_dir, **hparams["trainer_hparams"])
+    trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams["trainer_hparams"])
     trainer.fit(ldm.train_dataloader, ldm.val_dataloader)

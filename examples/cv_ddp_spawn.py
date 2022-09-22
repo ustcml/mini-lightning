@@ -13,11 +13,10 @@ import torchvision.datasets as tvd
 import torchvision.models as tvm
 #
 CIFAR10 = tvd.CIFAR10
-RUNS_DIR = os.path.join(RUNS_DIR, "cv_ddp")
 DATASETS_PATH = os.environ.get("DATASETS_PATH", os.path.join(RUNS_DIR, "datasets"))
-CHECKPOINTS_PATH = os.path.join(RUNS_DIR, "checkpoints")
+RUNS_DIR = os.path.join(RUNS_DIR, "cv_ddp")
 os.makedirs(DATASETS_PATH, exist_ok=True)
-os.makedirs(CHECKPOINTS_PATH, exist_ok=True)
+os.makedirs(RUNS_DIR, exist_ok=True)
 #
 
 
@@ -125,7 +124,6 @@ def main(rank: int, world_size: int, device_ids: List[int]) -> None:
     ldm = ml.LDataModule(
         train_dataset, val_dataset, test_dataset, **hparams["dataloader_hparams"])
 
-    runs_dir = CHECKPOINTS_PATH
     loss_fn = nn.CrossEntropyLoss()
 
     def collect_res(seed: int) -> Dict[str, float]:
@@ -141,7 +139,7 @@ def main(rank: int, world_size: int, device_ids: List[int]) -> None:
         lr_s = ml.WarmupCosineAnnealingLR(optimizer, **hparams["lrs_hparams"])
         #
         lmodel = MyLModule(model, optimizer, loss_fn, lr_s, hparams)
-        trainer = ml.Trainer(lmodel, device_ids, runs_dir=runs_dir, **hparams["trainer_hparams"])
+        trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams["trainer_hparams"])
         res = trainer.fit(ldm.train_dataloader, ldm.val_dataloader)
         res2 = trainer.test(ldm.test_dataloader)
         res.update(res2)

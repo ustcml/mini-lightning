@@ -21,7 +21,7 @@ classifiers = [
 ]
 setup(
     name="mini-lightning",
-    version="0.1.2.dev",
+    version="0.1.2",
     description=description,
     long_description=long_description,
     long_description_content_type='text/markdown',

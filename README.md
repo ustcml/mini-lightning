@@ -11,15 +11,15 @@
 
 ## Install
 1. Create a virtual environment and install Python (>= 3.8)
-2. Download the latest version (>=1.12) of Torch(corresponding CUDA version) from the [official website](https://pytorch.org/get-started/locally/) of Torch. It is not recommended to automatically install Torch (CUDA 10.2) using the Mini-Lightning dependency, which will cause CUDA version mismatch.
+2. Download the latest version (>=1.12) of Torch(corresponding CUDA version) from the [official website](https://pytorch.org/get-started/locally/) of Torch. It is not recommended to automatically install Torch (CUDA 10.2 default) using the Mini-Lightning dependency, which will cause CUDA version mismatch.
 3. Install mini-lightning
 ```bash
-# from pypi (v0.1.1)
+# from pypi (v0.1.2)
 pip install mini-lightning
 
 # Or download the files from the repository to local,
 # and go to the folder where setup.py is located, and run the following command
-# (recommend) You can enjoy the latest features and functions
+# (Recommended) You can enjoy the latest features and functions (including bug fixes)
 pip install .
 ```
 
@@ -47,7 +47,7 @@ pip install gym, pygame
 python examples/dqn.py
 
 ### cv_ddp.py; cv_ddp_spawn.py
-# torchrun (recommended): Ref: https://pytorch.org/docs/stable/elastic/run.html
+# torchrun (Recommended): Ref: https://pytorch.org/docs/stable/elastic/run.html
 # spawn: Ref: https://pytorch.org/docs/stable/notes/ddp.html
 ## single-gpu  # for test
 torchrun examples/cv_ddp.py --device_ids 0
