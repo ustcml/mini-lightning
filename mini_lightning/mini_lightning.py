@@ -447,9 +447,11 @@ class Trainer:
         save_to_yaml(saved_hparams, self.hparams_path)
 
     @staticmethod
-    def _metrics_update(metrics: Dict[str, MeanMetric], new_mes: Dict[str, float], device: Device,
-                        ignore_inf_nan: bool = False, sync_on_compute: bool = True) -> None:
+    def _metrics_update(metrics: Dict[str, MeanMetric], new_mes: Dict[str, float], prog_bar_mean: Dict[str, bool],
+                        device: Device, ignore_inf_nan: bool = False, sync_on_compute: bool = True) -> None:
         for k, v in new_mes.items():
+            if not prog_bar_mean[k]:
+                continue
             if k not in metrics:
                 metrics[k] = MeanMetric(sync_on_compute=sync_on_compute).to(device)
             if ignore_inf_nan and (math.isinf(v) or math.isnan(v)):  # ignore
@@ -499,12 +501,11 @@ class Trainer:
     def _get_log_mes(mean_mes: Dict[str, float], new_mes: Dict[str, float],
                      prog_bar_mean: Dict[str, bool], verbose: bool) -> Dict[str, float]:
         res = {}
-        # mes, new_mes, prog_bar_mean have the same key
-        if not verbose:
-            mean_mes = _remove_keys(mean_mes, ["lr", "grad_norm"])  # not inplace
-        keys = mean_mes.keys()
+        keys = list(prog_bar_mean.keys())
         for k in keys:
-            if prog_bar_mean[k] is True:
+            if not verbose and k in {"lr", "grad_norm"}:
+                continue
+            if prog_bar_mean[k]:
                 res[k] = mean_mes[k]
             else:
                 res[k] = new_mes[k]
@@ -564,29 +565,22 @@ class Trainer:
         else:
             raise TypeError(f"self.n_accumulate_grad: {self.n_accumulate_grad}, type: {type(self.n_accumulate_grad)}")
         #
-        metrics: Dict[str, MeanMetric] = {}  #
-        metrics2: Dict[str, MeanMetric] = {}  # optimize metrics
-        new_mes: Dict[str, float] = {}
-        new_mes2: Dict[str, float] = {}  # optimize new_mes
+        mean_metrics: Dict[str, MeanMetric] = {}  #
         prog_bar = tqdm(total=len(dataloader),
                         desc=f"Epoch {self.global_epoch}", dynamic_ncols=True, disable=self.rank > 0)  # mininterval=0.01
-
+        batch_idx = -1  # avoid unbound
         for batch_idx, batch in enumerate(dataloader):
             self.global_step += 1
             self.new_mes.clear()
+            self.prog_bar_mean.clear()
             #
             batch = lmodel.batch_to_device(batch, device)
             with autocast(device_type=self.device.type, enabled=self.amp):
                 loss = lmodel.training_step(batch)
             loss.div_(n_accumulate_grad)
             scaler.scale(loss).backward()
-            #
-            new_mes = self.new_mes.copy()
-            self._metrics_update(metrics, new_mes, device, ignore_inf_nan=True, sync_on_compute=self.rank >= 0)
-
             # optimize
             if (batch_idx + 1) % n_accumulate_grad == 0 or (batch_idx + 1) == len(dataloader):
-                self.new_mes.clear()
                 if self.gradient_clip_norm:
                     #
                     scaler.unscale_(lmodel.optimizer)
@@ -609,40 +603,33 @@ class Trainer:
                 #
                 self.found_inf = False
                 self.found_nan = False
-                new_mes2 = self.new_mes.copy()
-                self._metrics_update(metrics2, new_mes2, device, ignore_inf_nan=True, sync_on_compute=self.rank >= 0)
+            #
+            self._metrics_update(mean_metrics, self.new_mes, self.prog_bar_mean, device,
+                                 ignore_inf_nan=True, sync_on_compute=self.rank >= 0)
 
             # prog_bar
             if (batch_idx + 1) % self.prog_bar_n_steps == 0:
-                mean_mes = self._metrics_compute(metrics)
-                mean_mes2 = self._metrics_compute(metrics2)
-                log_mes = self._get_log_mes(mean_mes, new_mes, self.prog_bar_mean, self.verbose)
-                log_mes2 = self._get_log_mes(mean_mes2, new_mes2, self.prog_bar_mean, self.verbose)
-                log_mes.update(log_mes2)
+                mean_mes = self._metrics_compute(mean_metrics)
+                log_mes = self._get_log_mes(mean_mes, self.new_mes, self.prog_bar_mean, self.verbose)
                 # rank > 0 disable.
                 prog_bar.set_postfix(log_mes, refresh=False)
                 prog_bar.update(self.prog_bar_n_steps)
             # tensorboard
             if self.global_step % self.log_every_n_steps == 0:
-                new_mes = self._reduce_mes(new_mes, device)  # reduce all gpu
-                new_mes2 = self._reduce_mes(new_mes2, device)
+                tb_mes = self._reduce_mes(self.new_mes, device)  # reduce all gpu
                 if self.rank in {-1, 0}:
-                    self._logger_add_scalars(new_mes, self.global_step)
-                    self._logger_add_scalars(new_mes2, self.global_step)
-        mes: Dict[str, float] = {}
-        prog_bar.update(prog_bar.total - prog_bar.n)
+                    self._logger_add_scalars(tb_mes, self.global_step)
+        prog_bar.update(batch_idx + 1 - prog_bar.n)
         prog_bar.close()
-        mes.update(self._metrics_compute(metrics))
-        mes.update(self._metrics_compute(metrics2))
-        #
-        mes = _remove_keys(mes, ["lr"])  # not return lr message
+        # only log_mes in mean_metrics and log_mes in training_epoch_end
+        res_mes = self._metrics_compute(mean_metrics)
         # training_epoch_end
         self.new_mes.clear()
         lmodel.training_epoch_end()
         if self.new_mes:
             print("- " + self._get_epoch_end_log_string(self.new_mes))
-            mes.update(self.new_mes)
-        return mes
+            res_mes.update(self.new_mes)
+        return res_mes
 
     def _val_test(self, dataloader: Optional[DataLoader], mode: Literal["val", "test"],
                   desc: str, epoch_idx: int) -> Tuple[Optional[float], Dict[str, float]]:
@@ -678,26 +665,26 @@ class Trainer:
         #
         val_test_epoch_start()
         #
-        metrics: Dict[str, MeanMetric] = {}
-        new_mes: Dict[str, float] = {}
+        mean_metrics: Dict[str, MeanMetric] = {}
         prog_bar = tqdm(total=len(dataloader), desc=desc, dynamic_ncols=True)
+        batch_idx = -1  # avoid unbound
         for batch_idx, batch in enumerate(dataloader):
             self.new_mes.clear()
+            self.prog_bar_mean.clear()
             with torch.no_grad():
                 batch = lmodel.batch_to_device(batch, device)
                 val_test_step(batch)
-            new_mes = self.new_mes.copy()
-            self._metrics_update(metrics, new_mes, device, False, False)
+            self._metrics_update(mean_metrics, self.new_mes, self.prog_bar_mean, device, False, False)
             # prog_bar
             if (batch_idx + 1) % self.prog_bar_n_steps == 0:
-                mean_mes = self._metrics_compute(metrics)
-                log_mes = self._get_log_mes(mean_mes, new_mes, self.prog_bar_mean, self.verbose)
+                mean_mes = self._metrics_compute(mean_metrics)
+                log_mes = self._get_log_mes(mean_mes, self.new_mes, self.prog_bar_mean, self.verbose)
                 prog_bar.set_postfix(log_mes, refresh=False)
                 prog_bar.update(self.prog_bar_n_steps)
-        prog_bar.update(prog_bar.total - prog_bar.n)
+        prog_bar.update(batch_idx + 1 - prog_bar.n)
         prog_bar.close()
-        #
-        mes: Dict[str, float] = self._metrics_compute(metrics)
+        # res_mes: only mes in mean_metrics and mes in val_test_epoch_end
+        res_mes = self._metrics_compute(mean_metrics)
         #
         self.new_mes.clear()
         core_metric = val_test_epoch_end()
@@ -705,8 +692,9 @@ class Trainer:
             core_metric = 0.
         if self.new_mes:
             print("- " + self._get_epoch_end_log_string(self.new_mes))
-            mes.update(self.new_mes)
-        self._logger_add_scalars(mes, epoch_idx)
+            res_mes.update(self.new_mes)
+        # 
+        self._logger_add_scalars(res_mes, epoch_idx)
         # restore
         lmodel.model = model_r
         for k, b in metrics_r.items():
@@ -715,7 +703,7 @@ class Trainer:
         #
         if self.rank == 0:
             dist.barrier()
-        return core_metric, mes
+        return core_metric, res_mes
 
     def _train(self, train_dataloader: DataLoader,
                val_dataloader: Optional[DataLoader]) -> Dict[str, float]:
@@ -760,14 +748,14 @@ class Trainer:
             epoch_idx = self.global_epoch
             desc = "Test Last: "
         #
-        _, mes = self._val_test(dataloader, "test", desc, epoch_idx)
-        mes.update({"global_epoch": epoch_idx})
+        _, res_mes = self._val_test(dataloader, "test", desc, epoch_idx)
+        res_mes.update({"global_epoch": epoch_idx})
         if model_type == "best":
             self.lmodel.load_from_checkpoint(self.last_ckpt_path)  # restore
-            mes = self._key_add_suffix(mes, "_best")
+            res_mes = self._key_add_suffix(res_mes, "_best")
         else:
-            mes = self._key_add_suffix(mes, "_last")
-        return mes if self.rank in {-1, 0} else {}
+            res_mes = self._key_add_suffix(res_mes, "_last")
+        return res_mes if self.rank in {-1, 0} else {}
 
     @ staticmethod
     def _key_add_suffix(mes: Dict[str, Any], suffix: str) -> Dict[str, Any]:
@@ -788,13 +776,13 @@ class Trainer:
         only_best: Only test Best. test dataset can't act as a validation dataset. So it defaults to True.
         """
         # note: If last first, last will be overridden in tensorboard. So best first.
-        # if self.rank not in {-1, 0}, mes={}.
-        mes = {}
+        # if self.rank not in {-1, 0}, res_mes={}.
+        res_mes = {}
         m = self._test(dataloader, "best")
-        mes.update(m)
+        res_mes.update(m)
         #
         if not only_best:
             m = self._test(dataloader, "last")
-            mes.update(m)
+            res_mes.update(m)
         cuda.empty_cache()
-        return mes
+        return res_mes
