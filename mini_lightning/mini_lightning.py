@@ -343,11 +343,12 @@ class Trainer:
                 logger.info(f"Using backend: {backend}")
                 dist.init_process_group(backend=backend, rank=self.rank, world_size=self.world_size)
         self.parallel_mode: Literal["DP", "DDP", None] = parallel_mode
-        self.sync_bn: bool = sync_bn
+        self.sync_bn = sync_bn
         self.amp = amp
         logger.info(f"Using amp: {amp}")
         #
         self.max_epochs = max_epochs
+        self.runs_dir = runs_dir
         self.n_accumulate_grad = n_accumulate_grad
         if isinstance(self.n_accumulate_grad, dict):
             if 0 not in self.n_accumulate_grad.keys():
@@ -566,7 +567,7 @@ class Trainer:
         else:
             raise TypeError(f"self.n_accumulate_grad: {self.n_accumulate_grad}, type: {type(self.n_accumulate_grad)}")
         #
-        new_mes: Dict[str, float] = {}  # Save the most recent mes
+        rec_mes: Dict[str, float] = {}  # Save the most recent mes. (for prog_bar and tensorboard)
         mean_metrics: Dict[str, MeanMetric] = {}  #
         prog_bar = tqdm(total=len(dataloader),
                         desc=f"Epoch {self.global_epoch}", dynamic_ncols=True, disable=self.rank > 0)  # mininterval=0.01
@@ -606,20 +607,19 @@ class Trainer:
                 self.found_inf = False
                 self.found_nan = False
             #
-            new_mes.update(self.new_mes)
-            self._metrics_update(mean_metrics, new_mes, self.prog_bar_mean, device,
+            self._metrics_update(mean_metrics, self.new_mes, self.prog_bar_mean, device,
                                  ignore_inf_nan=True, sync_on_compute=self.rank >= 0)
-
+            rec_mes.update(self.new_mes)
             # prog_bar
             if (batch_idx + 1) % self.prog_bar_n_steps == 0:
                 mean_mes = self._metrics_compute(mean_metrics)
-                log_mes = self._get_log_mes(mean_mes, new_mes, self.prog_bar_mean, self.verbose)
+                log_mes = self._get_log_mes(mean_mes, rec_mes, self.prog_bar_mean, self.verbose)
                 # rank > 0 disable.
                 prog_bar.set_postfix(log_mes, refresh=False)
                 prog_bar.update(self.prog_bar_n_steps)
             # tensorboard
             if self.global_step % self.log_every_n_steps == 0:
-                tb_mes = self._reduce_mes(new_mes, device)  # reduce all gpu
+                tb_mes = self._reduce_mes(rec_mes, device)  # reduce all gpu
                 if self.rank in {-1, 0}:
                     self._logger_add_scalars(tb_mes, self.global_step)
         #
@@ -670,7 +670,7 @@ class Trainer:
         #
         val_test_epoch_start()
         #
-        new_mes: Dict[str, float] = {}  # Save the most recent mes
+        rec_mes: Dict[str, float] = {}  # Save the most recent mes. (for prog_bar)
         mean_metrics: Dict[str, MeanMetric] = {}
         prog_bar = tqdm(total=len(dataloader), desc=desc, dynamic_ncols=True)
         batch_idx = -1  # avoid unbound
@@ -680,12 +680,13 @@ class Trainer:
             with torch.no_grad():
                 batch = lmodel.batch_to_device(batch, device)
                 val_test_step(batch)
-            new_mes.update(self.new_mes)
-            self._metrics_update(mean_metrics, new_mes, self.prog_bar_mean, device, False, False)
+            # 
+            self._metrics_update(mean_metrics, self.new_mes, self.prog_bar_mean, device, False, False)
+            rec_mes.update(self.new_mes)
             # prog_bar
             if (batch_idx + 1) % self.prog_bar_n_steps == 0:
                 mean_mes = self._metrics_compute(mean_metrics)
-                log_mes = self._get_log_mes(mean_mes, self.new_mes, self.prog_bar_mean, self.verbose)
+                log_mes = self._get_log_mes(mean_mes, rec_mes, self.prog_bar_mean, self.verbose)
                 prog_bar.set_postfix(log_mes, refresh=False)
                 prog_bar.update(self.prog_bar_n_steps)
         prog_bar.update(batch_idx + 1 - prog_bar.n)
