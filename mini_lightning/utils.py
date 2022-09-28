@@ -70,7 +70,7 @@ def en_parallel(model: Module, parallel_mode: Literal["DP", "DDP", None], sync_b
             model = DP(model)  # use all device_ids
         logger.info("Using DP")
     elif parallel_mode == "DDP":
-        if not isinstance(model, DDP):  # use LOCAK_RANK
+        if not isinstance(model, DDP):  # use LOCAL_RANK
             assert not isinstance(model, DP)
             model = DDP(model)
         logger.info("Using DDP")

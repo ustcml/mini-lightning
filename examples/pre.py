@@ -46,4 +46,3 @@ RUNS_DIR = "./runs"  # please run in mini-lightning folder
 DATASETS_PATH = os.environ.get("DATASETS_PATH", os.path.join(RUNS_DIR, "datasets"))
 os.makedirs(RUNS_DIR, exist_ok=True)
 os.makedirs(DATASETS_PATH, exist_ok=True)
-

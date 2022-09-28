@@ -28,8 +28,8 @@ from torch.nn.parallel import DataParallel as DP, DistributedDataParallel as DDP
 from torchmetrics import Metric, MeanMetric
 #
 from .utils import (
-    en_parallel, de_parallel, get_dist_setting, select_device, smart_load_state_dict,
-    logger, save_to_yaml, print_model_info, _remove_keys,
+    en_parallel, de_parallel, get_dist_setting, select_device, 
+    logger, save_to_yaml, print_model_info, 
 )
 
 
@@ -102,8 +102,8 @@ class LModule:
             return
         device = next(self.model.parameters()).device
         state_dict = torch.load(ckpt_path, map_location=device)
-        if self.trainer is not None and isinstance(self.model, (DP, DDP)):
-            smart_load_state_dict(self.model, state_dict, "module.")
+        if isinstance(self.model, (DP, DDP)):
+            self.model.module.load_state_dict(state_dict)
         else:
             self.model.load_state_dict(state_dict)
 
@@ -160,7 +160,7 @@ class LModule:
     def _epoch_start(self, mode: Literal["train", "val", "test"]) -> None:
         if mode == "train":
             self.model.train()
-        else:
+        else:  # "val", "test"
             self.model.eval()
         for metric in self.metrics.values():
             metric.reset()
