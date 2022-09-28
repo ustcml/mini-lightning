@@ -7,12 +7,9 @@ torchrun support multi-node. (recommended)
 torchrun Ref: https://pytorch.org/docs/stable/elastic/run.html
 # 
 Note: If you encounter Dataloader Aborted, You can solve this problem in the following ways:
-    Cause: Locked memory exceeds the maximum number of users. You can view this using `ulimit -a`.
-Methods: 
-    1. Set num_workers to lower, e.g. set to 1.
-    2. Set pin_memory_train = False.
+    1. Set pin_memory_train = False. (commended)
+    2. Set num_workers to lower, e.g. set to 1.
     3. Reduce batch_size.
-    4. Increase Max locked memory
 """
 
 from pre import *
@@ -112,7 +109,7 @@ if __name__ == "__main__":
         "model_name": "resnet50",
         "model_hparams": {"num_classes": 10},
         "model_pretrain_model": {"url": tvm.ResNet50_Weights.DEFAULT.url},
-        "dataloader_hparams": {"batch_size": batch_size, "num_workers": 4, "pin_memory_train": True},
+        "dataloader_hparams": {"batch_size": batch_size, "num_workers": 4, "pin_memory_train": False},
         "optim_name": "SGD",
         "optim_hparams": {"lr": 1e-2, "weight_decay": 1e-4, "momentum": 0.9},
         "trainer_hparams": {
