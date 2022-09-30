@@ -26,7 +26,7 @@ from torch.nn.modules.module import _IncompatibleKeys as IncompatibleKeys
 __all__ = [
     "get_dist_setting", "logger",
     "en_parallel", "de_parallel", "de_sync_batchnorm", "select_device",
-    "_remove_keys", "smart_load_state_dict", "freeze_layers", "_stat", 
+    "_remove_keys", "freeze_layers", "_stat", 
     "test_time", "seed_everything", "time_synchronize", "multi_runs",
     "print_model_info", "save_to_yaml",
 ]
@@ -151,23 +151,12 @@ def _remove_keys(state_dict: Dict[str, Any], prefix_keys: List[str]) -> Dict[str
     return res
 
 
-def smart_load_state_dict(model: Module, state_dict: Dict[str, Tensor],
-                          prefix_key: str = "", strict: bool = True) -> IncompatibleKeys:
-    if prefix_key != "":
-        new_state_dict = {}
-        for k, v in state_dict.items():
-            new_state_dict[prefix_key + k] = v
-        state_dict = new_state_dict
-    #
-    return model.load_state_dict(state_dict, strict=strict)
-
-
 def freeze_layers(model: Module, layer_prefix_names: List[str], verbose: bool = True) -> None:
     # e.g. ml.freeze_layers(model, ["bert.embeddings."] + [f"bert.encoder.layer.{i}." for i in range(2)], True)
-    layer_prefix_names = set(layer_prefix_names)
+    lpns = set(layer_prefix_names)
     for n, p in model.named_parameters():
         requires_grad = True
-        for lpn in layer_prefix_names:
+        for lpn in lpns:
             if n.startswith(lpn):
                 requires_grad = False
                 break

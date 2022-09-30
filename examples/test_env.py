@@ -88,7 +88,7 @@ if __name__ == "__main__":
     model = MLP_L2(2, 4, 1)
     optimizer = optim.SGD(model.parameters(), 0.1, 0.9)
     loss_fn = nn.BCEWithLogitsLoss()
-    lr_s = MultiStepLR(optimizer, [10, 50], 0.1)
+    lr_s = ml.warmup_decorator(MultiStepLR)(optimizer, 5, [10, 50], 0.1)
     #
     lmodel = MyLModule(model, optimizer, loss_fn, lr_s)
     ldm = ml.LDataModule(train_dataset, val_dataset, test_dataset, 64)

@@ -3,11 +3,11 @@
 # Date:
 
 import math
-from typing import List, Callable, Union, Dict
+from typing import List, Callable, Union, Dict, Optional
 #
-from torch.optim.lr_scheduler import _LRScheduler as LRScheduler
+from torch.optim.lr_scheduler import _LRScheduler as LRScheduler, CosineAnnealingLR
 from torch.optim import Optimizer
-__all__ = ["cosine_annealing_lr", "get_T_max",
+__all__ = ["cosine_annealing_lr", "get_T_max", "warmup_decorator",
            "WarmupCosineAnnealingLR", "WarmupCosineAnnealingLR2"]
 
 
@@ -92,26 +92,41 @@ class _CosineAnnealingLR(LRScheduler):
         return cosine_annealing_lr(last_epoch, self.T_max, self.eta_min, self.base_lrs)
 
 
-class WarmupCosineAnnealingLR(_CosineAnnealingLR):
-    """Note! In order to avoid LR to be 0 in the first step, we shifted one step to the left
-    iter_idx=-1: lr=0 or cosine_annealing_lr(0) * 0
-    iter_idx=warmup-1: lr=cosine_annealing_lr(warmup)
-    iter_idx=T_max-1: lr=eta_min or cosine_annealing_lr(T_max)
-    """
+def warmup_decorator(lr_s: type, shift_one: bool = True) -> type:
+    class WarmupLRScheduler(lr_s):
+        def __init__(self, optimizer: Optimizer, warmup: int, *args, **kwargs) -> None:
+            self.warmup = warmup
+            self.lrs_ori: Optional[List[int]] = None
+            self.shift_one = shift_one
+            super().__init__(optimizer, *args, **kwargs)
 
-    def __init__(self, optimizer: Optimizer, warmup: int, T_max: int, eta_min: float = 0.,
-                 last_epoch: int = -1) -> None:
-        self.warmup = warmup
-        super().__init__(optimizer, T_max, eta_min, last_epoch)
+        def get_lr(self) -> List[float]:
+            #
+            if self.lrs_ori is not None:
+                for p, lr in zip(self.optimizer.param_groups, self.lrs_ori):
+                    p["lr"] = lr
+            elif self.shift_one:  # first
+                self.last_epoch += 1
+            last_epoch = self.last_epoch
+            lrs = super().get_lr()
+            self.lrs_ori = lrs
+            #
+            scale = 1
+            if last_epoch < self.warmup:
+                scale = last_epoch / self.warmup
+            return [lr * scale for lr in lrs]
+    return WarmupLRScheduler
 
-    def get_lr(self) -> List[float]:
-        last_epoch = self.last_epoch + 1  # shifted one step to the left
-        lrs = super().get_lr(last_epoch)
-        # warmup
-        scale = 1
-        if last_epoch < self.warmup:
-            scale = last_epoch / self.warmup
-        return [lr * scale for lr in lrs]
+
+"""
+Note! In order to avoid LR to be 0 in the first step, we shifted one step to the left
+iter_idx=-1: lr=0 or cosine_annealing_lr(0) * 0
+iter_idx=warmup-1: lr=cosine_annealing_lr(warmup)
+iter_idx=T_max-1: lr=eta_min or cosine_annealing_lr(T_max)
+"""
+
+WarmupCosineAnnealingLR = warmup_decorator(CosineAnnealingLR)
+# WarmupCosineAnnealingLR = warmup_decorator(_CosineAnnealingLR)  # or
 
 
 class WarmupCosineAnnealingLR2(_CosineAnnealingLR):
