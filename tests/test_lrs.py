@@ -49,7 +49,7 @@ class TestLrs(ut.TestCase):
         #
         optim = SGD([Parameter(torch.randn(100,))], initial_lr)
         warmup = 3
-        lrs = ml.WarmupCosineAnnealingLR(optim, warmup, T_max, eta_min)
+        lrs = ml.warmup_decorator(CosineAnnealingLR, warmup)(optim, T_max, eta_min)
         for i in range(max_epoch):
             lr = lrs.get_last_lr()[0]
             lr2 = ml.cosine_annealing_lr(i + 1, T_max, eta_min, [initial_lr])[0]
@@ -61,32 +61,6 @@ class TestLrs(ut.TestCase):
             elif i >= warmup - 1:
                 self.assertTrue(b, msg=f"atol: {atol}")
                 if i == T_max - 1:
-                    self.assertTrue(lr == eta_min)
-            optim.step()
-            lrs.step()
-
-    def test_warmup2(self):
-        initial_lr = 1e-2
-        T_max = 7
-        eta_min = 1e-4
-        max_epoch = 20
-        #
-        optim = SGD([Parameter(torch.randn(100,))], initial_lr)
-        warmup = 3
-        lrs = ml.WarmupCosineAnnealingLR2(optim, warmup, T_max, eta_min)
-        for i in range(max_epoch):
-            lr = lrs.get_last_lr()[0]
-            if i == 0:
-                self.assertTrue(lr > 0)
-            elif i == warmup - 2:
-                self.assertTrue(lr != initial_lr)
-            elif i >= warmup - 1:
-                lr2 = ml.cosine_annealing_lr(i + 1 - warmup, T_max, eta_min, [initial_lr])[0]
-                b, atol = allclose(lr, lr2)
-                self.assertTrue(b, msg=f"atol: {atol}")
-                if i == warmup - 1:
-                    self.assertTrue(lr == initial_lr)
-                elif i == T_max + warmup - 1:
                     self.assertTrue(lr == eta_min)
             optim.step()
             lrs.step()

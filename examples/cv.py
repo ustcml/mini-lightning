@@ -101,8 +101,8 @@ if __name__ == "__main__":
             "n_accumulate_grad": n_accumulate_grad,
             "verbose": True
         },
+        "warmup": 100,  # 100 optim step
         "lrs_hparams": {
-            "warmup": 100,  # 100 optim step
             "T_max": ...,
             "eta_min": 4e-3
         }
@@ -122,7 +122,7 @@ if __name__ == "__main__":
         state_dict = ml._remove_keys(state_dict, ["fc"])
         logger.info(model.load_state_dict(state_dict, strict=False))
         optimizer = getattr(optim, hparams["optim_name"])(model.parameters(), **hparams["optim_hparams"])
-        lr_s = ml.WarmupCosineAnnealingLR(optimizer, **hparams["lrs_hparams"])
+        lr_s = ml.warmup_decorator(lrs.CosineAnnealingLR, hparams["warmup"])(optimizer, **hparams["lrs_hparams"])
 
         lmodel = MyLModule(model, optimizer, loss_fn, lr_s, hparams)
         trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams["trainer_hparams"])

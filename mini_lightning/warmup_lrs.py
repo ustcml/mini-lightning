@@ -7,42 +7,7 @@ from typing import List, Callable, Union, Dict, Optional
 #
 from torch.optim.lr_scheduler import _LRScheduler as LRScheduler, CosineAnnealingLR
 from torch.optim import Optimizer
-__all__ = ["cosine_annealing_lr", "get_T_max", "warmup_decorator",
-           "WarmupCosineAnnealingLR", "WarmupCosineAnnealingLR2"]
-
-
-def _get_offset_func(fa: float, fb: float, ga: float, gb: float) -> Callable[[float], float]:
-    # (a, fa) -> (a, ga); (b, fb) -> (b, gb)
-    # Generate a linear function of curve translation and scaling. gx=s*fx+t
-    if fa == fb:
-        raise ValueError("fa == fb")
-    s = (gb-ga) / (fb-fa)
-    t = ga - fa * s
-
-    def func(x: float) -> float:
-        return s * x + t
-    return func
-
-
-def cosine_annealing_lr(epoch: int, T_max: int, eta_min: float, initial_lrs: List[float]) -> List[float]:
-    """
-    epoch=0: lr=initial_lr
-    epoch=T_max: lr=eta_min
-    T of sine curve = 2 * T_max
-    """
-    # Avoid floating point errors
-    if epoch % (2 * T_max) == 0:
-        return initial_lrs
-    if (epoch + T_max) % (2 * T_max) == 0:
-        return [eta_min] * len(initial_lrs)
-    res = []
-    # x axis
-    x = math.cos(math.pi * epoch / T_max)  # (2 * pi * x) / (2 * T_max)
-    # y axis
-    for initial_lr in initial_lrs:
-        func = _get_offset_func(-1, 1, eta_min, initial_lr)
-        res.append(func(x))
-    return res
+__all__ = ["get_T_max", "warmup_decorator", "cosine_annealing_lr"]
 
 
 def get_T_max(dataset_len: int, batch_size: int, max_epochs: int,
@@ -75,26 +40,9 @@ def get_T_max(dataset_len: int, batch_size: int, max_epochs: int,
     return T_max
 
 
-class _CosineAnnealingLR(LRScheduler):
-    """
-    epoch=0: lr=initial_lr
-    epoch=T_max: lr=eta_min
-    """
-
-    def __init__(self, optimizer: Optimizer, T_max: int, eta_min: float = 0., last_epoch: int = -1) -> None:
-        self.T_max = T_max
-        self.eta_min = eta_min
-        super().__init__(optimizer, last_epoch)
-
-    def get_lr(self, last_epoch=None) -> List[float]:
-        if last_epoch is None:
-            last_epoch = self.last_epoch
-        return cosine_annealing_lr(last_epoch, self.T_max, self.eta_min, self.base_lrs)
-
-
-def warmup_decorator(lr_s: type, shift_one: bool = True) -> type:
+def warmup_decorator(lr_s: type, warmup: int, shift_one: bool = True) -> type:
     class WarmupLRScheduler(lr_s):
-        def __init__(self, optimizer: Optimizer, warmup: int, *args, **kwargs) -> None:
+        def __init__(self, optimizer: Optimizer, *args, **kwargs) -> None:
             self.warmup = warmup
             self.lrs_ori: Optional[List[int]] = None
             self.shift_one = shift_one
@@ -118,34 +66,36 @@ def warmup_decorator(lr_s: type, shift_one: bool = True) -> type:
     return WarmupLRScheduler
 
 
-"""
-Note! In order to avoid LR to be 0 in the first step, we shifted one step to the left
-iter_idx=-1: lr=0 or cosine_annealing_lr(0) * 0
-iter_idx=warmup-1: lr=cosine_annealing_lr(warmup)
-iter_idx=T_max-1: lr=eta_min or cosine_annealing_lr(T_max)
-"""
+#
+def _get_offset_func(fa: float, fb: float, ga: float, gb: float) -> Callable[[float], float]:
+    # (a, fa) -> (a, ga); (b, fb) -> (b, gb)
+    # Generate a linear function of curve translation and scaling. gx=s*fx+t
+    if fa == fb:
+        raise ValueError("fa == fb")
+    s = (gb-ga) / (fb-fa)
+    t = ga - fa * s
 
-WarmupCosineAnnealingLR = warmup_decorator(CosineAnnealingLR)
-# WarmupCosineAnnealingLR = warmup_decorator(_CosineAnnealingLR)  # or
+    def func(x: float) -> float:
+        return s * x + t
+    return func
 
 
-class WarmupCosineAnnealingLR2(_CosineAnnealingLR):
-    """Note! In order to avoid LR to be 0 in the first step, we shifted one step to the left
-    iter_idx=-1: lr=0
-    iter_idx=warmup-1: lr=initial_lr or cosine_annealing_lr(0)
-    iter_idx=warmup+T_max-1: lr=eta_min or cosine_annealing_lr(T_max)
+def cosine_annealing_lr(epoch: int, T_max: int, eta_min: float, initial_lrs: List[float]) -> List[float]:
     """
-
-    def __init__(self, optimizer: Optimizer, warmup: int, T_max: int, eta_min: float = 0.,
-                 last_epoch: int = -1) -> None:
-        self.warmup = warmup
-        super().__init__(optimizer, T_max, eta_min, last_epoch)
-
-    def get_lr(self) -> List[float]:
-        last_epoch = self.last_epoch + 1  # shifted one step to the left
-        if last_epoch < self.warmup:
-            # warmup
-            scale = last_epoch / self.warmup
-            return [lr * scale for lr in self.base_lrs]
-        lrs = super().get_lr(last_epoch - self.warmup)
-        return lrs
+    epoch=0: lr=initial_lr
+    epoch=T_max: lr=eta_min
+    T of sine curve = 2 * T_max
+    """
+    # Avoid floating point errors
+    if epoch % (2 * T_max) == 0:
+        return initial_lrs
+    if (epoch + T_max) % (2 * T_max) == 0:
+        return [eta_min] * len(initial_lrs)
+    res = []
+    # x axis
+    x = math.cos(math.pi * epoch / T_max)  # (2 * pi * x) / (2 * T_max)
+    # y axis
+    for initial_lr in initial_lrs:
+        func = _get_offset_func(-1, 1, eta_min, initial_lr)
+        res.append(func(x))
+    return res

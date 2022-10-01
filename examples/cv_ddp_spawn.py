@@ -111,8 +111,8 @@ def main(rank: int, world_size: int, device_ids: List[int]) -> None:
             "n_accumulate_grad": n_accumulate_grad,
             "verbose": True
         },
+        "warmup": 100, 
         "lrs_hparams": {
-            "warmup": 100,  # 100 optim step
             "T_max": ...,
             "eta_min": 4e-3
         }
@@ -134,7 +134,7 @@ def main(rank: int, world_size: int, device_ids: List[int]) -> None:
             # DDP synchronizes the model state_dict
             logger.info(model.load_state_dict(state_dict, strict=False))
         optimizer = getattr(optim, hparams["optim_name"])(model.parameters(), **hparams["optim_hparams"])
-        lr_s = ml.WarmupCosineAnnealingLR(optimizer, **hparams["lrs_hparams"])
+        lr_s = ml.warmup_decorator(lrs.CosineAnnealingLR, hparams["warmup"])(optimizer, **hparams["lrs_hparams"])
         #
         lmodel = MyLModule(model, optimizer, loss_fn, lr_s, hparams)
         trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams["trainer_hparams"])

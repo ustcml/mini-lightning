@@ -8,6 +8,8 @@ from gym import Env
 #
 
 """
+'Hello world' in Reinforcement Learning. 
+
 Training and exploration are decoupled.
 1. Each iteration will be trained once. The dataset used for training is randomly sampled from the memory pool.
 2. At the same time, the Agent also makes an exploration. 
@@ -17,7 +19,7 @@ It will warm up memory pool at first. Fill in some memory.
 """
 
 
-RENDER = True
+RENDER_MODE: Literal["human", None] = None
 RUNS_DIR = os.path.join(RUNS_DIR, "dqn")
 os.makedirs(RUNS_DIR, exist_ok=True)
 
@@ -86,23 +88,20 @@ class Agent:
         #
         self.state = None
         self.reset_env()
-        if RENDER:
-            self.env.render()
 
     def reset_env(self) -> None:
-        self.state = self.env.reset()
+        self.state, _ = self.env.reset()
 
     def step(self, rand_p: float) -> Tuple[float, bool]:
         action = self._get_action(rand_p)
-        next_state, reward, done, _ = self.env.step(action)
+        next_state, reward, terminated, truncated, _ = self.env.step(action)
+        done = terminated or truncated
         memo = Memory(self.state, action, reward, done, next_state)
         self.memo_pool.add(memo)
         if done:
             self.reset_env()
         else:
             self.state = next_state
-        if RENDER:
-            self.env.render()
         return reward, done  # for log
 
     def _get_action(self, rand_p: float) -> int:
@@ -113,10 +112,14 @@ class Agent:
         q_value: Tensor = self.model(state)[0]
         return int(q_value.argmax(dim=0).item())
 
+#
+
 
 def get_rand_p(global_step: int, T_max: int, eta_min: float, eta_max: float) -> float:
     rand_p = ml.cosine_annealing_lr(global_step, T_max, eta_min, [eta_max])[0]
     return rand_p
+
+#
 
 
 class MyLModule(ml.LModule):
@@ -201,15 +204,15 @@ if __name__ == "__main__":
         "model_hidden_size": 128,
         "optim_name": "SGD",
         "dataloader_hparams": {"batch_size": batch_size},
-        "optim_hparams": {"lr": 1e-2, "weight_decay": 1e-4, "momentum": 0.9},  #
-        "trainer_hparams": {"max_epochs": max_epochs, "gradient_clip_norm": 50},
+        "optim_hparams": {"lr": 1e-2, "weight_decay": 1e-4},  #
+        "trainer_hparams": {"max_epochs": max_epochs, "gradient_clip_norm": 20},
         #
         "rand_p": {
             "eta_max": 1,
             "eta_min": 0,
             "T_max": ...
         },
-        "sync_steps": 20,  # synchronization frequency of old_model
+        "sync_steps": 50,  # synchronization frequency of old_model
         "warmup_memory_steps": 1000,  # warm up and fill the memory pool
         "gamma": 0.99,  # reward decay
 
@@ -219,7 +222,7 @@ if __name__ == "__main__":
     ldm = ml.LDataModule(
         dataset, None, None, **hparams["dataloader_hparams"], shuffle_train=False, num_workers=1)
     hparams["rand_p"]["T_max"] = ml.get_T_max(len(dataset), batch_size, max_epochs, 1)
-    env = gym.make(hparams["env_name"])
+    env = gym.make(hparams["env_name"], render_mode=RENDER_MODE)
     in_channels: int = env.observation_space.shape[0]
     out_channels: int = env.action_space.n
     model = DQN(in_channels, out_channels, hparams["model_hidden_size"])

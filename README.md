@@ -33,17 +33,17 @@ pip install .
 python examples/test_env.py
 
 ### cv.py
-pip install torchvision
+pip install torchvision>=0.13.*
 python examples/cv.py
 # Using DP (not recommended, please use DDP)
 python examples/cv.py  # setting device_ids=[0, 1]
 
 ### nlp.py
-pip install transformers datasets
+pip install transformers>=4.22.* datasets>=2.5.*
 python examples/nlp.py
 
 ### dqn.py
-pip install gym, pygame
+pip install gym>=0.26.1, pygame
 python examples/dqn.py
 
 ### cv_ddp.py; cv_ddp_spawn.py

@@ -9,7 +9,7 @@ import os
 import sys
 import logging
 import warnings
-from typing import List, Tuple, Dict, Callable, Optional, Union, Any, Deque, Iterator
+from typing import List, Tuple, Dict, Callable, Optional, Union, Any, Deque, Iterator, Literal
 from collections import namedtuple, deque
 from pprint import pprint
 from argparse import ArgumentParser, Namespace

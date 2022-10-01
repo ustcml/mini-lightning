@@ -63,6 +63,7 @@ if __name__ == "__main__":
     model_name = "bert-base-uncased"
     tokenizer: PreTrainedTokenizerBase = AutoTokenizer.from_pretrained(model_name)
     tokenizer.deprecation_warnings["Asking-to-pad-a-fast-tokenizer"] = True
+
     def tokenize_function(example):
         return tokenizer(example["sentence1"], example["sentence2"], truncation=True)
 
@@ -87,8 +88,8 @@ if __name__ == "__main__":
             "amp": True,
             "n_accumulate_grad": n_accumulate_grad
         },
+        "warmup": 30,  # 30 optim step
         "lrs_hparams": {
-            "warmup": 30,  # 30 optim step
             "T_max": ...,
             "eta_min": 4e-5
         }
@@ -111,7 +112,7 @@ if __name__ == "__main__":
         "f1": F1Score(average="none", num_classes=2)
     }
     loss_fn = nn.CrossEntropyLoss()
-    lr_s = ml.WarmupCosineAnnealingLR(optimizer, **hparams["lrs_hparams"])
+    lr_s = ml.warmup_decorator(lrs.CosineAnnealingLR, hparams["warmup"])(optimizer, **hparams["lrs_hparams"])
     lmodel = MyLModule(model, optimizer, metrics, loss_fn, lr_s, hparams)
     trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams["trainer_hparams"])
     try:

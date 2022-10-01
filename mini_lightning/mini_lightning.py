@@ -28,8 +28,8 @@ from torch.nn.parallel import DataParallel as DP, DistributedDataParallel as DDP
 from torchmetrics import Metric, MeanMetric
 #
 from .utils import (
-    en_parallel, de_parallel, get_dist_setting, select_device, 
-    logger, save_to_yaml, print_model_info, 
+    en_parallel, de_parallel, get_dist_setting, select_device,
+    logger, save_to_yaml, print_model_info,
 )
 
 
@@ -651,7 +651,7 @@ class Trainer:
         lmodel.model = de_parallel(lmodel.model)
         metrics_r: Dict[str, bool] = {k: m._to_sync for k, m in lmodel.metrics.items()}
         for m in lmodel.metrics.values():
-            # torchmetrics ==0.9.3 private variable. I don't know whether it will be changed later. 
+            # torchmetrics ==0.9.3 private variable. I don't know whether it will be changed later.
             #   You can raise issue if finding error.
             # default: sync_on_compute = True
             m._to_sync = False
@@ -680,7 +680,7 @@ class Trainer:
             with torch.no_grad():
                 batch = lmodel.batch_to_device(batch, device)
                 val_test_step(batch)
-            # 
+            #
             self._metrics_update(mean_metrics, self.new_mes, self.prog_bar_mean, device, False, False)
             rec_mes.update(self.new_mes)
             # prog_bar
@@ -779,17 +779,15 @@ class Trainer:
         cuda.empty_cache()
         return best_mes  # core_metrics is best
 
-    def test(self, dataloader: Optional[DataLoader], only_best: bool = True) -> Dict[str, float]:
-        """
-        only_best: Only test Best. test dataset can't act as a validation dataset. So it defaults to True.
-        """
+    def test(self, dataloader: Optional[DataLoader], test_best: bool = True, test_last: bool = False) -> Dict[str, float]:
         # note: If last first, last will be overridden in tensorboard. So best first.
         # if self.rank not in {-1, 0}, res_mes={}.
         res_mes = {}
-        m = self._test(dataloader, "best")
-        res_mes.update(m)
+        if test_best:
+            m = self._test(dataloader, "best")
+            res_mes.update(m)
         #
-        if not only_best:
+        if test_last:
             m = self._test(dataloader, "last")
             res_mes.update(m)
         cuda.empty_cache()
