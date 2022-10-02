@@ -122,6 +122,7 @@ def de_sync_batchnorm(module: Module, bn_type: Literal["1d", "2d", "3d"]) -> Mod
 def select_device(device_ids: List[int]) -> Device:
     """
     device: e.g. []: "cpu", [0], [0, 1, 2]
+    Note: Please select CUDA before Torch initializes CUDA, otherwise it will not work
     """
     log_s = "Using device: "
     if len(device_ids) == 0:

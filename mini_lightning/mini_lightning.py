@@ -59,7 +59,7 @@ class LModule:
         self.metrics = metrics
         if isinstance(get_core_metric, str):
             metric_name = get_core_metric
-        self.get_core_metric: Callable[[Dict[str, float]], float] = (
+        self.get_core_metric: Optional[Callable[[Dict[str, float]], float]] = (
             lambda ms: ms[metric_name]) if isinstance(get_core_metric, str) else get_core_metric
         self.hparams: Dict[str, Any] = hparams if hparams is not None else {}
         self.trainer: Optional["Trainer"] = None
@@ -67,16 +67,19 @@ class LModule:
     @ property
     def global_step(self) -> int:
         # global_step starts from 1
-        return self.trainer.global_step if self.trainer is not None else 0
+        assert self.trainer is not None
+        return self.trainer.global_step
 
     @ property
     def global_epoch(self) -> int:
         # global_epoch starts from 0
-        return self.trainer.global_epoch if self.trainer is not None else -1
+        assert self.trainer is not None
+        return self.trainer.global_epoch
 
     @ property
     def device(self) -> Optional[Device]:
-        return self.trainer.device if self.trainer is not None else None
+        assert self.trainer is not None
+        return self.trainer.device
 
     #
     def log(self, k: str, v: Union[Tensor, float], *, prog_bar_mean=True) -> None:
@@ -84,6 +87,7 @@ class LModule:
         prog_bar_mean: mean of values in epoch is showed in prog_bar. (e.g. loss, acc: True. lr: False)
             note: lr logs automatically, no manual log is required.
         """
+        assert self.trainer is not None
         if isinstance(v, Tensor):
             v = v.item()
         self.trainer.new_mes[k] = v
@@ -152,6 +156,7 @@ class LModule:
     def optimizer_step(self) -> None:
         # note: skipping the update behavior at the first step may result in a warning in lr_scheduler.
         #   Don't worry about that ~.
+        assert self.trainer is not None
         if not self.trainer.found_nan and (self.trainer.amp or not self.trainer.found_inf):
             # With amp=False, using 'self.optimizer.step()' is the same.
             self.trainer.scaler.step(self.optimizer)
@@ -199,11 +204,12 @@ class LModule:
                 mes[k] = v.item()
         #
         if mode == "val":
+            assert self.get_core_metric is not None
             core_metric = self.get_core_metric(mes)
         else:  # test
             core_metric = 0.
         #
-        mes = {f"{mode}_{k}": v for k, v in mes.items()}
+        mes: Dict[str, float] = {f"{mode}_{k}": v for k, v in mes.items()}
         self.log_dict(mes)
         return core_metric
 

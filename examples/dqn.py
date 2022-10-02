@@ -167,14 +167,14 @@ class MyLModule(ml.LModule):
         return loss
 
     @torch.no_grad()
-    def _agent_step(self) -> Tuple[float, bool]:
+    def _agent_step(self) -> Tuple[float, bool, float]:
         rand_p = self.get_rand_p(self.global_step)
         reward, done = self.agent.step(rand_p)
         if done:
             self.episode_reward = 0
         else:
             self.episode_reward += reward
-        return reward, done
+        return reward, done, rand_p
 
     def training_step(self, batch: Any) -> Tensor:
         if self.global_step % self.sync_steps == 0:
@@ -183,11 +183,12 @@ class MyLModule(ml.LModule):
         # train model
         loss = self._train_step(batch)
         # agent step in env
-        reward, done = self._agent_step()
+        reward, done, rand_p = self._agent_step()
         # log
         self.log("reward", reward, prog_bar_mean=False)
         self.log("done", done, prog_bar_mean=False)
-        self.log("episode_reward", self.episode_reward)
+        self.log("rand_p", rand_p, prog_bar_mean=False)
+        self.log("episode_reward", self.episode_reward, prog_bar_mean=False)
         self.log("loss", loss)
         return loss
 
@@ -200,7 +201,7 @@ if __name__ == "__main__":
         "device_ids": device_ids,
         "memo_capacity": 1000,
         "dataset_len": 5000,
-        "env_name": "CartPole-v1",
+        "env_name": "CartPole-v1",  # "LunarLander-v2"
         "model_hidden_size": 128,
         "optim_name": "SGD",
         "dataloader_hparams": {"batch_size": batch_size},

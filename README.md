@@ -43,7 +43,7 @@ pip install transformers>=4.22.* datasets>=2.5.*
 python examples/nlp.py
 
 ### dqn.py
-pip install gym>=0.26.1, pygame
+pip install gym>=0.26.*, pygame
 python examples/dqn.py
 
 ### cv_ddp.py; cv_ddp_spawn.py
