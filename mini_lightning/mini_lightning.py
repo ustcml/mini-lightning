@@ -195,7 +195,11 @@ class LModule:
     def _val_test_epoch_end(self, mode: Literal["val", "test"]) -> float:
         mes: Dict[str, float] = {}
         for k, metric in self.metrics.items():
-            v: Tensor = metric.compute()
+            v: Tensor
+            try:
+                v = metric.compute()
+            except RuntimeError:
+                v = torch.tensor(torch.nan)
             if v.ndim > 0:
                 mes[k] = v.mean().item()  # "macro"
                 for i in range(len(v)):
