@@ -422,6 +422,7 @@ class Trainer:
             self.save_hparams(hparams)
         #
         self.lmodel.trainer_init(self)
+        print_model_info(lmodel.model, None)
 
     @staticmethod
     def _get_version(runs_dir: str) -> int:
@@ -728,10 +729,8 @@ class Trainer:
         if self.replace_sampler_ddp and self.rank != -1:
             train_dataloader = self._replace_sampler_ddp(train_dataloader)
         #
-        model = self.lmodel.model
         mes: Dict[str, float] = {}
         best_mes: Dict[str, float] = {}
-        print_model_info(model, None)
         #
         for _ in range(self.global_epoch + 1, self.max_epochs):
             self.global_epoch += 1
