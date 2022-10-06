@@ -19,7 +19,7 @@ It will warm up memory pool at first. Fill in some memory.
 """
 
 
-RENDER_MODE: Literal["human", None] = None
+RENDER_MODE: Literal["human", None] = "human"
 RUNS_DIR = os.path.join(RUNS_DIR, "dqn")
 os.makedirs(RUNS_DIR, exist_ok=True)
 
