@@ -20,7 +20,7 @@ from tqdm import tqdm
 import numpy as np
 from numpy import ndarray
 #
-from torchmetrics import MeanMetric, Metric
+from torchmetrics import Metric
 from torchmetrics.classification.accuracy import Accuracy
 from torchmetrics.classification.precision_recall import Precision, Recall
 from torchmetrics.classification.f_beta import F1Score, FBetaScore

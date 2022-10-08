@@ -5,11 +5,6 @@
 """
 torchrun support multi-node. (recommended)
 torchrun Ref: https://pytorch.org/docs/stable/elastic/run.html
-# 
-Note: If you encounter Dataloader Aborted, You can solve this problem in the following ways:
-    1. Set pin_memory_train = False. (commended)
-    2. Set num_workers to lower, e.g. set to 1.
-    3. Reduce batch_size.
 """
 
 from pre import *
@@ -28,7 +23,7 @@ class MyLModule(ml.LModule):
                  lr_s: LRScheduler, hparams: Optional[Dict[str, Any]] = None) -> None:
         metrics = {
             "acc":  Accuracy(),
-            "loss": MeanMetric()
+            "loss": ml.LossMetric()
         }
         super().__init__(model, optimizer, metrics, "acc", hparams)
         self.loss_fn = loss_fn

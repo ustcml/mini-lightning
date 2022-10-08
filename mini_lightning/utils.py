@@ -21,14 +21,15 @@ from torch.nn.parallel import DataParallel as DP, DistributedDataParallel as DDP
 from torch.nn import Module
 from torch import Tensor, device as Device
 from torch.nn.modules.module import _IncompatibleKeys as IncompatibleKeys
+from torchmetrics import MeanMetric
 
 
 __all__ = [
     "get_dist_setting", "logger",
     "en_parallel", "de_parallel", "de_sync_batchnorm", "select_device",
-    "_remove_keys", "freeze_layers", "_stat", 
+    "_remove_keys", "freeze_layers", "_stat",
     "test_time", "seed_everything", "time_synchronize", "multi_runs",
-    "print_model_info", "save_to_yaml",
+    "print_model_info", "save_to_yaml", "LossMetric"
 ]
 #
 
@@ -315,3 +316,8 @@ def print_model_info(model: Module, inputs: Optional[Tuple[Any, ...]] = None) ->
 def save_to_yaml(obj: Any, file_path: str, encoding: str = "utf-8", mode: str = "w") -> None:
     with open(file_path, mode, encoding=encoding) as f:
         yaml.dump(obj, f)
+
+
+class LossMetric(MeanMetric):
+    is_differentiable = False
+    higher_is_better = False

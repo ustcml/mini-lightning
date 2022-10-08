@@ -19,10 +19,10 @@ class MyLModule(ml.LModule):
     def __init__(self, model: Module, optimizer: Optimizer, loss_fn: Module,
                  lr_s: LRScheduler, hparams: Optional[Dict[str, Any]] = None) -> None:
         metrics = {
-            "loss": MeanMetric(),
             "acc":  Accuracy(),
+            "loss": ml.LossMetric()
         }
-        super().__init__(model, optimizer, metrics, lambda m: m["acc"], hparams)  # or "acc"
+        super().__init__(model, optimizer, metrics, "acc", hparams)
         self.loss_fn = loss_fn
         self.lr_s = lr_s
 

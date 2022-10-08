@@ -23,7 +23,7 @@ class MyLModule(ml.LModule):
                  lr_s: LRScheduler, hparams: Optional[Dict[str, Any]] = None) -> None:
         metrics = {
             "acc":  Accuracy(),
-            "loss": MeanMetric()
+            "loss": ml.LossMetric()
         }
         super().__init__(model, optimizer, metrics, "acc", hparams)
         self.loss_fn = loss_fn

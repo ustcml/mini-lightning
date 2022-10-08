@@ -55,7 +55,7 @@ if __name__ == "__main__":
     #
     class MyLModule(ml.LModule):
         def __init__(self, model: Module, optim: Optimizer, loss_fn: Module, lr_s: LRScheduler) -> None:
-            super().__init__(model, optim, {"acc": Accuracy()}, "acc", {})
+            super().__init__(model, optim, {"acc": Accuracy()}, "acc")
             self.loss_fn = loss_fn
             self.lr_s = lr_s
 
@@ -81,8 +81,9 @@ if __name__ == "__main__":
             self.metrics["acc"].update(y, y_batch)
         #
 
-        def training_epoch_end(self) -> None:
+        def training_epoch_end(self) -> Dict[str, float]:
             self.lr_s.step()
+            return super().training_epoch_end()
 
     #
     model = MLP_L2(2, 4, 1)
@@ -92,7 +93,7 @@ if __name__ == "__main__":
     #
     lmodel = MyLModule(model, optimizer, loss_fn, lr_s)
     ldm = ml.LDataModule(train_dataset, val_dataset, test_dataset, 64)
-    trainer = ml.Trainer(lmodel, [], 100, RUNS_DIR, val_every_n_epoch=10)
+    trainer = ml.Trainer(lmodel, [], 100, RUNS_DIR, gradient_clip_norm=10, val_every_n_epoch=10, verbose=True)
     # logger.info(trainer.test(ldm.val_dataloader, False, True))
     logger.info(trainer.fit(ldm.train_dataloader, ldm.val_dataloader))
     logger.info(trainer.test(ldm.test_dataloader, True, True))

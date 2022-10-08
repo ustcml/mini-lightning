@@ -22,7 +22,7 @@ device_ids = [0]
 class MyLModule(ml.LModule):
     def __init__(self, model: Module, optimizer: Optimizer, metrics: Dict[str, Metric],
                  loss_fn: Module, lr_s: LRScheduler, hparams: Optional[Dict[str, Any]] = None) -> None:
-        super().__init__(model, optimizer, metrics, "f1", hparams)
+        super().__init__(model, optimizer, metrics, "loss", hparams)
         self.loss_fn = loss_fn
         self.lr_s = lr_s
 
@@ -101,10 +101,10 @@ if __name__ == "__main__":
         dataset["train"], dataset["validation"], dataset["test"], **hparams["dataloader_hparams"])
     #
     model = BertForSequenceClassification.from_pretrained(model_name)
-    ml.freeze_layers(model, ["bert.embeddings."] + [f"bert.encoder.layer.{i}." for i in range(2)], True)
+    ml.freeze_layers(model, ["bert.embeddings."] + [f"bert.encoder.layer.{i}." for i in range(2)], verbose=False)
     optimizer = getattr(optim, hparams["optim_name"])(model.parameters(), **hparams["optim_hparams"])
     metrics: Dict[str, Metric] = {
-        "loss": MeanMetric(),
+        "loss": ml.LossMetric(),
         "acc":  Accuracy(),
         "auc": AUROC(),  # Must be binary classification problem
         "prec": Precision(average="macro", num_classes=2),
