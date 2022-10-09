@@ -84,7 +84,7 @@ class LModule:
     #
     def log(self, k: str, v: Union[Tensor, float], *, prog_bar_mean=True) -> None:
         """
-        prog_bar_mean: mean of values in epoch is showed in prog_bar. (e.g. loss, acc: True. lr: False)
+        prog_bar_mean: mean of values in epoch is showed in prog_bar. (e.g. `loss`, `acc`: True. `lr`: False)
             note: `lr`, `global_step` logs automatically, no manual log is required.
         """
         assert self.trainer is not None
@@ -502,7 +502,7 @@ class Trainer:
         if core_metric is not None and self._better_equal(core_metric, self.best_metric, higher_is_better):
             self._remove_ckpt("best")
             self.best_metric = core_metric
-            ckpt_fname = f"best-epoch={self.global_epoch}-{core_metric_name}({tag})={core_metric:.6f}.ckpt"
+            ckpt_fname = f"best-epoch={self.global_epoch}-{core_metric_name}[{tag}]={core_metric:.6f}.ckpt"
             self.best_ckpt_path = os.path.join(self.ckpt_dir, ckpt_fname)
             self.best_epoch_idx = self.global_epoch
             self.lmodel.save_checkpoint(self.best_ckpt_path)
@@ -510,7 +510,7 @@ class Trainer:
             best_saving = True
         #
         self._remove_ckpt("last")
-        metric_str = "" if core_metric is None else f"-{core_metric_name}({tag})={core_metric:.6f}"
+        metric_str = "" if core_metric is None else f"-{core_metric_name}[{tag}]={core_metric:.6f}"
         ckpt_fname = f"last-epoch={self.global_epoch}{metric_str}.ckpt"
         self.last_ckpt_path = os.path.join(self.ckpt_dir, ckpt_fname)
         self.lmodel.save_checkpoint(self.last_ckpt_path)
@@ -645,7 +645,7 @@ class Trainer:
         prog_bar.update(batch_idx + 1 - prog_bar.n)
         prog_bar.close()
         # res_mes: If prog_bar_mean=False when logging, the value of the most recent mes is returned
-        #   If prog_bar_mean=True , the mean of mes in epoch is returned.
+        #   If prog_bar_mean=True, the mean of mes in epoch is returned.
         res_mes: Dict[str, float] = {}
         res_mes.update(rec_mes)
         res_mes.update(self._metrics_compute(mean_metrics))
@@ -753,18 +753,21 @@ class Trainer:
             self.global_epoch += 1
             mes = self._train_epoch(train_dataloader)
             #
+            tag = "Train"
+            core_metric = None
             if (self.global_epoch + 1) % self.val_every_n_epoch == 0 or self.global_epoch + 1 == self.max_epochs:
+                tag = "Train+Val"
                 core_metric, val_mes = self._val_test(val_dataloader, "val", "  Val: ", self.global_epoch)
                 mes.update(val_mes)
-                # if core_metric=None, then only save the last model.
-                if self.rank in {-1, 0}:
-                    is_best = self._model_saving(core_metric)  # save model and result
-                    self._result_saving(f"Val(Epoch={self.global_epoch})", mes)
-                    if is_best:
-                        best_mes = mes
+            # if core_metric=None, then only save the last model.
+            if self.rank in {-1, 0}:
+                is_best = self._model_saving(core_metric)  # save model and result
+                self._result_saving(f"{tag}(Epoch={self.global_epoch})", mes)
+                if is_best:
+                    best_mes = mes
 
         if not best_mes:
-            best_mes = mes  # last
+            best_mes = mes  # last, no val
         #
         return best_mes if self.rank in {-1, 0} else {}
 
@@ -808,10 +811,10 @@ class Trainer:
         return best_mes  # core_metrics is best
 
     def test(self, dataloader: Optional[DataLoader], test_best: bool = True, test_last: bool = False) -> Dict[str, float]:
-        # note: If last first, last will be overridden in tensorboard. So best first.
         # if self.rank not in {-1, 0}, res_mes={}.
         res_mes = {}
         if test_best:
+            # If last first, last will be overridden in tensorboard. So best first.
             m = self._test(dataloader, "best")
             res_mes.update(m)
         #
