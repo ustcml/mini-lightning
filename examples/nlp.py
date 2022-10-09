@@ -22,7 +22,7 @@ device_ids = [0]
 class MyLModule(ml.LModule):
     def __init__(self, model: Module, optimizer: Optimizer, metrics: Dict[str, Metric],
                  loss_fn: Module, lr_s: LRScheduler, hparams: Optional[Dict[str, Any]] = None) -> None:
-        super().__init__(model, optimizer, metrics, "loss", hparams)
+        super().__init__(model, optimizer, metrics, "f1", hparams)
         self.loss_fn = loss_fn
         self.lr_s = lr_s
 

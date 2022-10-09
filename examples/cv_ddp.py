@@ -22,8 +22,8 @@ class MyLModule(ml.LModule):
     def __init__(self, model: Module, optimizer: Optimizer, loss_fn: Module,
                  lr_s: LRScheduler, hparams: Optional[Dict[str, Any]] = None) -> None:
         metrics = {
+            "loss": ml.LossMetric(),
             "acc":  Accuracy(),
-            "loss": ml.LossMetric()
         }
         super().__init__(model, optimizer, metrics, "acc", hparams)
         self.loss_fn = loss_fn
@@ -135,9 +135,7 @@ if __name__ == "__main__":
         model = getattr(tvm, hparams["model_name"])(**hparams["model_hparams"])
         state_dict = torch.hub.load_state_dict_from_url(**hparams["model_pretrain_model"])
         state_dict = ml._remove_keys(state_dict, ["fc"])
-        if rank in {-1, 0}:
-            # DDP synchronizes the model state_dict
-            logger.info(model.load_state_dict(state_dict, strict=False))
+        logger.info(model.load_state_dict(state_dict, strict=False))
         optimizer = getattr(optim, hparams["optim_name"])(model.parameters(), **hparams["optim_hparams"])
         lr_s = ml.warmup_decorator(lrs.CosineAnnealingLR, hparams["warmup"])(optimizer, **hparams["lrs_hparams"])
         #

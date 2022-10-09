@@ -6,6 +6,7 @@ import logging
 import random
 import os
 import time
+import datetime as dt
 from typing import Any, Dict, List, Literal, Optional, Tuple, Callable, TypeVar
 from copy import deepcopy
 from collections import defaultdict
@@ -19,6 +20,7 @@ import torch.nn as nn
 import torch.cuda as cuda
 from torch.nn.parallel import DataParallel as DP, DistributedDataParallel as DDP
 from torch.nn import Module
+from torch.optim import Optimizer
 from torch import Tensor, device as Device
 from torch.nn.modules.module import _IncompatibleKeys as IncompatibleKeys
 from torchmetrics import MeanMetric
@@ -27,9 +29,10 @@ from torchmetrics import MeanMetric
 __all__ = [
     "get_dist_setting", "logger",
     "en_parallel", "de_parallel", "de_sync_batchnorm", "select_device",
-    "_remove_keys", "freeze_layers", "_stat",
+    "_remove_keys", "_key_add_suffix", "freeze_layers", "_stat",
     "test_time", "seed_everything", "time_synchronize", "multi_runs",
-    "print_model_info", "save_to_yaml", "LossMetric"
+    "print_model_info", "save_to_yaml", "LossMetric", "get_date_now",
+    "load_ckpt", "save_ckpt"
 ]
 #
 
@@ -150,6 +153,14 @@ def _remove_keys(state_dict: Dict[str, Any], prefix_keys: List[str]) -> Dict[str
                 break
         if need_saved:
             res[k] = v
+    return res
+
+
+def _key_add_suffix(_dict: Dict[str, Any], suffix: str) -> Dict[str, Any]:
+    """not inplace"""
+    res = {}
+    for k, v in _dict.items():
+        res[k + suffix] = v
     return res
 
 
@@ -321,3 +332,37 @@ def save_to_yaml(obj: Any, file_path: str, encoding: str = "utf-8", mode: str = 
 class LossMetric(MeanMetric):
     is_differentiable = False
     higher_is_better = False
+
+
+def get_date_now(fmt: str = "%Y-%m-%d %H:%M:%S.%f") -> Tuple[str, Dict[str, int]]:
+    date = dt.datetime.now()
+    mes = {
+        "year": date.year,
+        "month": date.month,  # [1..12]
+        "day": date.day,
+        "hour": date.hour,  # [0..23]
+        "minute": date.minute,
+        "second": date.second,
+        "microsecond": date.microsecond
+    }
+    return date.strftime(fmt), mes
+
+
+def save_ckpt(fpath: str, model: Module, optimizer: Optimizer, last_epoch: int, **kwargs) -> None:
+    ckpt: Dict[str, Any] = {
+        "model": model,  # including model structure
+        "optimizer_state_dict": optimizer.state_dict(),
+        "last_epoch": last_epoch,  # untrained model last_epoch=-1 (same as lr_scheduler)
+        "date": get_date_now()[0]
+    }
+    ckpt.update(kwargs)
+    torch.save(ckpt, fpath)
+
+
+def load_ckpt(fpath: str, map_location: Optional[Device] = None) -> Tuple[Module, Dict[str, Any], Dict[str, Any]]:
+    ckpt = torch.load(fpath, map_location=map_location)
+    model = ckpt["model"]
+    optimizer_state_dict = ckpt["optimizer_state_dict"]
+    ckpt.pop("model")
+    ckpt.pop("optimizer_state_dict")
+    return model, optimizer_state_dict, ckpt

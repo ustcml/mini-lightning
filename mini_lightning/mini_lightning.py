@@ -24,18 +24,20 @@ from torch.nn.utils.clip_grad import clip_grad_norm_
 from torch.cuda.amp.grad_scaler import GradScaler
 from torch.amp.autocast_mode import autocast
 from torch.nn.parallel import DataParallel as DP, DistributedDataParallel as DDP
+from torch.nn.modules.module import _IncompatibleKeys as IncompatibleKeys
 # Ref: https://torchmetrics.readthedocs.io/en/stable/pages/overview.html. (torchmetrics support ddp)
 from torchmetrics import Metric, MeanMetric
 #
 from .utils import (
     en_parallel, de_parallel, get_dist_setting, select_device,
-    logger, save_to_yaml, print_model_info,
+    logger, save_to_yaml, print_model_info, load_ckpt, save_ckpt,
+    _key_add_suffix,
 )
 
 
 # Features to be added in the future: GAN support, automatic parameter adjustment
 #   GAN Ref: https://pytorch-lightning.readthedocs.io/en/latest/notebooks/lightning_examples/basic-gan.html
-# Note: epoch_idx or global_epoch, batch_idx starts for 0. global_step starts from 1.
+# Note: global_epoch, batch_idx starts for 0. global_step starts from 1.
 __all__ = ["LModule", "LDataModule", "Trainer"]
 #
 
@@ -100,25 +102,27 @@ class LModule:
     def __call__(self, *args, **kwargs) -> Any:
         return self.model(*args, **kwargs)
 
-    def load_from_checkpoint(self, ckpt_path: str) -> None:
-        rank = get_dist_setting()[0]
-        if rank not in {-1, 0}:
-            return
-        device = next(self.model.parameters()).device
-        state_dict = torch.load(ckpt_path, map_location=device)
+    def load_state_dict(
+        self,
+        model_state_dict: Dict[str, Any],
+        strict: bool = True,
+        optimizer_state_dict: Optional[Dict[str, Any]] = None,
+    ) -> IncompatibleKeys:
+        res = None
         if isinstance(self.model, (DP, DDP)):
-            self.model.module.load_state_dict(state_dict)
+            res = self.model.module.load_state_dict(model_state_dict, strict=strict)
         else:
-            self.model.load_state_dict(state_dict)
+            res = self.model.load_state_dict(model_state_dict, strict=strict)
+        #
+        if optimizer_state_dict is not None:
+            self.optimizer.load_state_dict(optimizer_state_dict)
+        return res
 
-    def save_checkpoint(self, ckpt_path: str) -> None:
-        rank = get_dist_setting()[0]
-        if rank not in {-1, 0}:
-            return
+    def state_dict(self) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         model = de_parallel(self.model)
-        torch.save(model.state_dict(), ckpt_path)
-    #
+        return model.state_dict(), self.optimizer.state_dict()
 
+    #
     def trainer_init(self, trainer: "Trainer") -> None:
         # handle device
         self.trainer = trainer
@@ -223,7 +227,7 @@ class LModule:
 class LDataModule:
     def __init__(
         self,
-        train_dataset: Dataset,
+        train_dataset: Optional[Dataset],  # None: e.g. only test
         val_dataset: Optional[Dataset],
         test_dataset: Optional[Dataset],
         #
@@ -235,12 +239,14 @@ class LDataModule:
         shuffle_train: bool = True,
         pin_memory_train: bool = True
     ) -> None:
-
-        self.train_dataloader = DataLoader(train_dataset, batch_size, shuffle=shuffle_train,
-                                           num_workers=num_workers, pin_memory=pin_memory_train,
-                                           drop_last=drop_last_train, collate_fn=collate_fn)
+        self.train_dataloader: Optional[DataLoader] = None
         self.val_dataloader: Optional[DataLoader] = None
         self.test_dataloader: Optional[DataLoader] = None
+        #
+        if train_dataset is not None:
+            self.train_dataloader = DataLoader(train_dataset, batch_size, shuffle=shuffle_train,
+                                               num_workers=num_workers, pin_memory=pin_memory_train,
+                                               drop_last=drop_last_train, collate_fn=collate_fn)
         #
         rank = get_dist_setting()[0]
         for dataset, loader_name in zip([val_dataset, test_dataset], ["val_dataloader", "test_dataloader"]):
@@ -263,6 +269,7 @@ class Trainer:
         gradient_clip_norm: Optional[float] = None,
         sync_bn: bool = False,
         replace_sampler_ddp: bool = True,
+        resume_from_ckpt: Optional[str] = None,
         *,
         val_every_n_epoch: int = 1,
         log_every_n_steps: int = 10,
@@ -308,6 +315,7 @@ class Trainer:
             replace_sampler_ddp=False: each gpu will use the complete dataset.
             replace_sampler_ddp=True: It will slice the dataset into world_size chunks and distribute them to each gpu.
             note: Replace train_dataloader only. Because DDP uses a single gpu for val/test. 
+        resume_from_ckpt: resume from checkpoint path. This `last-*.ckpt` file type must be mini-lightning checkpoint file.
         *
         val_every_n_epoch: Frequency of validation. (the last epoch will always be validated)
         log_every_n_steps: Frequency of writing information to the tensorboard(sampling per n steps, not mean). `global_step % `
@@ -380,9 +388,8 @@ class Trainer:
         #
         self.scaler = GradScaler(enabled=amp)
         self.best_metric = None
-        self.best_epoch_idx: int = -1
-        self.best_ckpt_path: str = ""
-        self.last_ckpt_path: str = ""
+        self.best_ckpt_path: Optional[str] = None
+        self.last_ckpt_path: Optional[str] = None
         self.global_step = 0
         self.global_epoch = -1
         # for log
@@ -413,6 +420,9 @@ class Trainer:
             self.tb_logger = SummaryWriter(self.tb_dir)
             hparams = self.lmodel.hparams
             self.save_hparams(hparams)
+        #
+        if resume_from_ckpt is not None:
+            self._load_ckpt(resume_from_ckpt)
         #
         self.lmodel.trainer_init(self)
         print_model_info(lmodel.model, None)
@@ -448,6 +458,8 @@ class Trainer:
         return res
 
     def save_hparams(self, hparams: Dict[str, Any]) -> None:
+        if self.rank not in {-1, 0}:
+            return
         saved_hparams = self._check_hparams(hparams)
         logger.info(f"Saving hparams: {saved_hparams}")
         save_to_yaml(saved_hparams, self.hparams_path)
@@ -472,16 +484,20 @@ class Trainer:
         return res
 
     def _tb_logger_add_scalars(self, mes: Dict[str, float], step: int) -> None:
+        if self.rank not in {-1, 0}:
+            return
         for k, v in mes.items():
             self.tb_logger.add_scalar(k, v, global_step=step)
 
     def _remove_ckpt(self, mode: str) -> None:
-        if mode == "best" and self.best_ckpt_path:
+        if mode == "best" and self.best_ckpt_path is not None:
             os.remove(self.best_ckpt_path)
-        elif mode == "last" and self.last_ckpt_path:
+        elif mode == "last" and self.last_ckpt_path is not None:
             os.remove(self.last_ckpt_path)
 
     def _result_saving(self, title: str, mes: Dict[str, float]) -> None:
+        if self.rank not in {-1, 0}:
+            return
         save_to_yaml({title: mes}, self.result_path, mode="a")
 
     @staticmethod
@@ -493,27 +509,52 @@ class Trainer:
         else:
             return metric <= old_metric
 
+    def _save_ckpt(self, fpath: str) -> None:
+        if self.rank not in {-1, 0}:
+            return
+        kwargs = {
+            "global_step": self.global_step,
+            "core_metric": {
+                "name": self.lmodel.core_metric_name,
+                "higher_is_better": self.lmodel.higher_is_better,
+                "best_value": self.best_metric
+            }
+        }
+        save_ckpt(fpath, de_parallel(self.lmodel.model), self.lmodel.optimizer, self.global_epoch, **kwargs)
+
+    def _load_ckpt(self, fpath: str) -> None:
+        device = next(self.lmodel.model.parameters()).device
+        new_model, optimizer_state_dict, mes = load_ckpt(fpath, device)
+        self.lmodel.load_state_dict(new_model.state_dict(), True, optimizer_state_dict)
+        self.global_epoch = mes["last_epoch"]
+        self.global_step = mes["global_step"]
+
     def _model_saving(self, core_metric: Optional[float]) -> bool:
-        core_metric_name = self.lmodel.core_metric_name
-        higher_is_better = self.lmodel.higher_is_better
-        assert higher_is_better is not None
-        tag = "+" if higher_is_better else "-"
         best_saving = False
-        if core_metric is not None and self._better_equal(core_metric, self.best_metric, higher_is_better):
-            self._remove_ckpt("best")
-            self.best_metric = core_metric
-            ckpt_fname = f"best-epoch={self.global_epoch}-{core_metric_name}[{tag}]={core_metric:.6f}.ckpt"
-            self.best_ckpt_path = os.path.join(self.ckpt_dir, ckpt_fname)
-            self.best_epoch_idx = self.global_epoch
-            self.lmodel.save_checkpoint(self.best_ckpt_path)
-            print((f"- Best model, saving model `{ckpt_fname}`"))
-            best_saving = True
+        if self.rank not in {-1, 0}:
+            return best_saving
+        #
+        core_metric_name = None
+        tag = None
+        if core_metric is not None:
+            core_metric_name = self.lmodel.core_metric_name
+            higher_is_better = self.lmodel.higher_is_better
+            assert higher_is_better is not None
+            tag = "+" if higher_is_better else "-"
+            if self._better_equal(core_metric, self.best_metric, higher_is_better):
+                self._remove_ckpt("best")
+                self.best_metric = core_metric
+                ckpt_fname = f"best-epoch={self.global_epoch}-{core_metric_name}[{tag}]={core_metric:.6f}.ckpt"
+                self.best_ckpt_path = os.path.join(self.ckpt_dir, ckpt_fname)
+                self._save_ckpt(self.best_ckpt_path)
+                print((f"- Best model, saving model `{ckpt_fname}`"))
+                best_saving = True
         #
         self._remove_ckpt("last")
-        metric_str = "" if core_metric is None else f"-{core_metric_name}[{tag}]={core_metric:.6f}"
+        metric_str = f"-{core_metric_name}[{tag}]={core_metric:.6f}" if core_metric is not None else ""
         ckpt_fname = f"last-epoch={self.global_epoch}{metric_str}.ckpt"
         self.last_ckpt_path = os.path.join(self.ckpt_dir, ckpt_fname)
-        self.lmodel.save_checkpoint(self.last_ckpt_path)
+        self._save_ckpt(self.last_ckpt_path)
         return best_saving
 
     @staticmethod
@@ -530,17 +571,23 @@ class Trainer:
                 res[k] = new_mes[k]
         return res
 
-    def _reduce_mes(self, mes: Dict[str, float], device: Device) -> Dict[str, float]:
+    def _get_tb_mes(self, mes: Dict[str, float], device: Device) -> Dict[str, float]:
         """not inplace. ddp"""
+        tb_mes = {}
         if self.rank == -1:
-            return mes.copy()
-        tensors = torch.tensor([v for v in mes.values()]).to(device)
-        dist.reduce(tensors, dst=0, op=dist.ReduceOp.SUM)
-        tensors /= self.world_size
-        res = {}
-        for k, t in zip(mes.keys(), tensors):
-            res[k] = t.item()
-        return res if self.rank == 0 else {}
+            tb_mes = mes.copy()
+        else:  # reduce all gpu
+            tensors = torch.tensor([v for v in mes.values()]).to(device)
+            dist.reduce(tensors, dst=0, op=dist.ReduceOp.SUM)
+            tensors /= self.world_size
+            
+            for k, t in zip(mes.keys(), tensors):
+                tb_mes[k] = t.item()
+        if self.rank > 0:
+            tb_mes = {}
+        else:
+            tb_mes.pop("global_step")
+        return tb_mes
 
     @staticmethod
     def _get_epoch_end_log_string(log_mes: Dict[str, float]) -> str:
@@ -637,10 +684,8 @@ class Trainer:
                 prog_bar.update(self.prog_bar_n_steps)
             # tensorboard
             if self.global_step % self.log_every_n_steps == 0:
-                tb_mes = self._reduce_mes(rec_mes, device)  # reduce all gpu
-                if self.rank in {-1, 0}:
-                    tb_mes.pop("global_step")
-                    self._tb_logger_add_scalars(tb_mes, self.global_step)
+                tb_mes = self._get_tb_mes(rec_mes, device)
+                self._tb_logger_add_scalars(tb_mes, self.global_step)
         #
         prog_bar.update(batch_idx + 1 - prog_bar.n)
         prog_bar.close()
@@ -658,8 +703,9 @@ class Trainer:
         res_mes.update({"global_epoch": self.global_epoch})
         return res_mes
 
-    def _val_test(self, dataloader: Optional[DataLoader], mode: Literal["val", "test"],
-                  desc: str, epoch_idx: int) -> Tuple[Optional[float], Dict[str, float]]:
+    def _val_test(
+        self, dataloader: Optional[DataLoader], mode: Literal["val", "test"], desc: str
+    ) -> Tuple[Optional[float], Dict[str, float]]:
         # if core_metric returns None, then val/test was not performed. (e.g. in DDP mode, self.rank>0)
         if self.rank not in {-1, 0}:
             dist.barrier()
@@ -728,9 +774,9 @@ class Trainer:
             core_metric = float("nan")
         print("- " + self._get_epoch_end_log_string(metrics))
         res_mes.update(metrics)
-        self._tb_logger_add_scalars(res_mes, epoch_idx)
-        res_mes.update({"global_epoch": epoch_idx})
-        # restore
+        self._tb_logger_add_scalars(res_mes, self.global_epoch)
+        res_mes.update({"global_epoch": self.global_epoch})
+        # recover
         lmodel.model = model_r
         for k, b in metrics_r.items():
             lmodel.metrics[k]._to_sync = b
@@ -757,61 +803,49 @@ class Trainer:
             core_metric = None
             if (self.global_epoch + 1) % self.val_every_n_epoch == 0 or self.global_epoch + 1 == self.max_epochs:
                 tag = "Train+Val"
-                core_metric, val_mes = self._val_test(val_dataloader, "val", "  Val: ", self.global_epoch)
+                core_metric, val_mes = self._val_test(val_dataloader, "val", "  Val: ")
                 mes.update(val_mes)
             # if core_metric=None, then only save the last model.
-            if self.rank in {-1, 0}:
-                is_best = self._model_saving(core_metric)  # save model and result
-                self._result_saving(f"{tag}(Epoch={self.global_epoch})", mes)
-                if is_best:
-                    best_mes = mes
+            is_best = self._model_saving(core_metric)  # save model and result
+            self._result_saving(f"{tag}(Epoch={self.global_epoch})", mes)
+            if is_best:
+                best_mes = mes
 
         if not best_mes:
             best_mes = mes  # last, no val
         #
-        return best_mes if self.rank in {-1, 0} else {}
+        return best_mes
 
     def _test(self, dataloader: Optional[DataLoader],
               model_type: Literal["last", "best"]) -> Dict[str, float]:
-        if self.rank in {-1, 0} and model_type == "best" and not self.best_ckpt_path:
-            return {}
         #
+        desc = ""  # avoid unbound
+        title = ""
         if model_type == "best":
-            self.lmodel.load_from_checkpoint(self.best_ckpt_path)
-            epoch_idx = self.best_epoch_idx
-            title = f"Test Best(Epoch={epoch_idx})"
-
+            assert self.best_ckpt_path is not None
+            self._load_ckpt(self.best_ckpt_path)
+            title = f"Test Best(Epoch={self.global_epoch})"
         else:
-            epoch_idx = self.global_epoch
-            title = f"Test Last(Epoch={epoch_idx})"
+            title = f"Test Last(Epoch={self.global_epoch})"
         desc = title + ": "
         #
-        _, res_mes = self._val_test(dataloader, "test", desc, epoch_idx)
+        _, res_mes = self._val_test(dataloader, "test", desc)
         self._result_saving(title, res_mes)
         #
         if model_type == "best":
-            self.lmodel.load_from_checkpoint(self.last_ckpt_path)  # restore
-            res_mes = self._key_add_suffix(res_mes, "_best")
+            assert self.last_ckpt_path is not None
+            self._load_ckpt(self.last_ckpt_path)
+            res_mes = _key_add_suffix(res_mes, "_best")
         else:
-            res_mes = self._key_add_suffix(res_mes, "_last")
-        return res_mes if self.rank in {-1, 0} else {}
-
-    @staticmethod
-    def _key_add_suffix(mes: Dict[str, Any], suffix: str) -> Dict[str, Any]:
-        """not inplace"""
-        res = {}
-        for k, v in mes.items():
-            res[k + suffix] = v
-        return res
+            res_mes = _key_add_suffix(res_mes, "_last")
+        return res_mes
 
     def fit(self, train_dataloader: DataLoader, val_dataloader: Optional[DataLoader]) -> Dict[str, float]:
-        # if self.rank not in {-1, 0}, best_mes={}.
         best_mes = self._train(train_dataloader, val_dataloader)
         cuda.empty_cache()
-        return best_mes  # core_metrics is best
+        return best_mes if self.rank in {-1, 0} else {}  # core_metrics is best
 
     def test(self, dataloader: Optional[DataLoader], test_best: bool = True, test_last: bool = False) -> Dict[str, float]:
-        # if self.rank not in {-1, 0}, res_mes={}.
         res_mes = {}
         if test_best:
             # If last first, last will be overridden in tensorboard. So best first.
@@ -822,4 +856,4 @@ class Trainer:
             m = self._test(dataloader, "last")
             res_mes.update(m)
         cuda.empty_cache()
-        return res_mes
+        return res_mes if self.rank in {-1, 0} else {}

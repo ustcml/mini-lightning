@@ -19,8 +19,8 @@ class MyLModule(ml.LModule):
     def __init__(self, model: Module, optimizer: Optimizer, loss_fn: Module,
                  lr_s: LRScheduler, hparams: Optional[Dict[str, Any]] = None) -> None:
         metrics = {
+            "loss": ml.LossMetric(),
             "acc":  Accuracy(),
-            "loss": ml.LossMetric()
         }
         super().__init__(model, optimizer, metrics, "acc", hparams)
         self.loss_fn = loss_fn

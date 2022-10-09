@@ -52,15 +52,15 @@ class TestLrs(ut.TestCase):
         lrs = ml.warmup_decorator(CosineAnnealingLR, warmup)(optim, T_max, eta_min)
         for i in range(max_epoch):
             lr = lrs.get_last_lr()[0]
-            lr2 = ml.cosine_annealing_lr(i + 1, T_max, eta_min, [initial_lr])[0]
+            lr2 = ml.cosine_annealing_lr(i, T_max, eta_min, [initial_lr])[0]
             b, atol = allclose(lr, lr2)
             if i == 0:
                 self.assertTrue(lr > 0)  # !=0
-            elif i == warmup - 2:
+            elif i == warmup - 1:
                 self.assertTrue(not b)
-            elif i >= warmup - 1:
+            elif i >= warmup:
                 self.assertTrue(b, msg=f"atol: {atol}")
-                if i == T_max - 1:
+                if i == T_max:
                     self.assertTrue(lr == eta_min)
             optim.step()
             lrs.step()
