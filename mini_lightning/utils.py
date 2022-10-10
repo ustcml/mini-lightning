@@ -22,7 +22,6 @@ from torch.nn.parallel import DataParallel as DP, DistributedDataParallel as DDP
 from torch.nn import Module
 from torch.optim import Optimizer
 from torch import Tensor, device as Device
-from torch.nn.modules.module import _IncompatibleKeys as IncompatibleKeys
 from torchmetrics import MeanMetric
 
 
@@ -348,10 +347,10 @@ def get_date_now(fmt: str = "%Y-%m-%d %H:%M:%S.%f") -> Tuple[str, Dict[str, int]
     return date.strftime(fmt), mes
 
 
-def save_ckpt(fpath: str, model: Module, optimizer: Optimizer, last_epoch: int, **kwargs) -> None:
+def save_ckpt(fpath: str, model: Module, optimizer: Optional[Optimizer], last_epoch: int, **kwargs) -> None:
     ckpt: Dict[str, Any] = {
         "model": model,  # including model structure
-        "optimizer_state_dict": optimizer.state_dict(),
+        "optimizer_state_dict": optimizer.state_dict() if optimizer is not None else None,
         "last_epoch": last_epoch,  # untrained model last_epoch=-1 (same as lr_scheduler)
         "date": get_date_now()[0]
     }

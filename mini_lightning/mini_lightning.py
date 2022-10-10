@@ -46,7 +46,7 @@ class LModule:
     def __init__(
         self,
         model: Module,
-        optimizer: Optimizer,
+        optimizer: Optional[Optimizer],
         metrics: Dict[str, Metric],
         core_metric: Optional[str],
         hparams: Optional[Dict[str, Any]] = None
@@ -114,13 +114,13 @@ class LModule:
         else:
             res = self.model.load_state_dict(model_state_dict, strict=strict)
         #
-        if optimizer_state_dict is not None:
+        if self.optimizer is not None and optimizer_state_dict is not None:
             self.optimizer.load_state_dict(optimizer_state_dict)
         return res
 
-    def state_dict(self) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    def state_dict(self) -> Tuple[Dict[str, Any], Optional[Dict[str, Any]]]:
         model = de_parallel(self.model)
-        return model.state_dict(), self.optimizer.state_dict()
+        return model.state_dict(), (self.optimizer.state_dict() if self.optimizer is not None else None)
 
     #
     def trainer_init(self, trainer: "Trainer") -> None:
@@ -233,12 +233,15 @@ class LDataModule:
         #
         batch_size: int,
         num_workers: int = 0,
-        collate_fn: Optional[Callable[[List[Any]], Any]] = None,
+        collate_fn: Optional[Callable[[List[Any]], Any]] = None,  # for test/val and (train if collate_fn_train is None)
         *,
-        drop_last_train: bool = True,  # If DP/DDP, drop_last=False may cause uneven split
         shuffle_train: bool = True,
-        pin_memory_train: bool = True
+        pin_memory_train: bool = True,
+        drop_last_train: bool = True,  # If DP/DDP, drop_last=False may cause uneven split
+        collate_fn_train: Optional[Callable[[List[Any]], Any]] = None,
     ) -> None:
+        if collate_fn_train is None:
+            collate_fn_train = collate_fn
         self.train_dataloader: Optional[DataLoader] = None
         self.val_dataloader: Optional[DataLoader] = None
         self.test_dataloader: Optional[DataLoader] = None
@@ -246,7 +249,7 @@ class LDataModule:
         if train_dataset is not None:
             self.train_dataloader = DataLoader(train_dataset, batch_size, shuffle=shuffle_train,
                                                num_workers=num_workers, pin_memory=pin_memory_train,
-                                               drop_last=drop_last_train, collate_fn=collate_fn)
+                                               drop_last=drop_last_train, collate_fn=collate_fn_train)
         #
         rank = get_dist_setting()[0]
         for dataset, loader_name in zip([val_dataset, test_dataset], ["val_dataloader", "test_dataloader"]):
@@ -534,24 +537,23 @@ class Trainer:
         if self.rank not in {-1, 0}:
             return best_saving
         #
-        core_metric_name = None
-        tag = None
+        metric_str = ""
         if core_metric is not None:
             core_metric_name = self.lmodel.core_metric_name
             higher_is_better = self.lmodel.higher_is_better
             assert higher_is_better is not None
             tag = "+" if higher_is_better else "-"
+            metric_str = f"-{core_metric_name}[{tag}]={core_metric:.6f}"
             if self._better_equal(core_metric, self.best_metric, higher_is_better):
                 self._remove_ckpt("best")
                 self.best_metric = core_metric
-                ckpt_fname = f"best-epoch={self.global_epoch}-{core_metric_name}[{tag}]={core_metric:.6f}.ckpt"
+                ckpt_fname = f"best-epoch={self.global_epoch}{metric_str}.ckpt"
                 self.best_ckpt_path = os.path.join(self.ckpt_dir, ckpt_fname)
                 self._save_ckpt(self.best_ckpt_path)
                 print((f"- Best model, saving model `{ckpt_fname}`"))
                 best_saving = True
         #
         self._remove_ckpt("last")
-        metric_str = f"-{core_metric_name}[{tag}]={core_metric:.6f}" if core_metric is not None else ""
         ckpt_fname = f"last-epoch={self.global_epoch}{metric_str}.ckpt"
         self.last_ckpt_path = os.path.join(self.ckpt_dir, ckpt_fname)
         self._save_ckpt(self.last_ckpt_path)
@@ -580,7 +582,6 @@ class Trainer:
             tensors = torch.tensor([v for v in mes.values()]).to(device)
             dist.reduce(tensors, dst=0, op=dist.ReduceOp.SUM)
             tensors /= self.world_size
-            
             for k, t in zip(mes.keys(), tensors):
                 tb_mes[k] = t.item()
         if self.rank > 0:
@@ -612,6 +613,7 @@ class Trainer:
 
     def _train_epoch(self, dataloader: DataLoader) -> Dict[str, float]:
         lmodel = self.lmodel
+        assert lmodel.optimizer is not None
         lmodel.training_epoch_start()
         model = lmodel.model
         device = self.device
@@ -852,7 +854,7 @@ class Trainer:
             m = self._test(dataloader, "best")
             res_mes.update(m)
         #
-        if test_last:
+        if test_last:  # just current model
             m = self._test(dataloader, "last")
             res_mes.update(m)
         cuda.empty_cache()

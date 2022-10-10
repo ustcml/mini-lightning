@@ -54,8 +54,9 @@ if __name__ == "__main__":
 
     #
     class MyLModule(ml.LModule):
-        def __init__(self, model: Module, optim: Optimizer, loss_fn: Module, core_metric: str) -> None:
-            super().__init__(model, optim, {"loss": ml.LossMetric(), "acc": Accuracy()}, core_metric)
+        def __init__(self, model: Module, optim: Optional[Optimizer], loss_fn: Module,
+                     metrics: Dict[str, Metric], core_metric: str) -> None:
+            super().__init__(model, optim, metrics, core_metric)
             self.loss_fn = loss_fn
 
         def trainer_init(self, trainer: "ml.Trainer") -> None:
@@ -90,13 +91,13 @@ if __name__ == "__main__":
         def training_epoch_end(self) -> Dict[str, float]:
             self.lr_s.step()
             return super().training_epoch_end()
-
+    loss_fn = nn.BCEWithLogitsLoss()
+    metrics = {"loss": ml.LossMetric(), "acc": Accuracy()}
     #
     model = MLP_L2(2, 4, 1)
     optimizer = optim.SGD(model.parameters(), 0.1, 0.9)
-    loss_fn = nn.BCEWithLogitsLoss()
     #
-    lmodel = MyLModule(model, optimizer, loss_fn, "acc")
+    lmodel = MyLModule(model, optimizer, loss_fn, metrics, "acc")
     ldm = ml.LDataModule(train_dataset, val_dataset, test_dataset, 64)
     trainer = ml.Trainer(lmodel, [], 40, RUNS_DIR, gradient_clip_norm=10, val_every_n_epoch=10, verbose=True)
     logger.info(trainer.test(ldm.val_dataloader, False, True))
@@ -104,16 +105,25 @@ if __name__ == "__main__":
     logger.info(trainer.test(ldm.test_dataloader, True, True))
 
     # from ckpt
-    time.sleep(5)
+    time.sleep(1)
     ckpt_path = trainer.last_ckpt_path
     model = MLP_L2(2, 4, 1)
     optimizer = optim.SGD(model.parameters(), 0.1, 0.9)
-    loss_fn = nn.BCEWithLogitsLoss()
     #
-    lmodel = MyLModule(model, optimizer, loss_fn, "loss")
+    lmodel = MyLModule(model, optimizer, loss_fn, metrics, "loss")
     ldm = ml.LDataModule(train_dataset, val_dataset, test_dataset, 64)
     trainer = ml.Trainer(lmodel, [], 100, RUNS_DIR, gradient_clip_norm=10,
                          val_every_n_epoch=10, verbose=True, resume_from_ckpt=ckpt_path)
     logger.info(trainer.test(ldm.val_dataloader, False, True))
     logger.info(trainer.fit(ldm.train_dataloader, ldm.val_dataloader))
     logger.info(trainer.test(ldm.test_dataloader, True, True))
+
+    # only test, from ckpt
+    time.sleep(1)
+    ckpt_path = trainer.last_ckpt_path
+    model = MLP_L2(2, 4, 1)
+    #
+    lmodel = MyLModule(model, None, loss_fn, metrics, "loss")
+    ldm = ml.LDataModule(train_dataset, val_dataset, test_dataset, 64)
+    trainer = ml.Trainer(lmodel, [], None, RUNS_DIR, resume_from_ckpt=ckpt_path)
+    logger.info(trainer.test(ldm.val_dataloader, False, True))
