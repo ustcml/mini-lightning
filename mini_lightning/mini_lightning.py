@@ -45,7 +45,7 @@ __all__ = ["LModule", "LDataModule", "Trainer"]
 class LModule:
     def __init__(
         self,
-        model: Module,
+        model: Optional[Module],
         optimizer: Optional[Optimizer],
         metrics: Dict[str, Metric],
         core_metric: Optional[str],
@@ -55,7 +55,7 @@ class LModule:
         core_metric: for model saving
         hparams: Hyperparameters to be saved
         """
-        self.model = model
+        self.model: Module = model
         self.optimizer = optimizer
         self.metrics = metrics
         self.core_metric_name = core_metric
@@ -104,19 +104,17 @@ class LModule:
 
     def load_state_dict(
         self,
-        model_state_dict: Dict[str, Any],
-        strict: bool = True,
+        model_state_dict: Optional[Dict[str, Any]] = None,
         optimizer_state_dict: Optional[Dict[str, Any]] = None,
-    ) -> IncompatibleKeys:
-        res = None
-        if isinstance(self.model, (DP, DDP)):
-            res = self.model.module.load_state_dict(model_state_dict, strict=strict)
-        else:
-            res = self.model.load_state_dict(model_state_dict, strict=strict)
+    ) -> None:
+        if model_state_dict is not None:
+            if isinstance(self.model, (DP, DDP)):
+                self.model.module.load_state_dict(model_state_dict, strict=True)
+            else:
+                self.model.load_state_dict(model_state_dict, strict=True)
         #
         if self.optimizer is not None and optimizer_state_dict is not None:
             self.optimizer.load_state_dict(optimizer_state_dict)
-        return res
 
     def state_dict(self) -> Tuple[Dict[str, Any], Optional[Dict[str, Any]]]:
         model = de_parallel(self.model)
@@ -126,6 +124,7 @@ class LModule:
     def trainer_init(self, trainer: "Trainer") -> None:
         # handle device
         self.trainer = trainer
+        assert self.model is not None
         self.model.to(trainer.device)
         self.model = en_parallel(self.model, trainer.parallel_mode, trainer.sync_bn)
         for metric in self.metrics.values():
@@ -425,7 +424,7 @@ class Trainer:
             self.save_hparams(hparams)
         #
         if resume_from_ckpt is not None:
-            self._load_ckpt(resume_from_ckpt)
+            self._load_ckpt(resume_from_ckpt, self.device)
         #
         self.lmodel.trainer_init(self)
         print_model_info(lmodel.model, None)
@@ -525,10 +524,10 @@ class Trainer:
         }
         save_ckpt(fpath, de_parallel(self.lmodel.model), self.lmodel.optimizer, self.global_epoch, **kwargs)
 
-    def _load_ckpt(self, fpath: str) -> None:
-        device = next(self.lmodel.model.parameters()).device
-        new_model, optimizer_state_dict, mes = load_ckpt(fpath, device)
-        self.lmodel.load_state_dict(new_model.state_dict(), True, optimizer_state_dict)
+    def _load_ckpt(self, fpath: str, map_location: Optional[Device] = None) -> None:
+        new_model, optimizer_state_dict, mes = load_ckpt(fpath, map_location)
+        self.lmodel.model = new_model
+        self.lmodel.load_state_dict(None, optimizer_state_dict)
         self.global_epoch = mes["last_epoch"]
         self.global_step = mes["global_step"]
 
@@ -825,7 +824,7 @@ class Trainer:
         title = ""
         if model_type == "best":
             assert self.best_ckpt_path is not None
-            self._load_ckpt(self.best_ckpt_path)
+            self._load_ckpt(self.best_ckpt_path, self.device)
             title = f"Test Best(Epoch={self.global_epoch})"
         else:
             title = f"Test Last(Epoch={self.global_epoch})"
@@ -836,7 +835,7 @@ class Trainer:
         #
         if model_type == "best":
             assert self.last_ckpt_path is not None
-            self._load_ckpt(self.last_ckpt_path)
+            self._load_ckpt(self.last_ckpt_path, self.device)
             res_mes = _key_add_suffix(res_mes, "_best")
         else:
             res_mes = _key_add_suffix(res_mes, "_last")

@@ -2,6 +2,7 @@ import unittest as ut
 #
 import torch
 import torch.nn as nn
+from torch import optim
 #
 import mini_lightning as ml
 
@@ -46,6 +47,22 @@ class TestUtils(ut.TestCase):
         ml.print_model_info(model, (input, ))
         ml.print_model_info(model)
         ml.print_model_info(model, (input, ))
+
+    def test_ckpt(self):
+        model = nn.Linear(10, 10)
+        optimizer = optim.SGD(model.parameters(), lr=0.1, momentum=0.9)
+        for i in range(10):
+            x = torch.randn(10, 10)
+            loss = model(x).mean()
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+        ml.save_ckpt("asset/tmp.ckpt", model, optimizer, 0)
+        #
+        model, optimizer_state_dict, mes = ml.load_ckpt("asset/tmp.ckpt")
+        optimizer2 = optim.SGD(model.parameters(), lr=0.1, momentum=0.9)
+        optimizer2.load_state_dict(optimizer_state_dict)
+        print(mes)
 
 
 if __name__ == "__main__":
