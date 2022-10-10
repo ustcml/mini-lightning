@@ -127,7 +127,7 @@ if __name__ == "__main__":
         lmodel = MyLModule(model, optimizer, loss_fn, lr_s, hparams)
         trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams["trainer_hparams"])
         res = trainer.fit(ldm.train_dataloader, ldm.val_dataloader)
-        res2 = trainer.test(ldm.test_dataloader)
+        res2 = trainer.test(ldm.test_dataloader, True, True)
         res.update(res2)
         return res
     res = ml.multi_runs(collect_res, 3, seed=42)

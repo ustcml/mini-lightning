@@ -100,7 +100,7 @@ if __name__ == "__main__":
     lmodel = MyLModule(model, optimizer, loss_fn, metrics, "acc")
     ldm = ml.LDataModule(train_dataset, val_dataset, test_dataset, 64)
     trainer = ml.Trainer(lmodel, [], 40, RUNS_DIR, gradient_clip_norm=10, val_every_n_epoch=10, verbose=True)
-    logger.info(trainer.test(ldm.val_dataloader, False, True))
+    logger.info(trainer.test(ldm.val_dataloader, True, True))
     logger.info(trainer.fit(ldm.train_dataloader, ldm.val_dataloader))
     logger.info(trainer.test(ldm.test_dataloader, True, True))
 
@@ -113,7 +113,7 @@ if __name__ == "__main__":
     ldm = ml.LDataModule(train_dataset, val_dataset, test_dataset, 64)
     trainer = ml.Trainer(lmodel, [0], 100, RUNS_DIR, gradient_clip_norm=10,
                          val_every_n_epoch=10, verbose=True, resume_from_ckpt=ckpt_path)
-    logger.info(trainer.test(ldm.val_dataloader, False, True))
+    logger.info(trainer.test(ldm.val_dataloader, True, True))
     logger.info(trainer.fit(ldm.train_dataloader, ldm.val_dataloader))
     logger.info(trainer.test(ldm.test_dataloader, True, True))
 
@@ -124,4 +124,4 @@ if __name__ == "__main__":
     lmodel = MyLModule(None, None, loss_fn, metrics, "loss")
     ldm = ml.LDataModule(train_dataset, val_dataset, test_dataset, 64)
     trainer = ml.Trainer(lmodel, [], None, RUNS_DIR, resume_from_ckpt=ckpt_path)
-    logger.info(trainer.test(ldm.test_dataloader, False, True))
+    logger.info(trainer.test(ldm.test_dataloader, True, True))

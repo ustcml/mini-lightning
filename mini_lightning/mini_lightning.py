@@ -846,15 +846,36 @@ class Trainer:
         cuda.empty_cache()
         return best_mes if self.rank in {-1, 0} else {}  # core_metrics is best
 
-    def test(self, dataloader: Optional[DataLoader], test_best: bool = True, test_last: bool = False) -> Dict[str, float]:
+    def _best_ckpt_is_last(self) -> bool:
+        if self.best_ckpt_path is None or self.last_ckpt_path is None:
+            return False
+
+        best_ckpt_fname = os.path.basename(self.best_ckpt_path)
+        m = re.match(r"best-epoch=(\d+)", best_ckpt_fname)
+        assert m is not None
+        best_epoch_idx = m.group(1)
+        last_ckpt_fname = os.path.basename(self.last_ckpt_path)
+        m = re.match(r"last-epoch=(\d+)", last_ckpt_fname)
+        assert m is not None
+        last_epoch_idx = m.group(1)
+        return best_epoch_idx == last_epoch_idx
+
+    def test(self, dataloader: Optional[DataLoader], test_best: bool = False, test_last: bool = True) -> Dict[str, float]:
         res_mes = {}
         if test_best:
             # If last first, last will be overridden in tensorboard. So best first.
-            m = self._test(dataloader, "best")
-            res_mes.update(m)
+            if self.best_ckpt_path is None:
+                logger.warning("Ignore test best: self.best_ckpt_path is None")
+                test_best = False
+            else:
+                m = self._test(dataloader, "best")
+                res_mes.update(m)
         #
         if test_last:  # just current model
-            m = self._test(dataloader, "last")
-            res_mes.update(m)
+            if self._best_ckpt_is_last() and test_best is True:
+                logger.info("Ignore test last: the best ckpt is the last ckpt")
+            else:
+                m = self._test(dataloader, "last")
+                res_mes.update(m)
         cuda.empty_cache()
         return res_mes if self.rank in {-1, 0} else {}

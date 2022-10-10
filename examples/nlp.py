@@ -122,4 +122,4 @@ if __name__ == "__main__":
         logger.info("KeyboardInterrupt Detected...")
         raise
     finally:
-        logger.info(trainer.test(ldm.test_dataloader))
+        logger.info(trainer.test(ldm.test_dataloader, True, True))
