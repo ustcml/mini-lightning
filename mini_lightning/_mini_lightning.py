@@ -873,7 +873,7 @@ class Trainer:
         #
         if test_last:  # just current model
             if self._best_ckpt_is_last() and test_best is True:
-                logger.info("Ignore test last: the best ckpt is the last ckpt")
+                logger.info("Ignore test last: the best ckpt and the last ckpt is the same")
             else:
                 m = self._test(dataloader, "last")
                 res_mes.update(m)

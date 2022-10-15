@@ -5,7 +5,6 @@
 import math
 from typing import List, Callable, Union, Dict, Optional
 #
-from torch.optim.lr_scheduler import _LRScheduler as LRScheduler, CosineAnnealingLR
 from torch.optim import Optimizer
 __all__ = ["get_T_max", "warmup_decorator", "cosine_annealing_lr"]
 

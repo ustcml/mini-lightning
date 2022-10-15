@@ -206,7 +206,7 @@ if __name__ == "__main__":
         "optim_name": "SGD",
         "dataloader_hparams": {"batch_size": batch_size},
         "optim_hparams": {"lr": 1e-2, "weight_decay": 1e-4},  #
-        "trainer_hparams": {"max_epochs": max_epochs, "gradient_clip_norm": 20},
+        "trainer_hparams": {"max_epochs": max_epochs, "gradient_clip_norm": 20, "verbose": False},
         #
         "rand_p": {
             "eta_max": 1,
