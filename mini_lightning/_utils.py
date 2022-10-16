@@ -116,9 +116,7 @@ def de_sync_batchnorm(module: Module, bn_type: Literal["1d", "2d", "3d"]) -> Mod
         return res
     #
     for k, v in module.named_children():
-        module.add_module(
-            k, de_sync_batchnorm(v, bn_type)
-        )
+        setattr(module, k, de_sync_batchnorm(v, bn_type))
     return module
 
 
@@ -331,6 +329,7 @@ def save_to_yaml(obj: Any, file_path: str, encoding: str = "utf-8", mode: str = 
 class LossMetric(MeanMetric):
     is_differentiable = False
     higher_is_better = False
+    full_state_update = False
 
 
 def get_date_now(fmt: str = "%Y-%m-%d %H:%M:%S.%f") -> Tuple[str, Dict[str, int]]:

@@ -28,7 +28,7 @@ from torch.nn.modules.module import _IncompatibleKeys as IncompatibleKeys
 # Ref: https://torchmetrics.readthedocs.io/en/stable/pages/overview.html. (torchmetrics support ddp)
 from torchmetrics import Metric, MeanMetric
 #
-from .utils import (
+from ._utils import (
     en_parallel, de_parallel, get_dist_setting, select_device,
     logger, save_to_yaml, print_model_info, load_ckpt, save_ckpt,
     _key_add_suffix,
