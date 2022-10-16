@@ -14,8 +14,8 @@
 2. Download the latest version (>=1.12) of Torch(corresponding CUDA version) from the [official website](https://pytorch.org/get-started/locally/) of Torch. It is not recommended to automatically install Torch (CUDA 10.2 default) using the Mini-Lightning dependency, which will cause CUDA version mismatch.
 3. Install mini-lightning
 ```bash
-# from pypi (v0.1.4)
-pip install mini-lightning
+# from pypi (v0.1.4.1)
+pip install mini-lightning==0.1.4.1
 
 # Or download the files from the repository to local,
 # and go to the folder where setup.py is located, and run the following command
