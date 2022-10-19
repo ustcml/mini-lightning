@@ -130,7 +130,8 @@ class LModule:
         for metric in self.metrics.values():
             metric.to(trainer.device)
 
-    def _batch_to_device(self, batch: Any, device: Device) -> Any:
+    @classmethod
+    def batch_to_device(cls, batch: Any, device: Device) -> Any:
         if isinstance(batch, Tensor):
             # Ref: https://pytorch-lightning.readthedocs.io/en/stable/_modules/pytorch_lightning/utilities/apply_func.html?highlight=non_blocking#
             # same as pytorch-lightning
@@ -142,19 +143,16 @@ class LModule:
         if isinstance(batch, Sequence):
             res = []
             for b in batch:
-                res.append(self._batch_to_device(b, device))
+                res.append(cls.batch_to_device(b, device))
             if isinstance(batch, tuple):
                 res = tuple(res)
         elif isinstance(batch, Mapping):
             res = {}
             for k, v in batch.items():
-                res[k] = self._batch_to_device(v, device)
+                res[k] = cls.batch_to_device(v, device)
         else:
             raise TypeError(f"batch: {batch}, {type(batch)}")
         return res
-
-    def batch_to_device(self, batch: Any, device: Device) -> Any:
-        return self._batch_to_device(batch, device)
 
     def optimizer_step(self) -> None:
         # note: skipping the update behavior at the first step may result in a warning in lr_scheduler.
@@ -424,6 +422,7 @@ class Trainer:
             self.save_hparams(hparams)
         #
         if resume_from_ckpt is not None:
+            logger.info(f"Using ckpt: {resume_from_ckpt}")
             self._load_ckpt(resume_from_ckpt, self.device)
         #
         self.lmodel.trainer_init(self)
