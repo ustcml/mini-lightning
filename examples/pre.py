@@ -26,6 +26,7 @@ from torchmetrics.classification.accuracy import Accuracy
 from torchmetrics.classification.precision_recall import Precision, Recall
 from torchmetrics.classification.f_beta import F1Score, FBetaScore
 from torchmetrics.classification.auroc import AUROC
+from torchmetrics.classification.average_precision import AveragePrecision
 from torchmetrics.functional.classification.accuracy import accuracy
 #
 import torch

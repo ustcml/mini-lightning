@@ -96,7 +96,6 @@ if __name__ == "__main__":
     #
     model = MLP_L2(2, 4, 1)
     optimizer = optim.SGD(model.parameters(), 0.1, 0.9)
-    #
     lmodel = MyLModule(model, optimizer, loss_fn, metrics, "acc")
     ldm = ml.LDataModule(train_dataset, val_dataset, test_dataset, 64)
     trainer = ml.Trainer(lmodel, [], 40, RUNS_DIR, gradient_clip_norm=10, val_every_n_epoch=10, verbose=True)
@@ -104,11 +103,10 @@ if __name__ == "__main__":
     logger.info(trainer.fit(ldm.train_dataloader, ldm.val_dataloader))
     logger.info(trainer.test(ldm.test_dataloader, True, True))
 
-    # train from ckpt
+    # train from ckpt (model, optimizer state dict, global epoch, global step)
     time.sleep(1)
     ckpt_path = trainer.last_ckpt_path
     optimizer = optim.SGD(model.parameters(), 0.1, 0.9)
-    #
     lmodel = MyLModule(None, optimizer, loss_fn, metrics, "loss")
     ldm = ml.LDataModule(train_dataset, val_dataset, test_dataset, 64)
     trainer = ml.Trainer(lmodel, [0], 100, RUNS_DIR, gradient_clip_norm=10,
@@ -116,11 +114,21 @@ if __name__ == "__main__":
     logger.info(trainer.test(ldm.val_dataloader, True, True))
     logger.info(trainer.fit(ldm.train_dataloader, ldm.val_dataloader))
     logger.info(trainer.test(ldm.test_dataloader, True, True))
-
-    # only test from ckpt
+    # train from ckpt different optimizer (only model)
     time.sleep(1)
     ckpt_path = trainer.last_ckpt_path
-    #
+    optimizer = optim.Adam(model.parameters(), 0.001)
+    lmodel = MyLModule(None, optimizer, loss_fn, metrics, "loss")
+    ldm = ml.LDataModule(train_dataset, val_dataset, test_dataset, 64)
+    trainer = ml.Trainer(lmodel, [0], 20, RUNS_DIR, gradient_clip_norm=10,
+                         val_every_n_epoch=10, verbose=True, resume_from_ckpt=ckpt_path)
+    logger.info(trainer.test(ldm.val_dataloader, True, True))
+    logger.info(trainer.fit(ldm.train_dataloader, ldm.val_dataloader))
+    logger.info(trainer.test(ldm.test_dataloader, True, True))
+
+    # only test from ckpt (model, global epoch, global step)
+    time.sleep(1)
+    ckpt_path = trainer.last_ckpt_path
     lmodel = MyLModule(None, None, loss_fn, metrics, "loss")
     ldm = ml.LDataModule(train_dataset, val_dataset, test_dataset, 64)
     trainer = ml.Trainer(lmodel, [], None, RUNS_DIR, resume_from_ckpt=ckpt_path)

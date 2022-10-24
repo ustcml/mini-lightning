@@ -3,7 +3,7 @@
 
 ## Introduction
 1. [Mini-Lightning](https://github.com/ustcml/mini-lightning/) is a lightweight machine learning training library, which is a mini version of [Pytorch-Lightning](https://www.pytorchlightning.ai/) with only 1k lines of code. It has the advantages of faster, more concise and more flexible.
-2. Existing features: support for DDP(multi-node and multi-gpu), Sync-BN, DP, AMP, gradient accumulation, warmup and lr_scheduler, grad clip, tensorboard, model and result saving, beautiful console log, torchmetrics, etc.
+2. Existing features: support for DDP(multi-node and multi-gpu), Sync-BN, DP, AMP, gradient accumulation, warmup and lr_scheduler, grad clip, tensorboard, model and result saving, beautiful console log, torchmetrics, resume from ckpt, etc.
 3. Only the minimal interfaces are exposed, keeping the features of simplicity, easy to read, use and extend.
 4. examples can be found in `examples/`
 5. If you have any problems or bug finding, please raise issue, Thank you.
@@ -62,12 +62,6 @@ python cv_ddp_spawn.py  # setting world_size=2, device_ids=[0, 1]
 torchrun --nnodes 2 --node_rank 0 --master_addr 127.0.0.1 --nproc_per_node 4 examples/cv_ddp.py _--device_ids 0 1 2 3
 torchrun --nnodes 2 --node_rank 1 --master_addr xxx.xxx.xxx.xxx --nproc_per_node 4 examples/cv_ddp.py --device_ids 0 1 2 3
 ```
-
-
-## Environment
-1. python>=3.8
-2. torch>=1.12
-3. torchmetrics==0.9.3
 
 
 ## TODO

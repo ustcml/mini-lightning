@@ -346,7 +346,8 @@ def get_date_now(fmt: str = "%Y-%m-%d %H:%M:%S.%f") -> Tuple[str, Dict[str, int]
     return date.strftime(fmt), mes
 
 
-def save_ckpt(fpath: str, model: Module, optimizer: Optional[Optimizer], last_epoch: int, **kwargs) -> None:
+def save_ckpt(fpath: str, model: Module, optimizer: Optional[Optimizer], last_epoch: int,
+              **kwargs: Dict[str, Any]) -> None:
     ckpt: Dict[str, Any] = {
         "model": model,  # including model structure
         "optimizer_state_dict": optimizer.state_dict() if optimizer is not None else None,

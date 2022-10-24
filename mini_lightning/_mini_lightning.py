@@ -423,7 +423,7 @@ class Trainer:
         #
         if resume_from_ckpt is not None:
             logger.info(f"Using ckpt: {resume_from_ckpt}")
-            self._load_ckpt(resume_from_ckpt, self.device)
+            self._load_ckpt(resume_from_ckpt, self.device, True)
         #
         self.lmodel.trainer_init(self)
         print_model_info(lmodel.model, None)
@@ -513,8 +513,9 @@ class Trainer:
     def _save_ckpt(self, fpath: str) -> None:
         if self.rank not in {-1, 0}:
             return
-        kwargs = {
+        kwargs: Dict[str, Any] = {
             "global_step": self.global_step,
+            "optimizer_name": self.lmodel.optimizer.__class__.__name__,
             "core_metric": {
                 "name": self.lmodel.core_metric_name,
                 "higher_is_better": self.lmodel.higher_is_better,
@@ -523,12 +524,24 @@ class Trainer:
         }
         save_ckpt(fpath, de_parallel(self.lmodel.model), self.lmodel.optimizer, self.global_epoch, **kwargs)
 
-    def _load_ckpt(self, fpath: str, map_location: Optional[Device] = None) -> None:
+    def _load_ckpt(self, fpath: str, map_location: Optional[Device] = None, verbose: bool = False) -> None:
         new_model, optimizer_state_dict, mes = load_ckpt(fpath, map_location)
         self.lmodel.model = new_model
-        self.lmodel.load_state_dict(None, optimizer_state_dict)
-        self.global_epoch = mes["last_epoch"]
-        self.global_step = mes["global_step"]
+        #
+        optimizer_name = self.lmodel.optimizer.__class__.__name__
+        tag = ["Ignore", "Ignore"]
+        if mes["optimizer_name"] == optimizer_name:
+            self.lmodel.load_state_dict(None, optimizer_state_dict)
+            tag[0] = "Success"
+
+        if mes["optimizer_name"] == optimizer_name or self.lmodel.optimizer is None:
+            self.global_epoch = mes["last_epoch"]
+            self.global_step = mes["global_step"]
+            tag[1] = "Success"
+
+        if verbose:
+            logger.info(
+                f"Using ckpt model: Success. optimizer state dict: {tag[0]}. global_epoch, global_step: {tag[1]}")
 
     def _model_saving(self, core_metric: Optional[float]) -> bool:
         best_saving = False
@@ -720,7 +733,7 @@ class Trainer:
         lmodel.model = de_parallel(lmodel.model)
         metrics_r: Dict[str, bool] = {k: m._to_sync for k, m in lmodel.metrics.items()}
         for m in lmodel.metrics.values():
-            # torchmetrics ==0.9.3 private variable. I don't know whether it will be changed later.
+            # torchmetrics(>=0.9.3, <=0.10.0) private variable. I don't know whether it will be changed later.
             #   You can raise issue if finding error.
             # default: sync_on_compute = True
             m._to_sync = False

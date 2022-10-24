@@ -1,5 +1,5 @@
 torch>=1.12.*
-torchmetrics==0.9.3
+torchmetrics>=0.10.0
 tensorboard
 numpy
 PyYAML
