@@ -45,6 +45,7 @@ class XORDataset(Dataset):
     def __len__(self) -> int:
         return self.n_samples
 
+
 if __name__ == "__main__":
     ml.select_device([0])
     ml.seed_everything(2, gpu_dtm=True)
@@ -103,7 +104,7 @@ if __name__ == "__main__":
     logger.info(trainer.fit(ldm.train_dataloader, ldm.val_dataloader))
     logger.info(trainer.test(ldm.test_dataloader, True, True))
 
-    # train from ckpt (model, optimizer state dict, global epoch, global step)
+    # train from ckpt
     time.sleep(1)
     ckpt_path = trainer.last_ckpt_path
     optimizer = optim.SGD(model.parameters(), 0.1, 0.9)
@@ -114,19 +115,20 @@ if __name__ == "__main__":
     logger.info(trainer.test(ldm.val_dataloader, True, True))
     logger.info(trainer.fit(ldm.train_dataloader, ldm.val_dataloader))
     logger.info(trainer.test(ldm.test_dataloader, True, True))
-    # train from ckpt different optimizer (only model)
+    # train from ckpt (only model)
     time.sleep(1)
     ckpt_path = trainer.last_ckpt_path
+    model, _, _ = ml.load_ckpt(ckpt_path, Device(0))
     optimizer = optim.Adam(model.parameters(), 0.001)
-    lmodel = MyLModule(None, optimizer, loss_fn, metrics, "loss")
+    lmodel = MyLModule(model, optimizer, loss_fn, metrics, "loss")
     ldm = ml.LDataModule(train_dataset, val_dataset, test_dataset, 64)
     trainer = ml.Trainer(lmodel, [0], 20, RUNS_DIR, gradient_clip_norm=10,
-                         val_every_n_epoch=10, verbose=True, resume_from_ckpt=ckpt_path)
+                         val_every_n_epoch=10, verbose=True)
     logger.info(trainer.test(ldm.val_dataloader, True, True))
     logger.info(trainer.fit(ldm.train_dataloader, ldm.val_dataloader))
     logger.info(trainer.test(ldm.test_dataloader, True, True))
 
-    # only test from ckpt (model, global epoch, global step)
+    # only test from ckpt
     time.sleep(1)
     ckpt_path = trainer.last_ckpt_path
     lmodel = MyLModule(None, None, loss_fn, metrics, "loss")

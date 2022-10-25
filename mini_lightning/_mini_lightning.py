@@ -422,8 +422,8 @@ class Trainer:
             self.save_hparams(hparams)
         #
         if resume_from_ckpt is not None:
+            self._load_ckpt(resume_from_ckpt, self.device)
             logger.info(f"Using ckpt: {resume_from_ckpt}")
-            self._load_ckpt(resume_from_ckpt, self.device, True)
         #
         self.lmodel.trainer_init(self)
         print_model_info(lmodel.model, None)
@@ -524,24 +524,15 @@ class Trainer:
         }
         save_ckpt(fpath, de_parallel(self.lmodel.model), self.lmodel.optimizer, self.global_epoch, **kwargs)
 
-    def _load_ckpt(self, fpath: str, map_location: Optional[Device] = None, verbose: bool = False) -> None:
+    def _load_ckpt(self, fpath: str, map_location: Optional[Device] = None) -> None:
         new_model, optimizer_state_dict, mes = load_ckpt(fpath, map_location)
         self.lmodel.model = new_model
         #
         optimizer_name = self.lmodel.optimizer.__class__.__name__
-        tag = ["Ignore", "Ignore"]
-        if mes["optimizer_name"] == optimizer_name:
-            self.lmodel.load_state_dict(None, optimizer_state_dict)
-            tag[0] = "Success"
-
-        if mes["optimizer_name"] == optimizer_name or self.lmodel.optimizer is None:
-            self.global_epoch = mes["last_epoch"]
-            self.global_step = mes["global_step"]
-            tag[1] = "Success"
-
-        if verbose:
-            logger.info(
-                f"Using ckpt model: Success. optimizer state dict: {tag[0]}. global_epoch, global_step: {tag[1]}")
+        assert self.lmodel.optimizer is None or optimizer_name == mes["optimizer_name"]
+        self.lmodel.load_state_dict(None, optimizer_state_dict)
+        self.global_epoch = mes["last_epoch"]
+        self.global_step = mes["global_step"]
 
     def _model_saving(self, core_metric: Optional[float]) -> bool:
         best_saving = False
