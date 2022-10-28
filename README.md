@@ -1,4 +1,9 @@
 # Mini-Lightning
+[![Python Version](https://img.shields.io/pypi/pyversions/mini-lightning)](https://pypi.org/project/mini-lightning/)
+[![Pytorch Version](https://img.shields.io/badge/pytorch-1.12-blue.svg)](https://pypi.org/project/mini-lightning/)
+[![PyPI Status](https://badge.fury.io/py/mini-lightning.svg)](https://badge.fury.io/py/mini-lightning)
+[![license](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/ustcml/mini-lightning/blob/main/LICENSE)
+[![Downloads](https://pepy.tech/badge/mini-lightning)](https://pepy.tech/project/mini-lightning)
 
 
 ## Introduction
@@ -15,7 +20,7 @@
 3. Install mini-lightning
 ```bash
 # from pypi
-pip install mini-lightning==0.1.4.1
+pip install mini-lightning==0.1.5
 
 # Or download the files from the repository to local,
 # and go to the folder where setup.py is located, and run the following command
@@ -39,7 +44,7 @@ python examples/cv.py
 python examples/cv.py  # setting device_ids=[0, 1]
 
 ### nlp.py
-pip install "transformers>=4.22.*" "datasets>=2.5.*"
+pip install "transformers>=4.23.*" "datasets>=2.6.*"
 python examples/nlp.py
 
 ### dqn.py

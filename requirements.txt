@@ -1,6 +1,6 @@
 torch>=1.12.*
-torchmetrics>=0.10.0
-tensorboard
-numpy
-PyYAML
-tqdm
+torchmetrics>=0.10.*
+tensorboard>=2.10.*
+numpy>=1.23.*
+PyYAML>=6.0
+tqdm>=4.64.*

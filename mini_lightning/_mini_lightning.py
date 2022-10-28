@@ -724,7 +724,7 @@ class Trainer:
         lmodel.model = de_parallel(lmodel.model)
         metrics_r: Dict[str, bool] = {k: m._to_sync for k, m in lmodel.metrics.items()}
         for m in lmodel.metrics.values():
-            # torchmetrics(>=0.9.3, <=0.10.0) private variable. I don't know whether it will be changed later.
+            # torchmetrics(>=0.9.3, <=0.10.1已测试) private variable. I don't know whether it will be changed later.
             #   You can raise issue if finding error.
             # default: sync_on_compute = True
             m._to_sync = False
