@@ -222,6 +222,8 @@ def seed_everything(seed: Optional[int] = None, gpu_dtm: bool = False) -> int:
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
+    logger.info(f"Global seed set to {seed}")
+
     if gpu_dtm is True:
         # True: cudnn selects the deterministic convolution algorithm
         torch.backends.cudnn.deterministic = True
@@ -231,7 +233,6 @@ def seed_everything(seed: Optional[int] = None, gpu_dtm: bool = False) -> int:
         torch.backends.cudnn.benchmark = False
         logger.info(f"Setting deterministic: {True}, benchmark: {False}")
 
-    logger.info(f"Global seed set to {seed}")
     return seed
 
 

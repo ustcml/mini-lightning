@@ -1,8 +1,8 @@
 # Mini-Lightning
 [![Python Version](https://img.shields.io/pypi/pyversions/mini-lightning)](https://pypi.org/project/mini-lightning/)
-[![Pytorch Version](https://img.shields.io/badge/pytorch-1.12-blue.svg)](https://pypi.org/project/mini-lightning/)
+[![Pytorch Version](https://img.shields.io/badge/pytorch-1.12%20%7C%201.13-blue.svg)](https://pypi.org/project/mini-lightning/)
 [![PyPI Status](https://badge.fury.io/py/mini-lightning.svg)](https://badge.fury.io/py/mini-lightning)
-[![license](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/ustcml/mini-lightning/blob/main/LICENSE)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/ustcml/mini-lightning/blob/main/LICENSE)
 [![Downloads](https://pepy.tech/badge/mini-lightning)](https://pepy.tech/project/mini-lightning)
 
 
