@@ -55,9 +55,10 @@ if __name__ == "__main__":
 
     #
     class MyLModule(ml.LModule):
-        def __init__(self, model: Optional[Module], optim: Optional[Optimizer], loss_fn: Module,
+        def __init__(self, model: Optional[Module], optimizers: List[Optimizer], loss_fn: Module,
                      metrics: Dict[str, Metric], core_metric: str) -> None:
-            super().__init__(model, optim, metrics, core_metric)
+            super().__init__(optimizers, metrics, core_metric)
+            self.model = model
             self.loss_fn = loss_fn
 
         def trainer_init(self, trainer: "ml.Trainer") -> None:
@@ -71,7 +72,7 @@ if __name__ == "__main__":
             y_pred = y >= 0
             return loss, y_pred
 
-        def training_step(self, batch: Any) -> Tensor:
+        def training_step(self, batch: Any, opt_idx: int) -> Tensor:
             y_batch = batch[1]
             loss, y_pred = self._calculate_loss_pred(batch)
             acc = accuracy(y_pred, y_batch)
@@ -97,7 +98,7 @@ if __name__ == "__main__":
     #
     model = MLP_L2(2, 4, 1)
     optimizer = optim.SGD(model.parameters(), 0.1, 0.9)
-    lmodel = MyLModule(model, optimizer, loss_fn, metrics, "acc")
+    lmodel = MyLModule(model, [optimizer], loss_fn, metrics, "acc")
     ldm = ml.LDataModule(train_dataset, val_dataset, test_dataset, 64)
     trainer = ml.Trainer(lmodel, [], 40, RUNS_DIR, gradient_clip_norm=10, val_every_n_epoch=10, verbose=True)
     logger.info(trainer.test(ldm.val_dataloader, True, True))
@@ -108,7 +109,7 @@ if __name__ == "__main__":
     time.sleep(1)
     ckpt_path = trainer.last_ckpt_path
     optimizer = optim.SGD(model.parameters(), 0.1, 0.9)
-    lmodel = MyLModule(None, optimizer, loss_fn, metrics, "loss")
+    lmodel = MyLModule(None, [optimizer], loss_fn, metrics, "loss")
     ldm = ml.LDataModule(train_dataset, val_dataset, test_dataset, 64)
     trainer = ml.Trainer(lmodel, [0], 100, RUNS_DIR, gradient_clip_norm=10,
                          val_every_n_epoch=10, verbose=True, resume_from_ckpt=ckpt_path)
@@ -118,9 +119,9 @@ if __name__ == "__main__":
     # train from ckpt (only model)
     time.sleep(1)
     ckpt_path = trainer.last_ckpt_path
-    model, _, _ = ml.load_ckpt(ckpt_path, Device(0))
-    optimizer = optim.Adam(model.parameters(), 0.001)
-    lmodel = MyLModule(model, optimizer, loss_fn, metrics, "loss")
+    models, _, _ = ml.load_ckpt(ckpt_path, Device(0))
+    optimizer = optim.Adam(models["model"].parameters(), 0.001)
+    lmodel = MyLModule(model, [optimizer], loss_fn, metrics, "loss")
     ldm = ml.LDataModule(train_dataset, val_dataset, test_dataset, 64)
     trainer = ml.Trainer(lmodel, [0], 20, RUNS_DIR, gradient_clip_norm=10,
                          val_every_n_epoch=10, verbose=True)
@@ -131,7 +132,7 @@ if __name__ == "__main__":
     # only test from ckpt
     time.sleep(1)
     ckpt_path = trainer.last_ckpt_path
-    lmodel = MyLModule(None, None, loss_fn, metrics, "loss")
+    lmodel = MyLModule(None, [], loss_fn, metrics, "loss")
     ldm = ml.LDataModule(train_dataset, val_dataset, test_dataset, 64)
     trainer = ml.Trainer(lmodel, [], None, RUNS_DIR, resume_from_ckpt=ckpt_path)
     logger.info(trainer.test(ldm.test_dataloader, True, True))

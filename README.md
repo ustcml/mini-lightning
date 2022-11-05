@@ -51,6 +51,10 @@ python examples/nlp.py
 pip install "gym>=0.26.*" pygame
 python examples/dqn.py
 
+### gan.py
+pip install "matplotlib>=3.6.*" "torchvision>=0.13.*"
+python examples/gan.py
+
 ### cv_ddp.py; cv_ddp_spawn.py
 # torchrun (Recommended): Ref: https://pytorch.org/docs/stable/elastic/run.html
 # spawn: Ref: https://pytorch.org/docs/stable/notes/ddp.html
@@ -70,5 +74,4 @@ torchrun --nnodes 2 --node_rank 1 --master_addr xxx.xxx.xxx.xxx --nproc_per_node
 
 
 ## TODO
-1. GAN support
-2. Automatic parameter adjustment
+1. Automatic parameter adjustment

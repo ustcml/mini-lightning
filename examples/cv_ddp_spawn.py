@@ -19,18 +19,27 @@ os.makedirs(RUNS_DIR, exist_ok=True)
 
 
 class MyLModule(ml.LModule):
-    def __init__(self, model: Module, optimizer: Optimizer, loss_fn: Module,
-                 lr_s: LRScheduler, hparams: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, hparams: Dict[str, Any]) -> None:
+        loss_fn = nn.CrossEntropyLoss()
+        model: Module = getattr(tvm, hparams["model_name"])(**hparams["model_hparams"])
+        state_dict = torch.hub.load_state_dict_from_url(**hparams["model_pretrain_model"])
+        state_dict = ml._remove_keys(state_dict, ["fc"])
+        logger.info(model.load_state_dict(state_dict, strict=False))
+        optimizer: Optimizer = getattr(optim, hparams["optim_name"])(model.parameters(), **hparams["optim_hparams"])
+        lr_s: LRScheduler = ml.warmup_decorator(
+            lrs.CosineAnnealingLR, hparams["warmup"])(optimizer, **hparams["lrs_hparams"])
         metrics = {
             "loss": ml.LossMetric(),
             "acc":  Accuracy(),
         }
-        super().__init__(model, optimizer, metrics, "acc", hparams)
+        #
+        super().__init__([optimizer], metrics, "acc", hparams)
+        self.model = model
         self.loss_fn = loss_fn
         self.lr_s = lr_s
 
-    def optimizer_step(self) -> None:
-        super().optimizer_step()
+    def optimizer_step(self, opt_idx: int) -> None:
+        super().optimizer_step(opt_idx)
         self.lr_s.step()
 
     def _calculate_loss_pred(self, batch: Any) -> Tuple[Tensor, Tensor]:
@@ -40,7 +49,7 @@ class MyLModule(ml.LModule):
         y_pred = y.argmax(dim=-1)
         return loss, y_pred
 
-    def training_step(self, batch: Any) -> Tensor:
+    def training_step(self, batch: Any, opt_idx: int) -> Tensor:
         loss, y_pred = self._calculate_loss_pred(batch)
         acc = accuracy(y_pred, batch[1])
         self.log("train_loss", loss)
@@ -111,7 +120,7 @@ def main(rank: int, world_size: int, device_ids: List[int]) -> None:
             "n_accumulate_grad": n_accumulate_grad,
             "verbose": True
         },
-        "warmup": 100, 
+        "warmup": 100,
         "lrs_hparams": {
             "T_max": ...,
             "eta_min": 4e-3
@@ -122,19 +131,9 @@ def main(rank: int, world_size: int, device_ids: List[int]) -> None:
     ldm = ml.LDataModule(
         train_dataset, val_dataset, test_dataset, **hparams["dataloader_hparams"])
 
-    loss_fn = nn.CrossEntropyLoss()
-
     def collect_res(seed: int) -> Dict[str, float]:
-        # Different GPUs use different seeds. Each GPU behaves differently
-        ml.seed_everything(seed + rank, gpu_dtm=False)
-        model = getattr(tvm, hparams["model_name"])(**hparams["model_hparams"])
-        state_dict = torch.hub.load_state_dict_from_url(**hparams["model_pretrain_model"])
-        state_dict = ml._remove_keys(state_dict, ["fc"])
-        logger.info(model.load_state_dict(state_dict, strict=False))
-        optimizer = getattr(optim, hparams["optim_name"])(model.parameters(), **hparams["optim_hparams"])
-        lr_s = ml.warmup_decorator(lrs.CosineAnnealingLR, hparams["warmup"])(optimizer, **hparams["lrs_hparams"])
-        #
-        lmodel = MyLModule(model, optimizer, loss_fn, lr_s, hparams)
+        ml.seed_everything(seed, gpu_dtm=False)
+        lmodel = MyLModule(hparams)
         trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams["trainer_hparams"])
         res = trainer.fit(ldm.train_dataloader, ldm.val_dataloader)
         res2 = trainer.test(ldm.test_dataloader, True, True)

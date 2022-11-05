@@ -123,18 +123,27 @@ def get_rand_p(global_step: int, T_max: int, eta_min: float, eta_max: float) -> 
 
 
 class MyLModule(ml.LModule):
-    def __init__(self, model: Module, optim: Optimizer, loss_fn: Module, agent: Agent, get_rand_p: Callable[[int], float],
-                 hparams: Optional[Dict[str, Any]] = None) -> None:
-        super().__init__(model, optim, {}, None, hparams)
-        self.old_model = deepcopy(model)
-        self.old_model.eval()
+    def __init__(self, memo_pool: MemoryPool, hparams: Dict[str, Any]) -> None:
+
+        env = gym.make(hparams["env_name"], render_mode=RENDER_MODE)
+        #
+        in_channels: int = env.observation_space.shape[0]
+        out_channels: int = env.action_space.n
+        model = DQN(in_channels, out_channels, hparams["model_hidden_size"])
+        agent = Agent(env, memo_pool, model, ml.select_device(device_ids))
+
+        optimizer = getattr(optim, hparams["optim_name"])(model.parameters(), **hparams["optim_hparams"])
+        loss_fn = nn.MSELoss()
+        super().__init__([optimizer], {}, None, hparams)
+        self.model = model
+        self.old_model = deepcopy(self.model)
         # New_model and old_model are used for model training.
         # New model is used for exploring the environment and training.
         # Old model is used for calculating the reward prediction of next_state.
         # Reason: to eliminate associations.
         self.loss_fn = loss_fn
         self.agent = agent
-        self.get_rand_p = get_rand_p
+        self.get_rand_p = partial(get_rand_p, **hparams["rand_p"])
         #
         self.warmup_memory_steps = self.hparams["warmup_memory_steps"]
         # synchronize the model every sync_steps
@@ -144,10 +153,6 @@ class MyLModule(ml.LModule):
         #
         self._warmup_memo(self.warmup_memory_steps)
         self.episode_reward = 0  # reward in a episode
-
-    def trainer_init(self, trainer: "ml.Trainer") -> None:
-        super().trainer_init(trainer)
-        self.old_model.to(trainer.device)
 
     def _warmup_memo(self, steps: int) -> None:
         for _ in tqdm(range(steps), desc=f"Warmup: "):
@@ -176,17 +181,19 @@ class MyLModule(ml.LModule):
             self.episode_reward += reward
         return reward, done, rand_p
 
-    def training_step(self, batch: Any) -> Tensor:
+    def training_epoch_start(self) -> None:
+        super().training_epoch_start()
+        self.old_model.eval()
+
+    def training_step(self, batch: Any, opt_idx: int) -> Tensor:
         if self.global_step % self.sync_steps == 0:
             # copy state dict
             self.old_model.load_state_dict(self.model.state_dict())
         # train model
         loss = self._train_step(batch)
         # agent step in env
-        reward, done, rand_p = self._agent_step()
+        _, _, rand_p = self._agent_step()
         # log
-        self.log("reward", reward, prog_bar_mean=False)
-        self.log("done", done, prog_bar_mean=False)
         self.log("rand_p", rand_p, prog_bar_mean=False)
         self.log("episode_reward", self.episode_reward, prog_bar_mean=False)
         self.log("loss", loss)
@@ -223,17 +230,7 @@ if __name__ == "__main__":
     ldm = ml.LDataModule(
         dataset, None, None, **hparams["dataloader_hparams"], shuffle_train=False, num_workers=1)
     hparams["rand_p"]["T_max"] = ml.get_T_max(len(dataset), batch_size, max_epochs, 1)
-    env = gym.make(hparams["env_name"], render_mode=RENDER_MODE)
-    in_channels: int = env.observation_space.shape[0]
-    out_channels: int = env.action_space.n
-    model = DQN(in_channels, out_channels, hparams["model_hidden_size"])
-    agent = Agent(env, memo_pool, model, ml.select_device(device_ids))
 
-    #
-    get_rand_p = partial(get_rand_p, **hparams["rand_p"])
-    optimizer = getattr(optim, hparams["optim_name"])(model.parameters(), **hparams["optim_hparams"])
-    loss_fn = nn.MSELoss()
-
-    lmodel = MyLModule(model, optimizer, loss_fn, agent, get_rand_p, hparams)
+    lmodel = MyLModule(memo_pool, hparams)
     trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams["trainer_hparams"])
-    trainer.fit(ldm.train_dataloader, ldm.val_dataloader)
+    trainer.fit(ldm.train_dataloader, None)

@@ -8,7 +8,7 @@ import math
 import datetime
 import platform
 from bisect import bisect_right
-from typing import List, Any, Dict, Optional, Tuple, Callable, Union, Sequence, Mapping, Literal
+from typing import List, Any, Dict, Optional, Tuple, Callable, Union, Sequence, Mapping, Literal, Set
 #
 from tqdm import tqdm
 #
@@ -18,7 +18,7 @@ import torch.distributed as dist
 from torch import device as Device, Tensor
 from torch.utils.tensorboard.writer import SummaryWriter
 from torch.utils.data import Dataset, DataLoader, DistributedSampler, SequentialSampler
-from torch.nn import Module
+from torch.nn import Module, Parameter
 from torch.optim import Optimizer
 from torch.nn.utils.clip_grad import clip_grad_norm_
 from torch.cuda.amp.grad_scaler import GradScaler
@@ -35,8 +35,8 @@ from ._utils import (
 )
 
 
-# Features to be added in the future: GAN support, automatic parameter adjustment
-#   GAN Ref: https://pytorch-lightning.readthedocs.io/en/latest/notebooks/lightning_examples/basic-gan.html
+# Features to be added in the future: automatic parameter adjustment
+#
 # Note: global_epoch, batch_idx starts for 0. global_step starts from 1.
 __all__ = ["LModule", "LDataModule", "Trainer"]
 #
@@ -45,8 +45,9 @@ __all__ = ["LModule", "LDataModule", "Trainer"]
 class LModule:
     def __init__(
         self,
-        model: Optional[Module],
-        optimizer: Optional[Optimizer],
+        # Use List, for supporting GAN
+        #   GAN Ref: https://pytorch-lightning.readthedocs.io/en/latest/notebooks/lightning_examples/basic-gan.html
+        optimizers: List[Optimizer],
         metrics: Dict[str, Metric],
         core_metric: Optional[str],
         hparams: Optional[Dict[str, Any]] = None
@@ -55,10 +56,10 @@ class LModule:
         core_metric: for model saving
         hparams: Hyperparameters to be saved
         """
-        self.model: Module = model
-        self.optimizer = optimizer
+        self._models: Set[str] = set()
+        self.optimizers = optimizers
         self.metrics = metrics
-        self.core_metric_name = core_metric
+        self.core_metric_name = core_metric  # None for support only train, and only save the last model
         self.higher_is_better: Optional[bool] = None
         if core_metric is not None:
             self.higher_is_better = self.metrics[core_metric].higher_is_better
@@ -100,33 +101,17 @@ class LModule:
             self.log(k, v, prog_bar_mean=prog_bar_mean)
 
     def __call__(self, *args, **kwargs) -> Any:
-        return self.model(*args, **kwargs)
-
-    def load_state_dict(
-        self,
-        model_state_dict: Optional[Dict[str, Any]] = None,
-        optimizer_state_dict: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        if model_state_dict is not None:
-            if isinstance(self.model, (DP, DDP)):
-                self.model.module.load_state_dict(model_state_dict, strict=True)
-            else:
-                self.model.load_state_dict(model_state_dict, strict=True)
-        #
-        if self.optimizer is not None and optimizer_state_dict is not None:
-            self.optimizer.load_state_dict(optimizer_state_dict)
-
-    def state_dict(self) -> Tuple[Dict[str, Any], Optional[Dict[str, Any]]]:
-        model = de_parallel(self.model)
-        return model.state_dict(), (self.optimizer.state_dict() if self.optimizer is not None else None)
+        return self.forward(*args, **kwargs)
 
     #
     def trainer_init(self, trainer: "Trainer") -> None:
         # handle device
         self.trainer = trainer
-        assert self.model is not None
-        self.model.to(trainer.device)
-        self.model = en_parallel(self.model, trainer.parallel_mode, trainer.sync_bn)
+        for s in self._models:
+            model: Module = getattr(self, s)
+            model.to(trainer.device)
+            model = en_parallel(model, trainer.parallel_mode, trainer.sync_bn)
+            setattr(self, s, model)
         for metric in self.metrics.values():
             metric.to(trainer.device)
 
@@ -154,20 +139,22 @@ class LModule:
             raise TypeError(f"batch: {batch}, {type(batch)}")
         return res
 
-    def optimizer_step(self) -> None:
+    def optimizer_step(self, opt_idx: int) -> None:
         # note: skipping the update behavior at the first step may result in a warning in lr_scheduler.
         #   Don't worry about that ~.
         assert self.trainer is not None
         if not self.trainer.found_nan and (self.trainer.amp or not self.trainer.found_inf):
-            # With amp=False, using 'self.optimizer.step()' is the same.
-            self.trainer.scaler.step(self.optimizer)
+            # With amp=False, using 'optimizers[opt_idx].step()' is the same.
+            self.trainer.scaler.step(self.optimizers[opt_idx])
     #
 
-    def _epoch_start(self, mode: Literal["train", "val", "test"]) -> None:
-        if mode == "train":
-            self.model.train()
-        else:  # "val", "test"
-            self.model.eval()
+    def _epoch_start(self, stage: Literal["train", "val", "test"]) -> None:
+        for s in self._models:
+            model: Module = getattr(self, s)
+            if stage == "train":
+                model.train()
+            else:  # "val", "test"
+                model.eval()
         for metric in self.metrics.values():
             metric.reset()
 
@@ -181,7 +168,43 @@ class LModule:
         self._epoch_start("test")
     #
 
-    def training_step(self, batch: Any) -> Tensor:
+    def toggle_optimizer(self, opt_idx: int) -> None:
+        """
+        Ref: https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#toggle-optimizer
+        """
+        optimizer_requires_grad: Dict[Parameter, bool] = {}
+        # for recover
+        for o in self.optimizers:
+            for pg in o.param_groups:
+                for p in pg["params"]:
+                    if p in optimizer_requires_grad:
+                        continue
+                    optimizer_requires_grad[p] = p.requires_grad
+                    p.requires_grad = False
+        #
+        for pg in self.optimizers[opt_idx].param_groups:
+            for p in pg["params"]:
+                p.requires_grad = optimizer_requires_grad[p]
+        #
+        self._optimizer_requires_grad = optimizer_requires_grad
+
+    def untoggle_optimizer(self, opt_idx: int) -> None:
+        # recover
+        optimizer_requires_grad = self._optimizer_requires_grad
+        for i, o in enumerate(self.optimizers):
+            if i == opt_idx:
+                continue
+            for pg in o.param_groups:
+                for p in pg["params"]:
+                    if p in optimizer_requires_grad:
+                        p.requires_grad = optimizer_requires_grad[p]
+        #
+        self._optimizer_requires_grad = {}
+
+    def forward(self, *args, **kwargs) -> Any:
+        raise NotImplementedError
+
+    def training_step(self, batch: Any, opt_idx: int) -> Tensor:
         """return loss"""
         raise NotImplementedError
 
@@ -193,7 +216,7 @@ class LModule:
         raise NotImplementedError
     #
 
-    def _val_test_epoch_end(self, mode: Literal["val", "test"]) -> Dict[str, float]:
+    def _val_test_epoch_end(self, stage: Literal["val", "test"]) -> Dict[str, float]:
         mes: Dict[str, float] = {}
         for k, metric in self.metrics.items():
             v: Tensor
@@ -208,7 +231,7 @@ class LModule:
             else:
                 mes[k] = v.item()
         #
-        mes = {f"{mode}_{k}": v for k, v in mes.items()}
+        mes = {f"{stage}_{k}": v for k, v in mes.items()}
         return mes
 
     def training_epoch_end(self) -> Dict[str, float]:
@@ -219,6 +242,17 @@ class LModule:
 
     def test_epoch_end(self) -> Dict[str, float]:
         return self._val_test_epoch_end("test")
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if isinstance(value, Module) and len(list(value.parameters())) > 0:  # avoid loss_fn
+            self._models.add(name)
+        super().__setattr__(name, value)
+
+    def __delattr__(self, name: str) -> None:
+        v = getattr(self, name)
+        if isinstance(v, Module):
+            self._models.remove(name)
+        super().__delattr__(name)
 
 
 class LDataModule:
@@ -359,7 +393,6 @@ class Trainer:
         logger.info(f"Using amp: {amp}")
         #
         self.max_epochs = max_epochs
-        self.runs_dir = runs_dir
         self.n_accumulate_grad = n_accumulate_grad
         if isinstance(self.n_accumulate_grad, dict):
             if 0 not in self.n_accumulate_grad.keys():
@@ -410,6 +443,7 @@ class Trainer:
                 runs_dir = os.path.join(runs_dir, f"v{v}-{time}")
             logger.info(f"runs_dir: {runs_dir}")
             #
+            self.runs_dir = runs_dir
             self.ckpt_dir = os.path.join(runs_dir, "checkpoints")
             self.tb_dir = os.path.join(runs_dir, "runs")  # tensorboard
             self.hparams_path = os.path.join(runs_dir, "hparams.yaml")
@@ -418,15 +452,17 @@ class Trainer:
             os.makedirs(self.tb_dir, exist_ok=True)
             #
             self.tb_logger = SummaryWriter(self.tb_dir)
-            hparams = self.lmodel.hparams
+            hparams = lmodel.hparams
             self.save_hparams(hparams)
         #
         if resume_from_ckpt is not None:
             self._load_ckpt(resume_from_ckpt, self.device)
             logger.info(f"Using ckpt: {resume_from_ckpt}")
         #
-        self.lmodel.trainer_init(self)
-        print_model_info(lmodel.model, None)
+        lmodel.trainer_init(self)
+        for s in lmodel._models:
+            model: Module = getattr(lmodel, s)
+            print_model_info(s, model, None)
 
     @staticmethod
     def _get_version(runs_dir: str) -> int:
@@ -513,24 +549,29 @@ class Trainer:
     def _save_ckpt(self, fpath: str) -> None:
         if self.rank not in {-1, 0}:
             return
+        lmodel = self.lmodel
         kwargs: Dict[str, Any] = {
             "global_step": self.global_step,
-            "optimizer_name": self.lmodel.optimizer.__class__.__name__,
+            "optimizers_name": [o.__class__.__name__ for o in lmodel.optimizers],
             "core_metric": {
-                "name": self.lmodel.core_metric_name,
-                "higher_is_better": self.lmodel.higher_is_better,
+                "name": lmodel.core_metric_name,
+                "higher_is_better": lmodel.higher_is_better,
                 "best_value": self.best_metric
             }
         }
-        save_ckpt(fpath, de_parallel(self.lmodel.model), self.lmodel.optimizer, self.global_epoch, **kwargs)
+        model_list = {s: de_parallel(getattr(lmodel, s)) for s in lmodel._models}
+        save_ckpt(fpath, model_list, lmodel.optimizers, self.global_epoch, **kwargs)
 
     def _load_ckpt(self, fpath: str, map_location: Optional[Device] = None) -> None:
         new_model, optimizer_state_dict, mes = load_ckpt(fpath, map_location)
-        self.lmodel.model = new_model
+        lmodel = self.lmodel
+        for s, m in new_model.items():
+            setattr(lmodel, s, m)
         #
-        optimizer_name = self.lmodel.optimizer.__class__.__name__
-        assert self.lmodel.optimizer is None or optimizer_name == mes["optimizer_name"]
-        self.lmodel.load_state_dict(None, optimizer_state_dict)
+        optimizers_name = [o.__class__.__name__ for o in lmodel.optimizers]
+        assert len(lmodel.optimizers) == 0 or optimizers_name == mes["optimizers_name"]
+        for o, osd in zip(lmodel.optimizers, optimizer_state_dict):
+            o.load_state_dict(osd)
         self.global_epoch = mes["last_epoch"]
         self.global_step = mes["global_step"]
 
@@ -615,9 +656,8 @@ class Trainer:
 
     def _train_epoch(self, dataloader: DataLoader) -> Dict[str, float]:
         lmodel = self.lmodel
-        assert lmodel.optimizer is not None
+        assert len(lmodel.optimizers) > 0
         lmodel.training_epoch_start()
-        model = lmodel.model
         device = self.device
         scaler = self.scaler
         #
@@ -636,7 +676,7 @@ class Trainer:
             raise TypeError(f"self.n_accumulate_grad: {self.n_accumulate_grad}, type: {type(self.n_accumulate_grad)}")
         #
         rec_mes: Dict[str, float] = {}  # Save the most recent mes. (for prog_bar and tensorboard)
-        mean_metrics: Dict[str, MeanMetric] = {}  #
+        mean_metrics: Dict[str, MeanMetric] = {}
         prog_bar = tqdm(total=len(dataloader),
                         desc=f"Epoch {self.global_epoch}", dynamic_ncols=True, disable=self.rank > 0)  # mininterval=0.01
         batch_idx = -1  # avoid unbound
@@ -647,34 +687,43 @@ class Trainer:
             lmodel.log(f"global_step", self.global_step, prog_bar_mean=False)
             #
             batch = lmodel.batch_to_device(batch, device)
-            with autocast(device_type=self.device.type, enabled=self.amp):
-                loss = lmodel.training_step(batch)
-            loss.div_(n_accumulate_grad)
-            scaler.scale(loss).backward()
-            # optimize
-            if (batch_idx + 1) % n_accumulate_grad == 0 or (batch_idx + 1) == len(dataloader):
-                if self.gradient_clip_norm:
+            for opt_idx, opt in enumerate(lmodel.optimizers):
+                if len(lmodel.optimizers) > 1:
+                    lmodel.toggle_optimizer(opt_idx)
+                with autocast(device_type=self.device.type, enabled=self.amp):
+                    loss = lmodel.training_step(batch, opt_idx)
+                #
+                loss.div_(n_accumulate_grad)
+                scaler.scale(loss).backward()
+                if len(lmodel.optimizers) > 1:
+                    lmodel.untoggle_optimizer(opt_idx)
+                # optimize
+                if (batch_idx + 1) % n_accumulate_grad == 0 or (batch_idx + 1) == len(dataloader):
+                    if self.gradient_clip_norm:
+                        #
+                        scaler.unscale_(opt)
+                        grad_norm = clip_grad_norm_(
+                            (p for pg in lmodel.optimizers[opt_idx].param_groups for p in pg["params"]),
+                            max_norm=self.gradient_clip_norm, error_if_nonfinite=False
+                        )
+                        #
+                        if not self.amp:
+                            self.found_inf = grad_norm.isinf().all().item()
+                        self.found_nan = grad_norm.isnan().all().item()
+                        lmodel.log("grad_norm", grad_norm, prog_bar_mean=True)
+                    # log lr
+                    for i, lr in enumerate([group['lr'] for group in opt.param_groups]):
+                        lr_tag = f"lr{i}" if len(lmodel.optimizers) else f"opt{opt_idx}_lr{i}"
+                        lmodel.log(lr_tag, lr, prog_bar_mean=False)
                     #
-                    scaler.unscale_(lmodel.optimizer)
-                    grad_norm = clip_grad_norm_(
-                        model.parameters(), max_norm=self.gradient_clip_norm, error_if_nonfinite=False)
-
-                    if not self.amp:  #
-                        self.found_inf = grad_norm.isinf().all().item()
-                    self.found_nan = grad_norm.isnan().all().item()
-                    lmodel.log(f"grad_norm", grad_norm, prog_bar_mean=True)
-                # log lr
-                for i, lr in enumerate([group['lr'] for group in lmodel.optimizer.param_groups]):
-                    lmodel.log(f"lr{i}", lr, prog_bar_mean=False)
-                #
-                lmodel.optimizer_step()
-                scaler.update()
-                # set_to_none can increase the speed. not same as pytorch lightning
-                #   Ref: https://pytorch.org/docs/stable/generated/torch.optim.Optimizer.zero_grad.html
-                lmodel.optimizer.zero_grad(set_to_none=True)
-                #
-                self.found_inf = False
-                self.found_nan = False
+                    lmodel.optimizer_step(opt_idx)
+                    scaler.update()
+                    # set_to_none can increase the speed. not same as pytorch lightning
+                    #   Ref: https://pytorch.org/docs/stable/generated/torch.optim.Optimizer.zero_grad.html
+                    opt.zero_grad(set_to_none=True)
+                    #
+                    self.found_inf = False
+                    self.found_nan = False
             #
             self._metrics_update(mean_metrics, self.new_mes, self.prog_bar_mean, device,
                                  ignore_inf_nan=True, sync_on_compute=self.rank >= 0)
@@ -691,7 +740,8 @@ class Trainer:
                 tb_mes = self._get_tb_mes(rec_mes, device)
                 self._tb_logger_add_scalars(tb_mes, self.global_step)
         #
-        prog_bar.update(batch_idx + 1 - prog_bar.n)
+        if (batch_idx + 1 - prog_bar.n) > 0:
+            prog_bar.update(batch_idx + 1 - prog_bar.n)
         prog_bar.close()
         # res_mes: If prog_bar_mean=False when logging, the value of the most recent mes is returned
         #   If prog_bar_mean=True, the mean of mes in epoch is returned.
@@ -708,80 +758,90 @@ class Trainer:
         return res_mes
 
     def _val_test(
-        self, dataloader: Optional[DataLoader], mode: Literal["val", "test"], desc: str
+        self, dataloader: Optional[DataLoader], stage: Literal["val", "test"], desc: str
     ) -> Tuple[Optional[float], Dict[str, float]]:
         # if core_metric returns None, then val/test was not performed. (e.g. in DDP mode, self.rank>0)
         if self.rank not in {-1, 0}:
             dist.barrier()
             return None, {}
-        #
-        if dataloader is None:
-            return None, {}
+        
         #
         lmodel = self.lmodel
         device = self.device
-        model_r = lmodel.model
-        lmodel.model = de_parallel(lmodel.model)
+        #
+        model_r = {}
+        for s in lmodel._models:
+            model: Module = getattr(lmodel, s)
+            model_r[s] = model
+            model = de_parallel(model)
+            setattr(lmodel, s, model)
         metrics_r: Dict[str, bool] = {k: m._to_sync for k, m in lmodel.metrics.items()}
         for m in lmodel.metrics.values():
-            # torchmetrics(>=0.9.3, <=0.10.1已测试) private variable. I don't know whether it will be changed later.
+            # torchmetrics(>=0.9.3, <=0.10.1 have been tested) private variable. I don't know whether it will be changed later.
             #   You can raise issue if finding error.
             # default: sync_on_compute = True
             m._to_sync = False
             m.sync_on_compute = False
         #
-        if mode == "val":
+        if stage == "val":
             val_test_epoch_start = lmodel.validation_epoch_start
             val_test_step = lmodel.validation_step
             val_test_epoch_end = lmodel.validation_epoch_end
-        elif mode == "test":
+        elif stage == "test":
             val_test_epoch_start = lmodel.test_epoch_start
             val_test_step = lmodel.test_step
             val_test_epoch_end = lmodel.test_epoch_end
         else:
-            raise ValueError(f"mode: {mode}")
+            raise ValueError(f"stage: {stage}")
         #
         val_test_epoch_start()
         #
         rec_mes: Dict[str, float] = {}  # Save the most recent mes. (for prog_bar)
         mean_metrics: Dict[str, MeanMetric] = {}
-        prog_bar = tqdm(total=len(dataloader), desc=desc, dynamic_ncols=True)
-        batch_idx = -1  # avoid unbound
-        self.prog_bar_mean.clear()
-        for batch_idx, batch in enumerate(dataloader):
-            self.new_mes.clear()
-            with torch.no_grad():
-                batch = lmodel.batch_to_device(batch, device)
-                val_test_step(batch)
-            #
-            self._metrics_update(mean_metrics, self.new_mes, self.prog_bar_mean, device, False, False)
-            rec_mes.update(self.new_mes)
-            # prog_bar
-            if (batch_idx + 1) % self.prog_bar_n_steps == 0:
-                mean_mes = self._metrics_compute(mean_metrics)
-                log_mes = self._get_log_mes(mean_mes, rec_mes, self.prog_bar_mean, self.verbose)
-                prog_bar.set_postfix(log_mes, refresh=False)
-                prog_bar.update(self.prog_bar_n_steps)
-        prog_bar.update(batch_idx + 1 - prog_bar.n)
-        prog_bar.close()
+        if dataloader is not None:
+            prog_bar = tqdm(total=len(dataloader), desc=desc, dynamic_ncols=True)
+            batch_idx = -1  # avoid unbound
+            self.prog_bar_mean.clear()
+            for batch_idx, batch in enumerate(dataloader):
+                self.new_mes.clear()
+                with torch.no_grad():
+                    batch = lmodel.batch_to_device(batch, device)
+                    val_test_step(batch)
+                #
+                self._metrics_update(mean_metrics, self.new_mes, self.prog_bar_mean, device, False, False)
+                rec_mes.update(self.new_mes)
+                # prog_bar
+                if (batch_idx + 1) % self.prog_bar_n_steps == 0:
+                    mean_mes = self._metrics_compute(mean_metrics)
+                    log_mes = self._get_log_mes(mean_mes, rec_mes, self.prog_bar_mean, self.verbose)
+                    prog_bar.set_postfix(log_mes, refresh=False)
+                    prog_bar.update(self.prog_bar_n_steps)
+            if (batch_idx + 1 - prog_bar.n) > 0:
+                prog_bar.update(batch_idx + 1 - prog_bar.n)
+            prog_bar.close()
         #
         res_mes: Dict[str, float] = {}
         res_mes.update(rec_mes)
         res_mes.update(self._metrics_compute(mean_metrics))
         #
-        metrics = val_test_epoch_end()
-        assert len(metrics) > 0
-        if mode == "val":
-            assert self.lmodel.core_metric_name is not None
-            core_metric = metrics["val_" + self.lmodel.core_metric_name]
-        else:  # test
-            core_metric = float("nan")
-        print("- " + self._get_epoch_end_log_string(metrics))
-        res_mes.update(metrics)
+        with torch.no_grad():
+            metrics = val_test_epoch_end()
+        # 
+        if len(metrics) > 0:
+            if stage == "val":
+                assert self.lmodel.core_metric_name is not None
+                core_metric = metrics["val_" + self.lmodel.core_metric_name]
+            else:  # test
+                core_metric = float("nan")
+            print("- " + self._get_epoch_end_log_string(metrics))
+            res_mes.update(metrics)
+        else:
+            core_metric = None
         self._tb_logger_add_scalars(res_mes, self.global_epoch)
         res_mes.update({"global_epoch": self.global_epoch})
         # recover
-        lmodel.model = model_r
+        for s, model in model_r.items():
+            setattr(lmodel, s, model)
         for k, b in metrics_r.items():
             lmodel.metrics[k]._to_sync = b
             lmodel.metrics[k].sync_on_compute = b

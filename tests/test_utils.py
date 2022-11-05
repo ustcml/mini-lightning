@@ -44,9 +44,9 @@ class TestUtils(ut.TestCase):
         import torch
         model = resnet50()
         input = torch.randn(1, 3, 224, 224)
-        ml.print_model_info(model, (input, ))
-        ml.print_model_info(model)
-        ml.print_model_info(model, (input, ))
+        ml.print_model_info("resnet", model, (input, ))
+        ml.print_model_info("resnet", model)
+        ml.print_model_info("resnet", model, (input, ))
 
     def test_ckpt(self):
         model = nn.Linear(10, 10)
@@ -57,11 +57,11 @@ class TestUtils(ut.TestCase):
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-        ml.save_ckpt("asset/tmp.ckpt", model, optimizer, 0)
+        ml.save_ckpt("asset/tmp.ckpt", {"model": model}, [optimizer], 0)
         #
-        model, optimizer_state_dict, mes = ml.load_ckpt("asset/tmp.ckpt")
-        optimizer2 = optim.SGD(model.parameters(), lr=0.1, momentum=0.9)
-        optimizer2.load_state_dict(optimizer_state_dict)
+        models, optimizer_state_dict, mes = ml.load_ckpt("asset/tmp.ckpt")
+        optimizer2 = optim.SGD(models["model"].parameters(), lr=0.1, momentum=0.9)
+        optimizer2.load_state_dict(optimizer_state_dict[0])
         print(mes)
 
 

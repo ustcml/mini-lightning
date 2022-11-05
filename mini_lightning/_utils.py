@@ -295,7 +295,7 @@ def multi_runs(collect_res: Callable[[int], Dict[str, float]], n: int, seed: Opt
     return res
 
 
-def print_model_info(model: Module, inputs: Optional[Tuple[Any, ...]] = None) -> None:
+def print_model_info(name: str, model: Module, inputs: Optional[Tuple[Any, ...]] = None) -> None:
     n_layers = len(list(model.modules()))
     n_params = sum(p.numel() for p in model.parameters())
     n_grads = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -305,7 +305,7 @@ def print_model_info(model: Module, inputs: Optional[Tuple[Any, ...]] = None) ->
     n_grads /= 1e6
     n_buffers /= 1e6
     s = [
-        f"{model.__class__.__name__}: ",
+        f"{name}: ",
         f"{n_layers} Layers, ",
         # Grads: Trainable Params (no freeze). Params-Grads: freeze
         f"{n_params:.4f}M Params ({n_grads:.4f}M Grads), ",
@@ -333,7 +333,7 @@ class LossMetric(MeanMetric):
     full_state_update = False
 
 
-def get_date_now(fmt: str = "%Y-%m-%d %H:%M:%S.%f") -> Tuple[str, Dict[str, int]]:
+def get_date_now(fmt: str = "%Y-%m-%d %H:%M:%S.%f") -> Tuple[Dict[str, int], str]:
     date = dt.datetime.now()
     mes = {
         "year": date.year,
@@ -344,25 +344,25 @@ def get_date_now(fmt: str = "%Y-%m-%d %H:%M:%S.%f") -> Tuple[str, Dict[str, int]
         "second": date.second,
         "microsecond": date.microsecond
     }
-    return date.strftime(fmt), mes
+    return mes, date.strftime(fmt)
 
 
-def save_ckpt(fpath: str, model: Module, optimizer: Optional[Optimizer], last_epoch: int,
+def save_ckpt(fpath: str, models: Dict[str, Module], optimizer: List[Optimizer], last_epoch: int,
               **kwargs: Dict[str, Any]) -> None:
     ckpt: Dict[str, Any] = {
-        "model": model,  # including model structure
-        "optimizer_state_dict": optimizer.state_dict() if optimizer is not None else None,
+        "models": models,  # including model structure
+        "optimizer_state_dict": [o.state_dict() for o in optimizer],
         "last_epoch": last_epoch,  # untrained model last_epoch=-1 (same as lr_scheduler)
-        "date": get_date_now()[0]
+        "date": get_date_now()[1]
     }
     ckpt.update(kwargs)
     torch.save(ckpt, fpath)
 
 
-def load_ckpt(fpath: str, map_location: Optional[Device] = None) -> Tuple[Module, Dict[str, Any], Dict[str, Any]]:
+def load_ckpt(fpath: str, map_location: Optional[Device] = None) -> Tuple[Dict[str, Module], List[Dict[str, Any]], Dict[str, Any]]:
     ckpt = torch.load(fpath, map_location=map_location)
-    model = ckpt["model"]
+    models = ckpt["models"]
     optimizer_state_dict = ckpt["optimizer_state_dict"]
-    ckpt.pop("model")
+    ckpt.pop("models")
     ckpt.pop("optimizer_state_dict")
-    return model, optimizer_state_dict, ckpt
+    return models, optimizer_state_dict, ckpt

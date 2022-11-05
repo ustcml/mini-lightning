@@ -20,14 +20,27 @@ device_ids = [0]
 
 
 class MyLModule(ml.LModule):
-    def __init__(self, model: Module, optimizer: Optimizer, metrics: Dict[str, Metric],
-                 loss_fn: Module, lr_s: LRScheduler, hparams: Optional[Dict[str, Any]] = None) -> None:
-        super().__init__(model, optimizer, metrics, "f1", hparams)
+    def __init__(self, hparams: Optional[Dict[str, Any]] = None) -> None:
+        model = BertForSequenceClassification.from_pretrained(model_name)
+        ml.freeze_layers(model, ["bert.embeddings."] + [f"bert.encoder.layer.{i}." for i in range(2)], verbose=False)
+        optimizer = getattr(optim, hparams["optim_name"])(model.parameters(), **hparams["optim_hparams"])
+        metrics: Dict[str, Metric] = {
+            "loss": ml.LossMetric(),
+            "acc":  Accuracy(),
+            "auc": AUROC(),  # Must be binary classification problem
+            "prec": Precision(average="macro", num_classes=2),
+            "recall": Recall(average="macro", num_classes=2),
+            "f1": F1Score(average="none", num_classes=2)
+        }
+        loss_fn = nn.CrossEntropyLoss()
+        lr_s = ml.warmup_decorator(lrs.CosineAnnealingLR, hparams["warmup"])(optimizer, **hparams["lrs_hparams"])
+        super().__init__([optimizer], metrics, "f1", hparams)
+        self.model = model
         self.loss_fn = loss_fn
         self.lr_s = lr_s
 
-    def optimizer_step(self) -> None:
-        super().optimizer_step()
+    def optimizer_step(self, opt_idx: int) -> None:
+        super().optimizer_step(opt_idx)
         self.lr_s.step()
 
     def _calculate_loss_prob_pred(self, batch: Dict[str, Tensor]) -> Tuple[Tensor, Tensor, Tensor]:
@@ -37,7 +50,7 @@ class MyLModule(ml.LModule):
         y_pred = logits.argmax(dim=-1)
         return loss, y_prob, y_pred
 
-    def training_step(self, batch: Dict[str, Tensor]) -> Tensor:
+    def training_step(self, batch: Dict[str, Tensor], opt_idx: int) -> Tensor:
         loss, _, y_pred = self._calculate_loss_prob_pred(batch)
         acc = accuracy(y_pred, batch["labels"])
         self.log("train_loss", loss)
@@ -100,20 +113,8 @@ if __name__ == "__main__":
     ldm = ml.LDataModule(
         dataset["train"], dataset["validation"], dataset["test"], **hparams["dataloader_hparams"])
     #
-    model = BertForSequenceClassification.from_pretrained(model_name)
-    ml.freeze_layers(model, ["bert.embeddings."] + [f"bert.encoder.layer.{i}." for i in range(2)], verbose=False)
-    optimizer = getattr(optim, hparams["optim_name"])(model.parameters(), **hparams["optim_hparams"])
-    metrics: Dict[str, Metric] = {
-        "loss": ml.LossMetric(),
-        "acc":  Accuracy(),
-        "auc": AUROC(),  # Must be binary classification problem
-        "prec": Precision(average="macro", num_classes=2),
-        "recall": Recall(average="macro", num_classes=2),
-        "f1": F1Score(average="none", num_classes=2)
-    }
-    loss_fn = nn.CrossEntropyLoss()
-    lr_s = ml.warmup_decorator(lrs.CosineAnnealingLR, hparams["warmup"])(optimizer, **hparams["lrs_hparams"])
-    lmodel = MyLModule(model, optimizer, metrics, loss_fn, lr_s, hparams)
+
+    lmodel = MyLModule(hparams)
     trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams["trainer_hparams"])
     try:
         logger.info(trainer.fit(ldm.train_dataloader, ldm.val_dataloader))
