@@ -75,7 +75,7 @@ class Discriminator(nn.Module):
         return logits
 
 
-def save_images(images: Tensor, ncols: int, path: str, *, norm: bool = False, pad_value=0.) -> None:
+def save_images(images: Tensor, ncols: int, path: str, *, norm: bool = False, pad_value: float = 0.) -> None:
     """
     images: [N, C, H, W]
     """
@@ -138,6 +138,7 @@ class MyLModule(ml.LModule):
             return d_loss
 
     def validation_epoch_end(self) -> Dict[str, float]:
+        # no grad; eval
         self.example_z = self.example_z.type_as(next(self.G.parameters()))
         fake_img = self.G(self.example_z)
         save_images(fake_img, 8, os.path.join(self.images_dir, f"epoch{self.global_epoch}.png"))

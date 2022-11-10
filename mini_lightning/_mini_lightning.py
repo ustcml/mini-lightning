@@ -222,8 +222,9 @@ class LModule:
             v: Tensor
             try:
                 v = metric.compute()
-            except RuntimeError:
+            except RuntimeError as e:
                 v = torch.tensor(torch.nan)
+                logger.error(e)
             if v.ndim > 0:
                 mes[k] = v.mean().item()  # "macro" mean
                 for i in range(len(v)):
@@ -764,7 +765,7 @@ class Trainer:
         if self.rank not in {-1, 0}:
             dist.barrier()
             return None, {}
-        
+
         #
         lmodel = self.lmodel
         device = self.device
@@ -826,7 +827,7 @@ class Trainer:
         #
         with torch.no_grad():
             metrics = val_test_epoch_end()
-        # 
+        #
         if len(metrics) > 0:
             if stage == "val":
                 assert self.lmodel.core_metric_name is not None

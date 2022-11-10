@@ -31,6 +31,7 @@ class MyLModule(ml.LModule):
         }
         #
         super().__init__([optimizer], metrics, "acc", hparams)
+        self.model = model
         self.loss_fn = loss_fn
         self.lr_s = lr_s
 
