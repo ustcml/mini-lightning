@@ -219,12 +219,9 @@ class LModule:
     def _val_test_epoch_end(self, stage: Literal["val", "test"]) -> Dict[str, float]:
         mes: Dict[str, float] = {}
         for k, metric in self.metrics.items():
-            v: Tensor
-            try:
-                v = metric.compute()
-            except RuntimeError as e:
-                v = torch.tensor(torch.nan)
-                logger.error(e)
+            if metric._update_count == 0:
+                continue
+            v: Tensor = metric.compute()
             if v.ndim > 0:
                 mes[k] = v.mean().item()  # "macro" mean
                 for i in range(len(v)):
@@ -244,8 +241,17 @@ class LModule:
     def test_epoch_end(self) -> Dict[str, float]:
         return self._val_test_epoch_end("test")
 
+    @staticmethod
+    def _parameters_empty(model: Module) -> bool:
+        p = model.parameters()
+        try:
+            next(p)
+        except StopIteration:
+            return True
+        return False
+
     def __setattr__(self, name: str, value: Any) -> None:
-        if isinstance(value, Module) and len(list(value.parameters())) > 0:  # avoid loss_fn
+        if isinstance(value, Module) and not self._parameters_empty(value):  # avoid loss_fn
             self._models.add(name)
         super().__setattr__(name, value)
 

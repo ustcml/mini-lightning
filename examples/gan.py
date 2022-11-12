@@ -1,3 +1,7 @@
+# Author: Jintao Huang
+# Email: huangjintao@mail.ustc.edu.cn
+# Date:
+
 # Ref: https://pytorch-lightning.readthedocs.io/en/latest/notebooks/lightning_examples/basic-gan.html
 #   https://github.com/eriklindernoren/PyTorch-GAN/blob/master/implementations/dcgan/dcgan.py
 
@@ -47,9 +51,9 @@ class Generator(nn.Module):
 
 class Discriminator(nn.Module):
     @staticmethod
-    def _make_block(in_channels: int, out_channels: int, bn: bool = True):
+    def _make_block(in_channels: int, out_channels: int, stride: int = 1, bn: bool = True):
         layers = [
-            nn.Conv2d(in_channels, out_channels, 3, 2, 1),
+            nn.Conv2d(in_channels, out_channels, 3, stride, 1),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Dropout2d(0.25)
         ]
@@ -63,10 +67,12 @@ class Discriminator(nn.Module):
         super(Discriminator, self).__init__()
         C, H, W = img_shape
         self.model = nn.Sequential(
-            self._make_block(C, 16, bn=False),
-            self._make_block(16, 32),
+            self._make_block(C, 16, 2, bn=False),
+            self._make_block(16, 32, 1),
+            self._make_block(32, 64, 2),
+            self._make_block(64, 128, 1),
         )
-        self.linear = nn.Linear(32 * H * W // 16, 1)
+        self.linear = nn.Linear(128 * H * W // 16, 1)
 
     def forward(self, x: Tensor) -> Tensor:
         x = self.model(x)
