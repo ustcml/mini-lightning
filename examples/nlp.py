@@ -32,11 +32,10 @@ class MyLModule(ml.LModule):
             "recall": Recall(average="macro", num_classes=2),
             "f1": F1Score(average="none", num_classes=2)
         }
-        loss_fn = nn.CrossEntropyLoss()
         lr_s = ml.warmup_decorator(lrs.CosineAnnealingLR, hparams["warmup"])(optimizer, **hparams["lrs_hparams"])
         super().__init__([optimizer], metrics, "f1", hparams)
         self.model = model
-        self.loss_fn = loss_fn
+        self.loss_fn = nn.CrossEntropyLoss()
         self.lr_s = lr_s
 
     def optimizer_step(self, opt_idx: int) -> None:
@@ -72,6 +71,7 @@ class MyLModule(ml.LModule):
 
 
 if __name__ == "__main__":
+    ml.seed_everything(42, gpu_dtm=False)
     dataset = load_dataset("glue", "mrpc")
     model_name = "bert-base-uncased"
     tokenizer: PreTrainedTokenizerBase = AutoTokenizer.from_pretrained(model_name)
@@ -85,7 +85,6 @@ if __name__ == "__main__":
     dataset = dataset.rename_column("label", "labels")
     collate_fn = DataCollatorWithPadding(tokenizer=tokenizer, return_tensors="pt")
     #
-    ml.seed_everything(42, gpu_dtm=False)
     max_epochs = 10
     batch_size = 32
     n_accumulate_grad = 4

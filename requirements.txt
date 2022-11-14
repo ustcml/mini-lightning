@@ -1,5 +1,5 @@
 torch>=1.12.*
-torchmetrics>=0.10.*
+torchmetrics>=0.10.2
 tensorboard>=2.10.*
 numpy>=1.23.*
 PyYAML>=6.0

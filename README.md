@@ -55,6 +55,9 @@ python examples/dqn.py
 pip install "matplotlib>=3.6.*" "torchvision>=0.13.*"
 python examples/gan.py
 
+### contrastive_learning.py
+pip install "pillow>=9.3.*" "torchvision>=0.13.*" "torchmetrics>=0.10.2"
+python examples/contrastive_learning.py
 
 ############ 
 ### cv_ddp.py; cv_ddp_spawn.py

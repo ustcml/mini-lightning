@@ -133,15 +133,14 @@ class MyLModule(ml.LModule):
         agent = Agent(env, memo_pool, model, ml.select_device(device_ids))
 
         optimizer = getattr(optim, hparams["optim_name"])(model.parameters(), **hparams["optim_hparams"])
-        loss_fn = nn.MSELoss()
         super().__init__([optimizer], {}, None, hparams)
         self.model = model
-        self.old_model = deepcopy(self.model)
+        self.old_model = deepcopy(self.model).requires_grad_(False)
         # New_model and old_model are used for model training.
         # New model is used for exploring the environment and training.
         # Old model is used for calculating the reward prediction of next_state.
         # Reason: to eliminate associations.
-        self.loss_fn = loss_fn
+        self.loss_fn = nn.MSELoss()
         self.agent = agent
         self.get_rand_p = partial(get_rand_p, **hparams["rand_p"])
         #
@@ -164,9 +163,10 @@ class MyLModule(ml.LModule):
         # The Q value of taking the action in the current state (Scalar) is approximated with
         # reward+gamma*(Q value of taking the best action in next_state (0 if done=True))
         y_pred = q_values[torch.arange(len(actions)), actions]
-        with torch.no_grad():
-            y_true: Tensor = self.old_model(next_states).max(1)[0]
-            y_true[dones] = 0.
+        # 
+        y_true: Tensor = self.old_model(next_states).max(1)[0]
+        y_true[dones] = 0.
+        # 
         y_true.mul_(self.gamma).add_(rewards)
         loss = self.loss_fn(y_pred, y_true)
         return loss

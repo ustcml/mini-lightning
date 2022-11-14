@@ -20,11 +20,11 @@ os.makedirs(RUNS_DIR, exist_ok=True)
 
 class MyLModule(ml.LModule):
     def __init__(self, hparams: Dict[str, Any]) -> None:
-        loss_fn = nn.CrossEntropyLoss()
         model: Module = getattr(tvm, hparams["model_name"])(**hparams["model_hparams"])
         state_dict = torch.hub.load_state_dict_from_url(**hparams["model_pretrain_model"])
         state_dict = ml._remove_keys(state_dict, ["fc"])
         logger.info(model.load_state_dict(state_dict, strict=False))
+        # 
         optimizer: Optimizer = getattr(optim, hparams["optim_name"])(model.parameters(), **hparams["optim_hparams"])
         lr_s: LRScheduler = ml.warmup_decorator(
             lrs.CosineAnnealingLR, hparams["warmup"])(optimizer, **hparams["lrs_hparams"])
@@ -35,7 +35,7 @@ class MyLModule(ml.LModule):
         #
         super().__init__([optimizer], metrics, "acc", hparams)
         self.model = model
-        self.loss_fn = loss_fn
+        self.loss_fn = nn.CrossEntropyLoss()
         self.lr_s = lr_s
 
     def optimizer_step(self, opt_idx: int) -> None:
@@ -80,6 +80,7 @@ if __name__ == "__main__":
     train_dataset = CIFAR10(root=DATASETS_PATH, train=True, download=True)
     DATA_MEANS: Tensor = (train_dataset.data / 255.0).mean(axis=(0, 1, 2))
     DATA_STD: Tensor = (train_dataset.data / 255.0).std(axis=(0, 1, 2))
+    # (array([0.49139968, 0.48215841, 0.44653091]), array([0.24703223, 0.24348513, 0.26158784]))
     logger.info((DATA_MEANS, DATA_STD))
     test_transform = tvt.Compose([
         tvt.ToTensor(),

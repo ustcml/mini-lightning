@@ -101,13 +101,12 @@ def save_images(images: Tensor, ncols: int, path: str, *, norm: bool = False, pa
 
 class MyLModule(ml.LModule):
     def __init__(self, hparams: Dict[str, Any]) -> None:
-        loss_fn = nn.BCEWithLogitsLoss()
         self.in_channels = hparams["G_hparams"]["in_channels"]
         G, D = Generator(**hparams["G_hparams"]), Discriminator(**hparams["D_hparams"])
         opt_G = getattr(optim, hparams["opt_G_name"])(G.parameters(), **hparams["opt_G_hparams"])
         opt_D = getattr(optim, hparams["opt_D_name"])(D.parameters(), **hparams["opt_D_hparams"])
         super().__init__([opt_G, opt_D], {}, None, hparams)
-        self.loss_fn = loss_fn
+        self.loss_fn = nn.BCEWithLogitsLoss()
         self.G = G
         self.D = D
         self.example_z = torch.randn(64, self.in_channels)

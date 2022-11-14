@@ -56,6 +56,7 @@ class LModule:
         core_metric: for model saving
         hparams: Hyperparameters to be saved
         """
+        # for trainer_init: device, ddp; _epoch_start: train, eval; print_model_info; save_ckpt
         self._models: Set[str] = set()
         self.optimizers = optimizers
         self.metrics = metrics
