@@ -20,6 +20,7 @@ class Acc(MeanMetric):
     higher_is_better = True
     full_state_update = False
 
+
 #
 device_ids = [0]
 
@@ -58,7 +59,7 @@ class SimCLR(ml.LModule):
         #
         resnet.fc = nn.Sequential(
             resnet.fc,
-            nn.ReLU(),
+            nn.ReLU(inplace=True),
             nn.Linear(4*hidden_state, hidden_state)
         )
         optimizer: Optimizer = getattr(optim, hparams["optim_name"])(resnet.parameters(), **hparams["optim_hparams"])
@@ -110,10 +111,10 @@ class SimCLR(ml.LModule):
 
 class MLP(ml.LModule):
     def __init__(self, resnet: Module, hparams: Dict[str, Any]) -> None:
-        hidden_state = hparams["hidden_state"]
+        in_channels = hparams["in_channels"]
         n_classes = hparams["n_classes"]
         #
-        mlp = nn.Linear(4*hidden_state, n_classes)
+        mlp = nn.Linear(in_channels, n_classes)
         optimizer: Optimizer = getattr(optim, hparams["optim_name"])(mlp.parameters(), **hparams["optim_hparams"])
         lr_s: LRScheduler = lrs.CosineAnnealingLR(optimizer, **hparams["lrs_hparams"])
         metrics = {
@@ -173,7 +174,7 @@ if __name__ == "__main__":
             tvt.ToTensor(),
             tvt.Normalize((0.5,), (0.5,)),
         ])
-        return [contrast_transforms(x) for i in range(n_views)]
+        return [contrast_transforms(x) for _ in range(n_views)]
 
     train_dataset = STL10(
         root=DATASETS_PATH,
@@ -224,6 +225,7 @@ if __name__ == "__main__":
     trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams["trainer_hparams"])
     logger.info(trainer.fit(ldm.train_dataloader, ldm.val_dataloader))
     resnet = deepcopy(lmodel.resnet)
+    in_channels = resnet.fc[0].in_features
     resnet.fc = nn.Identity()
     ##########
     del ldm, lmodel, trainer, transforms, train_dataset, val_dataset, max_epochs, batch_size, hparams
@@ -232,7 +234,7 @@ if __name__ == "__main__":
     batch_size = 256
     hparams = {
         "device_ids": device_ids,
-        "hidden_state": hidden_state,
+        "in_channels": in_channels,
         "n_classes": 10,
         "dataloader_hparams": {"batch_size": batch_size, "num_workers": 4},
         "optim_name": "SGD",

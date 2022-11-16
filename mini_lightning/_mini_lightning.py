@@ -272,15 +272,19 @@ class LDataModule:
         #
         batch_size: int,
         num_workers: int = 0,
+        pin_memory: bool = True,
         collate_fn: Optional[Callable[[List[Any]], Any]] = None,  # for test/val and (train if collate_fn_train is None)
         *,
         shuffle_train: bool = True,
-        pin_memory_train: bool = True,
         drop_last_train: bool = True,  # If DP/DDP, drop_last=False may cause uneven split
+        pin_memory_train: Optional[bool] = None,
         collate_fn_train: Optional[Callable[[List[Any]], Any]] = None,
     ) -> None:
+        if pin_memory_train is None:
+            pin_memory_train = pin_memory
         if collate_fn_train is None:
             collate_fn_train = collate_fn
+        #
         self.train_dataloader: Optional[DataLoader] = None
         self.val_dataloader: Optional[DataLoader] = None
         self.test_dataloader: Optional[DataLoader] = None
@@ -294,7 +298,7 @@ class LDataModule:
         for dataset, loader_name in zip([val_dataset, test_dataset], ["val_dataloader", "test_dataloader"]):
             if rank in {-1, 0} and dataset is not None:
                 loader = DataLoader(dataset, batch_size, shuffle=False,
-                                    num_workers=num_workers, pin_memory=False,
+                                    num_workers=num_workers, pin_memory=pin_memory,
                                     drop_last=False, collate_fn=collate_fn)
                 setattr(self, loader_name, loader)
 

@@ -48,7 +48,7 @@ pip install "transformers>=4.23.*" "datasets>=2.6.*"
 python examples/nlp.py
 
 ### dqn.py
-pip install "gym>=0.26.*" pygame
+pip install "gym>=0.26.2" "pygame>=2.1.2"
 python examples/dqn.py
 
 ### gan.py

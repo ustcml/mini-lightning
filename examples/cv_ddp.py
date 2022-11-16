@@ -114,7 +114,7 @@ if __name__ == "__main__":
         "model_name": "resnet50",
         "model_hparams": {"num_classes": 10},
         "model_pretrain_model": {"url": tvm.ResNet50_Weights.DEFAULT.url},
-        "dataloader_hparams": {"batch_size": batch_size, "num_workers": 4, "pin_memory_train": False},
+        "dataloader_hparams": {"batch_size": batch_size, "num_workers": 4},  # "pin_memory": False
         "optim_name": "SGD",
         "optim_hparams": {"lr": 1e-2, "weight_decay": 1e-4, "momentum": 0.9},
         "trainer_hparams": {
