@@ -20,7 +20,7 @@
 3. Install mini-lightning
 ```bash
 # from pypi
-pip install mini-lightning==0.1.5
+pip install mini-lightning==0.1.6
 
 # Or download the files from the repository to local,
 # and go to the folder where setup.py is located, and run the following command
@@ -80,3 +80,4 @@ torchrun --nnodes 2 --node_rank 1 --master_addr xxx.xxx.xxx.xxx --nproc_per_node
 
 ## TODO
 1. Automatic parameter adjustment
+2. Examples: GNN, Audio, Meta learning
