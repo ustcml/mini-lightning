@@ -29,7 +29,7 @@ pip install .
 ```
 
 
-## Use
+## Examples
 1. First, you need to complete the steps to install the Mini-Lightning
 2. Run the following examples
 
@@ -88,4 +88,4 @@ torchrun --nnodes 2 --node_rank 1 --master_addr xxx.xxx.xxx.xxx --nproc_per_node
 
 ## TODO
 1. Automatic parameter adjustment
-2. Examples: GNN, Audio, Meta learning
+2. Examples: Audio, Meta-learning, AE, VAE, Diffusion

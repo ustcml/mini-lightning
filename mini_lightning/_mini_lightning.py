@@ -119,12 +119,12 @@ class LModule:
     @classmethod
     def batch_to_device(cls, batch: Any, device: Device) -> Any:
         if callable(getattr(batch, "to", None)):
-            # Ref: https://pytorch-lightning.readthedocs.io/en/stable/_modules/pytorch_lightning/utilities/apply_func.html?highlight=non_blocking#
+            # Ref: https://github.com/Lightning-AI/lightning/blob/master/src/lightning_lite/utilities/apply_func.py
             # same as pytorch-lightning
-            non_blocking = False
-            if device not in (Device("cpu"), "cpu"):
-                non_blocking = True
-            return batch.to(device=device, non_blocking=non_blocking)
+            kwargs = {}
+            if isinstance(batch, Tensor) and device not in (Device("cpu"), "cpu"):
+                kwargs["non_blocking"] = True
+            return batch.to(device=device, **kwargs)
         #
         if isinstance(batch, Mapping):
             res = {}
