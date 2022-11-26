@@ -2,10 +2,11 @@
 # Email: huangjintao@mail.ustc.edu.cn
 # Date:
 
+# Ref: https://pytorch-lightning.readthedocs.io/en/stable/notebooks/lightning_examples/reinforce-learning-DQN.html
+
 from pre import *
 import gym
 from gym import Env
-#
 
 """
 'Hello world' in Reinforcement Learning. 
@@ -157,16 +158,16 @@ class MyLModule(ml.LModule):
         for _ in tqdm(range(steps), desc=f"Warmup: "):
             self.agent.step(rand_p=1)
 
-    def _train_step(self, batch: Any) -> Tensor:
+    def _train_step(self, batch: Tuple[Tensor, Tensor, Tensor, Tensor, Tensor]) -> Tensor:
         states, actions, rewards, dones, next_states = batch
         q_values = self.model(states)
         # The Q value of taking the action in the current state (Scalar) is approximated with
         # reward+gamma*(Q value of taking the best action in next_state (0 if done=True))
         y_pred = q_values[torch.arange(len(actions)), actions]
-        # 
+        #
         y_true: Tensor = self.old_model(next_states).max(1)[0]
         y_true[dones] = 0.
-        # 
+        #
         y_true.mul_(self.gamma).add_(rewards)
         loss = self.loss_fn(y_pred, y_true)
         return loss
@@ -185,7 +186,11 @@ class MyLModule(ml.LModule):
         super().training_epoch_start()
         self.old_model.eval()
 
-    def training_step(self, batch: Any, opt_idx: int) -> Tensor:
+    def training_step(
+        self,
+        batch: Tuple[Tensor, Tensor, Tensor, Tensor, Tensor],
+        opt_idx: int
+    ) -> Tensor:
         if self.global_step % self.sync_steps == 0:
             # copy state dict
             self.old_model.load_state_dict(self.model.state_dict())

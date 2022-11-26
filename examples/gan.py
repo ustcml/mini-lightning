@@ -116,7 +116,7 @@ class MyLModule(ml.LModule):
         os.makedirs(self.images_dir, exist_ok=True)
         return super().trainer_init(trainer)
 
-    def training_step(self, batch: Any, opt_idx: int) -> Tensor:
+    def training_step(self, batch: Tuple[Tensor, Tensor], opt_idx: int) -> Tensor:
         true_img, _ = batch
         N = true_img.shape[0]
         z = torch.randn(N, self.in_channels).type_as(true_img)

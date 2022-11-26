@@ -80,7 +80,10 @@ class SimCLR(ml.LModule):
         super().optimizer_step(opt_idx)
         self.lr_s.step()
 
-    def _calculate(self, batch: Any) -> Tuple[Tensor, Tensor, Tensor]:
+    def _calculate(
+        self,
+        batch: Tuple[List[Tensor], Tensor]
+    ) -> Tuple[Tensor, Tensor, Tensor]:
         """
         return: loss, acc, acc_top5
         """
@@ -92,20 +95,20 @@ class SimCLR(ml.LModule):
         acc_top5 = (pos_idx < 5).float()
         return loss, acc, acc_top5
 
-    def training_step(self, batch: Any, opt_idx: int) -> Tensor:
+    def training_step(self, batch: Tuple[List[Tensor], Tensor], opt_idx: int) -> Tensor:
         loss, acc, acc_top5 = self._calculate(batch)
         self.log("train_loss", loss)
         self.log("train_acc", acc.mean())
         self.log("acc_top5", acc_top5.mean())
         return loss
 
-    def validation_step(self, batch: Any) -> None:
+    def validation_step(self, batch: Tuple[List[Tensor], Tensor]) -> None:
         loss, acc, acc_top5 = self._calculate(batch)
         self.metrics["loss"].update(loss)
         self.metrics["acc"].update(acc)
         self.metrics["acc_top5"].update(acc_top5)
 
-    def test_step(self, batch: Any) -> None:
+    def test_step(self, batch: Tuple[List[Tensor], Tensor]) -> None:
         self.validation_step(batch)
 
 
@@ -136,7 +139,7 @@ class MLP(ml.LModule):
         super().training_epoch_start()
         self.resnet.eval()
 
-    def _calculate_loss_pred(self, batch: Any) -> Tuple[Tensor, Tensor]:
+    def _calculate_loss_pred(self, batch: Tuple[Tensor, Tensor]) -> Tuple[Tensor, Tensor]:
         x_batch, y_batch = batch
         features = self.resnet(x_batch)
         y = self.mlp(features)
@@ -144,19 +147,19 @@ class MLP(ml.LModule):
         y_pred = y.argmax(dim=-1)
         return loss, y_pred
 
-    def training_step(self, batch: Any, opt_idx: int) -> Tensor:
+    def training_step(self, batch: Tuple[Tensor, Tensor], opt_idx: int) -> Tensor:
         loss, y_pred = self._calculate_loss_pred(batch)
         acc = accuracy(y_pred, batch[1])
         self.log("train_loss", loss)
         self.log("train_acc", acc)
         return loss
 
-    def validation_step(self, batch: Any) -> None:
+    def validation_step(self, batch: Tuple[Tensor, Tensor]) -> None:
         loss, y_pred = self._calculate_loss_pred(batch)
         self.metrics["loss"].update(loss)
         self.metrics["acc"].update(y_pred, batch[1])
 
-    def test_step(self, batch: Any) -> None:
+    def test_step(self, batch: Tuple[Tensor, Tensor]) -> None:
         self.validation_step(batch)
 
 

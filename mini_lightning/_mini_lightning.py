@@ -118,7 +118,7 @@ class LModule:
 
     @classmethod
     def batch_to_device(cls, batch: Any, device: Device) -> Any:
-        if isinstance(batch, Tensor):
+        if callable(getattr(batch, "to", None)):
             # Ref: https://pytorch-lightning.readthedocs.io/en/stable/_modules/pytorch_lightning/utilities/apply_func.html?highlight=non_blocking#
             # same as pytorch-lightning
             non_blocking = False
@@ -126,16 +126,14 @@ class LModule:
                 non_blocking = True
             return batch.to(device=device, non_blocking=non_blocking)
         #
-        if isinstance(batch, Sequence):
-            res = []
-            for b in batch:
-                res.append(cls.batch_to_device(b, device))
-            if isinstance(batch, tuple):
-                res = tuple(res)
-        elif isinstance(batch, Mapping):
+        if isinstance(batch, Mapping):
             res = {}
             for k, v in batch.items():
                 res[k] = cls.batch_to_device(v, device)
+        elif isinstance(batch, Sequence) and not isinstance(batch, str):
+            res = []
+            for b in batch:
+                res.append(cls.batch_to_device(b, device))
         else:
             raise TypeError(f"batch: {batch}, {type(batch)}")
         return res
@@ -277,9 +275,12 @@ class LDataModule:
         *,
         shuffle_train: bool = True,
         drop_last_train: bool = True,  # If DP/DDP, drop_last=False may cause uneven split
+        num_workers_train: Optional[int] = None,
         pin_memory_train: Optional[bool] = None,
         collate_fn_train: Optional[Callable[[List[Any]], Any]] = None,
     ) -> None:
+        if num_workers_train is None:
+            num_workers_train = num_workers
         if pin_memory_train is None:
             pin_memory_train = pin_memory
         if collate_fn_train is None:
@@ -291,7 +292,7 @@ class LDataModule:
         #
         if train_dataset is not None:
             self.train_dataloader = DataLoader(train_dataset, batch_size, shuffle=shuffle_train,
-                                               num_workers=num_workers, pin_memory=pin_memory_train,
+                                               num_workers=num_workers_train, pin_memory=pin_memory_train,
                                                drop_last=drop_last_train, collate_fn=collate_fn_train)
         #
         rank = get_dist_setting()[0]
@@ -432,7 +433,7 @@ class Trainer:
         logger.info(f"Setting benchmark: {benchmark}")
         #
         self.scaler = GradScaler(enabled=amp)
-        self.best_metric = None
+        self.best_metric: Optional[float] = None
         self.best_ckpt_path: Optional[str] = None
         self.last_ckpt_path: Optional[str] = None
         self.global_step = 0
@@ -444,15 +445,16 @@ class Trainer:
         self.found_inf = False
         self.found_nan = False
         #
+        self.version: Optional[int] = None
         if self.rank in {-1, 0}:
             runs_dir = os.path.abspath(runs_dir)
-            v = self._get_version(runs_dir)
+            self.version = self._get_version(runs_dir)
             if platform.system().lower() == "windows":
                 time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")  # window not support `:`
-                runs_dir = os.path.join(runs_dir, f"v{v}_{time}")
+                runs_dir = os.path.join(runs_dir, f"v{self.version}_{time}")
             else:  # "linux"
                 time = datetime.datetime.now().strftime("%Y:%m:%d-%H:%M:%S")
-                runs_dir = os.path.join(runs_dir, f"v{v}-{time}")
+                runs_dir = os.path.join(runs_dir, f"v{self.version}-{time}")
             logger.info(f"runs_dir: {runs_dir}")
             #
             self.runs_dir = runs_dir
@@ -744,6 +746,8 @@ class Trainer:
             if (batch_idx + 1) % self.prog_bar_n_steps == 0:
                 mean_mes = self._metrics_compute(mean_metrics)
                 log_mes = self._get_log_mes(mean_mes, rec_mes, self.prog_bar_mean, self.verbose)
+                if self.version is not None:
+                    log_mes["v"] = self.version
                 # rank > 0 disable.
                 prog_bar.set_postfix(log_mes, refresh=False)
                 prog_bar.update(self.prog_bar_n_steps)

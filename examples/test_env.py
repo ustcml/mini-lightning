@@ -66,14 +66,14 @@ if __name__ == "__main__":
             self.lr_s = ml.warmup_decorator(MultiStepLR, 5)(optimizer, [10, 50], 0.1, last_epoch=trainer.global_epoch)
             super().trainer_init(trainer)
 
-        def _calculate_loss_pred(self, batch: Any) -> Tuple[Tensor, Tensor]:
+        def _calculate_loss_pred(self, batch: Tuple[Tensor, Tensor]) -> Tuple[Tensor, Tensor]:
             x_batch, y_batch = batch
             y = self.model(x_batch)[:, 0]
             loss = self.loss_fn(y, y_batch.float())
             y_pred = y >= 0
             return loss, y_pred
 
-        def training_step(self, batch: Any, opt_idx: int) -> Tensor:
+        def training_step(self, batch: Tuple[Tensor, Tensor], opt_idx: int) -> Tensor:
             y_batch = batch[1]
             loss, y_pred = self._calculate_loss_pred(batch)
             acc = accuracy(y_pred, y_batch)
@@ -81,13 +81,13 @@ if __name__ == "__main__":
             self.log("train_acc", acc)
             return loss
 
-        def validation_step(self, batch: Any) -> None:
+        def validation_step(self, batch: Tuple[Tensor, Tensor]) -> None:
             y_batch = batch[1]
             loss, y_pred = self._calculate_loss_pred(batch)
             self.metrics["loss"].update(loss)
             self.metrics["acc"].update(y_pred, y_batch)
 
-        def test_step(self, batch: Any) -> None:
+        def test_step(self, batch: Tuple[Tensor, Tensor]) -> None:
             self.validation_step(batch)
         #
 

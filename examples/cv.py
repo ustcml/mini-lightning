@@ -21,7 +21,7 @@ class MyLModule(ml.LModule):
         state_dict = torch.hub.load_state_dict_from_url(**hparams["model_pretrain_model"])
         state_dict = ml._remove_keys(state_dict, ["fc"])
         logger.info(model.load_state_dict(state_dict, strict=False))
-        #
+        # 
         optimizer: Optimizer = getattr(optim, hparams["optim_name"])(model.parameters(), **hparams["optim_hparams"])
         lr_s: LRScheduler = ml.warmup_decorator(
             lrs.CosineAnnealingLR, hparams["warmup"])(optimizer, **hparams["lrs_hparams"])
@@ -39,26 +39,26 @@ class MyLModule(ml.LModule):
         super().optimizer_step(opt_idx)
         self.lr_s.step()
 
-    def _calculate_loss_pred(self, batch: Any) -> Tuple[Tensor, Tensor]:
+    def _calculate_loss_pred(self, batch: Tuple[Tensor, Tensor]) -> Tuple[Tensor, Tensor]:
         x_batch, y_batch = batch
-        y = self.model(x_batch)
+        y: Tensor = self.model(x_batch)
         loss = self.loss_fn(y, y_batch)
         y_pred = y.argmax(dim=-1)
         return loss, y_pred
 
-    def training_step(self, batch: Any, opt_idx: int) -> Tensor:
+    def training_step(self, batch: Tuple[Tensor, Tensor], opt_idx: int) -> Tensor:
         loss, y_pred = self._calculate_loss_pred(batch)
         acc = accuracy(y_pred, batch[1])
         self.log("train_loss", loss)
         self.log("train_acc", acc)
         return loss
 
-    def validation_step(self, batch: Any) -> None:
+    def validation_step(self, batch: Tuple[Tensor, Tensor]) -> None:
         loss, y_pred = self._calculate_loss_pred(batch)
         self.metrics["loss"].update(loss)
         self.metrics["acc"].update(y_pred, batch[1])
 
-    def test_step(self, batch: Any) -> None:
+    def test_step(self, batch: Tuple[Tensor, Tensor]) -> None:
         self.validation_step(batch)
 
 

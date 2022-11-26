@@ -31,7 +31,7 @@ pip install .
 
 ## Use
 1. First, you need to complete the steps to install the Mini-Lightning
-2. Run the following command
+2. Run the following examples
 
 ```bash
 ### test environment
@@ -59,10 +59,18 @@ python examples/gan.py
 pip install "pillow>=9.3.*" "torchvision>=0.13.*" "torchmetrics>=0.10.2"
 python examples/contrastive_learning.py
 
+### gnn.py gnn2.py
+# download torch_geometric
+#   Ref: https://pytorch-geometric.readthedocs.io/en/latest/notes/installation.html
+python examples/gnn.py
+python examples/gnn2.py
+
 ############ 
 ### cv_ddp.py; cv_ddp_spawn.py
-# torchrun (Recommended): Ref: https://pytorch.org/docs/stable/elastic/run.html
-# spawn: Ref: https://pytorch.org/docs/stable/notes/ddp.html
+# torchrun (Recommended)
+#   Ref: https://pytorch.org/docs/stable/elastic/run.html
+# spawn
+#   Ref: https://pytorch.org/docs/stable/notes/ddp.html
 ## single-gpu  # for test
 torchrun examples/cv_ddp.py --device_ids 0
 python cv_ddp_spawn.py  # setting world_size=1, device_ids=[0]
