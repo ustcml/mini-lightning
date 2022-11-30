@@ -364,7 +364,7 @@ class Trainer:
             note: Replace train_dataloader only. Because DDP uses a single gpu for val/test. 
         resume_from_ckpt: resume from checkpoint path. This `last-*.ckpt` file type must be mini-lightning checkpoint file.
         *
-        val_every_n_epoch: Frequency of validation. (the last epoch will always be validated)
+        val_every_n_epoch: Frequency of validation and prog_bar_leave of training. (the last epoch will always be validated)
         log_every_n_steps: Frequency of writing information to the tensorboard(sampling per n steps, not mean). `global_step % `
         prog_bar_n_steps: updating Frequency of progress bar. `batch_idx % `
             note: In the case of DDP+train, metrics are collected from all gpus. (same as log_every_n_steps)
@@ -668,7 +668,7 @@ class Trainer:
                                 drop_last=dataloader.drop_last, collate_fn=dataloader.collate_fn)
         return dataloader
 
-    def _train_epoch(self, dataloader: DataLoader) -> Dict[str, float]:
+    def _train_epoch(self, dataloader: DataLoader, prog_bar_leave: bool = True) -> Dict[str, float]:
         lmodel = self.lmodel
         assert len(lmodel.optimizers) > 0
         lmodel.training_epoch_start()
@@ -692,7 +692,7 @@ class Trainer:
         rec_mes: Dict[str, float] = {}  # Save the most recent mes. (for prog_bar and tensorboard)
         mean_metrics: Dict[str, MeanMetric] = {}
         prog_bar = tqdm(total=len(dataloader),
-                        desc=f"Epoch {self.global_epoch}", dynamic_ncols=True, disable=self.rank > 0)  # mininterval=0.01
+                        desc=f"Epoch {self.global_epoch}", dynamic_ncols=True, disable=self.rank > 0, leave=prog_bar_leave)  # mininterval=0.01
         batch_idx = -1  # avoid unbound
         self.prog_bar_mean.clear()
         for batch_idx, batch in enumerate(dataloader):
@@ -877,11 +877,12 @@ class Trainer:
         #
         for _ in range(self.global_epoch + 1, self.max_epochs):
             self.global_epoch += 1
-            mes = self._train_epoch(train_dataloader)
+            need_val = (self.global_epoch + 1) % self.val_every_n_epoch == 0 or self.global_epoch + 1 == self.max_epochs
+            mes = self._train_epoch(train_dataloader, need_val)
             #
             tag = "Train"
             core_metric = None
-            if (self.global_epoch + 1) % self.val_every_n_epoch == 0 or self.global_epoch + 1 == self.max_epochs:
+            if need_val:
                 tag = "Train+Val"
                 core_metric, val_mes = self._val_test(val_dataloader, "val", "  Val: ")
                 mes.update(val_mes)
@@ -899,8 +900,6 @@ class Trainer:
     def _test(self, dataloader: Optional[DataLoader],
               model_type: Literal["last", "best"]) -> Dict[str, float]:
         #
-        desc = ""  # avoid unbound
-        title = ""
         if model_type == "best":
             assert self.best_ckpt_path is not None
             self._load_ckpt(self.best_ckpt_path, self.device)

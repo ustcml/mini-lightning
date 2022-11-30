@@ -175,7 +175,7 @@ if __name__ == "__main__":
             tvt.RandomGrayscale(p=0.2),
             tvt.GaussianBlur(kernel_size=9),
             tvt.ToTensor(),
-            tvt.Normalize((0.5,), (0.5,)),
+            tvt.Normalize((0.5,), (0.5,)),  # [0, 1] -> [-1, 1]
         ])
         return [contrast_transforms(x) for _ in range(n_views)]
 

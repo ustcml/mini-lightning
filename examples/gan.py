@@ -81,14 +81,20 @@ class Discriminator(nn.Module):
         return logits
 
 
-def save_images(images: Tensor, ncols: int, path: str, *, norm: bool = False, pad_value: float = 0.) -> None:
+def save_images(
+    images: Tensor, ncols: int, path: str, *,
+    norm: bool = False,
+    value_range: Optional[Tuple[int, int]] = None,
+    pad_value: float = 0.
+) -> None:
     """
     images: [N, C, H, W]
     """
     images = images.detach().cpu()
     N = images.shape[0]
     nrows = int(math.ceil(N / ncols))
-    images = _make_grid(images, nrow=ncols, normalize=norm, pad_value=pad_value)  # [C, H, W], 0-1
+    images = _make_grid(images, nrow=ncols, normalize=norm, value_range=value_range,
+                        pad_value=pad_value)  # [C, H, W], 0-1
     images.clip_(0, 1)
     images = images.permute(1, 2, 0).numpy()
     #
@@ -146,12 +152,18 @@ class MyLModule(ml.LModule):
         # no grad; eval
         self.example_z = self.example_z.type_as(next(self.G.parameters()))
         fake_img = self.G(self.example_z)
-        save_images(fake_img, 8, os.path.join(self.images_dir, f"epoch{self.global_epoch}.png"))
+        save_images(fake_img, 8, os.path.join(self.images_dir, f"epoch{self.global_epoch}.png"), norm=True, value_range=(-1, 1))
         return super().validation_epoch_end()  # {}
 
 
 if __name__ == "__main__":
-    train_dataset = MNIST(DATASETS_PATH, True, tvt.ToTensor(), download=True)
+    transform = tvt.Compose(
+        [
+            tvt.ToTensor(),
+            tvt.Normalize((0.5,), (0.5,)),  # [0, 1] -> [-1, 1]
+        ]
+    )
+    train_dataset = MNIST(DATASETS_PATH, True, transform, download=True)
     #
     max_epochs = 20
     batch_size = 256
