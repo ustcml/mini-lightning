@@ -139,7 +139,7 @@ if __name__ == "__main__":
     in_channels = dataset[0].x.shape[1]
     hidden_channels = 16
     out_channels = dataset[0].y.shape[0]
-    #
+    # ########## GNN
     ml.seed_everything(42, gpu_dtm=False)
     hparams = {
         "device_ids": device_ids,
@@ -168,7 +168,7 @@ if __name__ == "__main__":
     trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams["trainer_hparams"])
     trainer.fit(loader, loader)
     trainer.test(loader, True, True)
-    ##########
+    # ########## MLP
     ml.seed_everything(42, gpu_dtm=False)
     hparams["model_name"] = "mlp"
     lmodel = MyLModule(hparams)

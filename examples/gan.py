@@ -6,16 +6,8 @@
 #   https://github.com/eriklindernoren/PyTorch-GAN/blob/master/implementations/dcgan/dcgan.py
 
 
-from pre import *
-import torchvision.transforms as tvt
-import torchvision.datasets as tvd
-from torchvision.utils import make_grid as _make_grid
-import matplotlib.pyplot as plt
-import matplotlib
-matplotlib.use('Agg')
-
+from pre_cv import *
 #
-MNIST = tvd.MNIST
 RUNS_DIR = os.path.join(RUNS_DIR, "gan")
 os.makedirs(RUNS_DIR, exist_ok=True)
 #
@@ -81,30 +73,6 @@ class Discriminator(nn.Module):
         return logits
 
 
-def save_images(
-    images: Tensor, ncols: int, path: str, *,
-    norm: bool = False,
-    value_range: Optional[Tuple[int, int]] = None,
-    pad_value: float = 0.
-) -> None:
-    """
-    images: [N, C, H, W]
-    """
-    images = images.detach().cpu()
-    N = images.shape[0]
-    nrows = int(math.ceil(N / ncols))
-    images = _make_grid(images, nrow=ncols, normalize=norm, value_range=value_range,
-                        pad_value=pad_value)  # [C, H, W], 0-1
-    images.clip_(0, 1)
-    images = images.permute(1, 2, 0).numpy()
-    #
-    fig, ax = plt.subplots(figsize=(2 * ncols, 2 * nrows), dpi=200)
-    ax.imshow(images, cmap=None, origin="upper", vmin=0, vmax=1)
-    ax.axis("off")
-    plt.savefig(path, bbox_inches='tight')
-    plt.close()
-
-
 class MyLModule(ml.LModule):
     def __init__(self, hparams: Dict[str, Any]) -> None:
         self.in_channels = hparams["G_hparams"]["in_channels"]
@@ -152,7 +120,8 @@ class MyLModule(ml.LModule):
         # no grad; eval
         self.example_z = self.example_z.type_as(next(self.G.parameters()))
         fake_img = self.G(self.example_z)
-        save_images(fake_img, 8, os.path.join(self.images_dir, f"epoch{self.global_epoch}.png"), norm=True, value_range=(-1, 1))
+        fpath = os.path.join(self.images_dir, f"epoch{self.global_epoch}.png")
+        save_images(fake_img, 8, fpath, norm=True, value_range=(-1, 1))
         return super().validation_epoch_end()  # {}
 
 

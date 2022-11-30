@@ -52,11 +52,11 @@ pip install "gym>=0.26.2" "pygame>=2.1.2"
 python examples/dqn.py
 
 ### gan.py
-pip install "matplotlib>=3.6.*" "torchvision>=0.13.*"
+pip install "torchvision>=0.13.*"
 python examples/gan.py
 
 ### contrastive_learning.py
-pip install "pillow>=9.3.*" "torchvision>=0.13.*" "torchmetrics>=0.10.2"
+pip install "torchvision>=0.13.*" "torchmetrics>=0.10.2" "scikit-learn>=1.1.*"
 python examples/contrastive_learning.py
 
 ### gnn.py gnn2.py
@@ -65,7 +65,7 @@ python examples/contrastive_learning.py
 python examples/gnn.py
 python examples/gnn2.py
 
-############ 
+########## 
 ### cv_ddp.py; cv_ddp_spawn.py
 # torchrun (Recommended)
 #   Ref: https://pytorch.org/docs/stable/elastic/run.html

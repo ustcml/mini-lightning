@@ -2,10 +2,7 @@
 # Email: huangjintao@mail.ustc.edu.cn
 # Date:
 
-from pre import *
-import torchvision.transforms as tvt
-import torchvision.datasets as tvd
-import torchvision.models as tvm
+from pre_cv import *
 #
 CIFAR10 = tvd.CIFAR10
 RUNS_DIR = os.path.join(RUNS_DIR, "cv")

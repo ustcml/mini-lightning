@@ -7,12 +7,8 @@ torchrun support multi-node. (recommended)
 torchrun Ref: https://pytorch.org/docs/stable/elastic/run.html
 """
 
-from pre import *
-import torchvision.transforms as tvt
-import torchvision.datasets as tvd
-import torchvision.models as tvm
+from pre_cv import *
 #
-CIFAR10 = tvd.CIFAR10
 RUNS_DIR = os.path.join(RUNS_DIR, "cv_ddp")
 os.makedirs(RUNS_DIR, exist_ok=True)
 #
@@ -24,7 +20,7 @@ class MyLModule(ml.LModule):
         state_dict = torch.hub.load_state_dict_from_url(**hparams["model_pretrain_model"])
         state_dict = ml._remove_keys(state_dict, ["fc"])
         logger.info(model.load_state_dict(state_dict, strict=False))
-        # 
+        #
         optimizer: Optimizer = getattr(optim, hparams["optim_name"])(model.parameters(), **hparams["optim_hparams"])
         lr_s: LRScheduler = ml.warmup_decorator(
             lrs.CosineAnnealingLR, hparams["warmup"])(optimizer, **hparams["lrs_hparams"])

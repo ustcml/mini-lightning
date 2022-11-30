@@ -20,6 +20,8 @@ from functools import partial
 from tqdm import tqdm
 import numpy as np
 from numpy import ndarray
+import matplotlib.pyplot as plt
+import matplotlib
 #
 from torchmetrics import Metric, MeanMetric
 from torchmetrics.classification.accuracy import Accuracy
@@ -40,7 +42,7 @@ from torch.optim import Optimizer
 from torch.nn.parameter import Parameter
 from torch.optim import lr_scheduler as lrs
 from torch.optim.lr_scheduler import _LRScheduler as LRScheduler
-from torch.utils.data import Dataset, DataLoader, random_split, IterableDataset
+from torch.utils.data import Dataset, DataLoader, random_split, IterableDataset, TensorDataset
 from torch.multiprocessing.spawn import spawn
 #
 import mini_lightning as ml
@@ -50,3 +52,4 @@ RUNS_DIR = "./runs"  # please run in mini-lightning folder
 DATASETS_PATH = os.environ.get("DATASETS_PATH", os.path.join(RUNS_DIR, "datasets"))
 os.makedirs(RUNS_DIR, exist_ok=True)
 os.makedirs(DATASETS_PATH, exist_ok=True)
+matplotlib.use('Agg')

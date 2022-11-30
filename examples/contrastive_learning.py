@@ -3,14 +3,9 @@
 # Date:
 
 # Ref: https://pytorch-lightning.readthedocs.io/en/stable/notebooks/course_UvA-DL/13-contrastive-learning.html
-from pre import *
-import torchvision.transforms as tvt
-import torchvision.datasets as tvd
-import torchvision.models as tvm
-from PIL import Image
+from pre_cv import *
+from sklearn.manifold import TSNE
 #
-ResNet = tvm.ResNet
-STL10 = tvd.STL10
 RUNS_DIR = os.path.join(RUNS_DIR, "cl")
 os.makedirs(RUNS_DIR, exist_ok=True)
 
@@ -56,6 +51,10 @@ class SimCLR(ml.LModule):
     def __init__(self, hparams: Dict[str, Any]) -> None:
         hidden_state = hparams["hidden_state"]
         resnet: ResNet = getattr(tvm, hparams["model_name"])(num_classes=4*hidden_state)
+        #
+        # state_dict = torch.hub.load_state_dict_from_url(url=tvm.ResNet18_Weights.DEFAULT.url)
+        # state_dict = ml._remove_keys(state_dict, ["fc"])
+        # logger.info(resnet.load_state_dict(state_dict, strict=False))
         #
         resnet.fc = nn.Sequential(
             resnet.fc,
@@ -113,7 +112,7 @@ class SimCLR(ml.LModule):
 
 
 class MLP(ml.LModule):
-    def __init__(self, resnet: Module, hparams: Dict[str, Any]) -> None:
+    def __init__(self, hparams: Dict[str, Any]) -> None:
         in_channels = hparams["in_channels"]
         n_classes = hparams["n_classes"]
         #
@@ -126,7 +125,6 @@ class MLP(ml.LModule):
         }
         #
         super().__init__([optimizer], metrics, "acc", hparams)
-        self.resnet = resnet.requires_grad_(False)
         self.mlp = mlp
         self.loss_fn = nn.CrossEntropyLoss()
         self.lr_s = lr_s
@@ -137,12 +135,10 @@ class MLP(ml.LModule):
 
     def training_epoch_start(self) -> None:
         super().training_epoch_start()
-        self.resnet.eval()
 
     def _calculate_loss_pred(self, batch: Tuple[Tensor, Tensor]) -> Tuple[Tensor, Tensor]:
         x_batch, y_batch = batch
-        features = self.resnet(x_batch)
-        y = self.mlp(features)
+        y = self.mlp(x_batch)
         loss = self.loss_fn(y, y_batch)
         y_pred = y.argmax(dim=-1)
         return loss, y_pred
@@ -163,8 +159,59 @@ class MLP(ml.LModule):
         self.validation_step(batch)
 
 
+@torch.no_grad()
+def prepare_features(model: Module, dataset: Dataset) -> TensorDataset:
+    """
+    3 step: to; eval; no_grad
+    """
+    loader: DataLoader = ml.LDataModule(None, dataset, None, 64, 4).val_dataloader
+    model.eval()
+    device = Device(device_ids[0])
+    model.to(device)
+    features, labels = [], []
+    for x, y in tqdm(loader, desc="Prepare Features"):
+        x, y = ml.LModule.batch_to_device((x, y), device=device)
+        f: Tensor = model(x)
+        features.append(f)
+        labels.append(y)
+    #
+    features = torch.concat(features, dim=0)
+    labels = torch.concat(labels, dim=0)
+    #
+    return TensorDataset(features.cpu(), labels.cpu())
+
+
+def draw_similar_images(dataset: TensorDataset,
+                        imgs_np: ndarray, topk: int, fpath: str) -> None:
+    x, y = dataset.tensors
+    imgs = torch.from_numpy(imgs_np).div(255)
+    y, idxs = y.sort()
+    x, imgs = x[idxs], imgs[idxs]
+    qx = [x[y == i][0] for i in range(10)]
+    qx = torch.stack(qx, dim=0)
+    #
+    cos_sim = pairwise_cosine_similarity(qx, x)
+    idxs = cos_sim.topk(topk, dim=1)[1]
+    #
+    save_images(imgs[idxs].flatten(0, 1), topk, fpath, norm=True)
+    logger.info(f"`draw_similar_images` Done. The image is saved in `{fpath}`")
+
+
+def draw_tsne(dataset: TensorDataset, tsne_fpath: str):
+    x, y = dataset.tensors
+    tsne = TSNE(2, learning_rate="auto", init="random")
+    x_2d = tsne.fit_transform(x.numpy())
+    for label in range(10):
+        plt.scatter(x_2d[:, 0][y == label], x_2d[:, 1][y == label], label=label, alpha=0.5)
+    plt.legend()
+    plt.savefig(tsne_fpath, bbox_inches='tight')
+    plt.close()
+    logger.info(f"`draw_tsne` Done. The image is saved in `{fpath}`")
+
+
 if __name__ == "__main__":
     ml.seed_everything(42, gpu_dtm=False)
+    # ########## SimCLR
 
     def transforms(x: Image.Image) -> List[Tensor]:
         n_views = 2
@@ -227,34 +274,14 @@ if __name__ == "__main__":
     #
     trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams["trainer_hparams"])
     logger.info(trainer.fit(ldm.train_dataloader, ldm.val_dataloader))
+    #
     resnet = deepcopy(lmodel.resnet)
     in_channels = resnet.fc[0].in_features
     resnet.fc = nn.Identity()
-    ##########
+    runs_dir = trainer.runs_dir
     del ldm, lmodel, trainer, transforms, train_dataset, val_dataset, max_epochs, batch_size, hparams
 
-    max_epochs = 20
-    batch_size = 256
-    hparams = {
-        "device_ids": device_ids,
-        "in_channels": in_channels,
-        "n_classes": 10,
-        "dataloader_hparams": {"batch_size": batch_size, "num_workers": 4},
-        "optim_name": "SGD",
-        "optim_hparams": {"lr": 1e-2, "weight_decay": 1e-4, "momentum": 0.9},
-        "trainer_hparams": {
-            "max_epochs": max_epochs,
-            "gradient_clip_norm": 10,
-            "amp": False,
-            "verbose": True,
-            "val_every_n_epoch": 4
-        },
-        "lrs_hparams": {
-            "T_max": ...,
-            "eta_min": 1e-3
-        },
-    }
-
+    # ########## Finding Similar Images
     transforms2 = tvt.Compose([tvt.ToTensor(), tvt.Normalize((0.5,), (0.5,))])
     train_dataset = STL10(
         root=DATASETS_PATH,
@@ -268,9 +295,40 @@ if __name__ == "__main__":
         download=True,
         transform=transforms2,
     )
+    imgs = train_dataset.data
+    train_dataset = prepare_features(resnet, train_dataset)
+    val_dataset = prepare_features(resnet, val_dataset)
+    fpath = os.path.join(runs_dir, f"similar_images.png")
+    tsne_fpath = os.path.join(runs_dir, f"tsne.png")
+    draw_similar_images(train_dataset, imgs, 10, fpath)
+    draw_tsne(train_dataset, tsne_fpath)
+
+    # ########## Logistic Regression
+    max_epochs = 50
+    batch_size = 256
+    hparams = {
+        "device_ids": device_ids,
+        "in_channels": in_channels,
+        "n_classes": 10,
+        "dataloader_hparams": {"batch_size": batch_size, "num_workers": 4},
+        "optim_name": "SGD",
+        "optim_hparams": {"lr": 1e-2, "weight_decay": 1e-4, "momentum": 0.9},
+        "trainer_hparams": {
+            "max_epochs": max_epochs,
+            "gradient_clip_norm": 10,
+            "amp": False,
+            "verbose": True,
+            "val_every_n_epoch": 5
+        },
+        "lrs_hparams": {
+            "T_max": ...,
+            "eta_min": 1e-3
+        },
+    }
+
     hparams["lrs_hparams"]["T_max"] = ml.get_T_max(len(train_dataset), batch_size, max_epochs)
     ldm = ml.LDataModule(
         train_dataset, val_dataset, None, **hparams["dataloader_hparams"])
-    lmodel = MLP(resnet, hparams)
+    lmodel = MLP(hparams)
     trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams["trainer_hparams"])
     logger.info(trainer.fit(ldm.train_dataloader, ldm.val_dataloader))

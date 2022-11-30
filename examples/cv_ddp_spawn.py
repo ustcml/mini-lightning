@@ -7,12 +7,8 @@ recommend to use torchrun in `cv_ddp.py`. spawn is slower(maybe, I feel)
     Ref: https://github.com/pytorch/pytorch/issues/47587
 """
 
-from pre import *
-import torchvision.transforms as tvt
-import torchvision.datasets as tvd
-import torchvision.models as tvm
+from pre_cv import *
 #
-CIFAR10 = tvd.CIFAR10
 RUNS_DIR = os.path.join(RUNS_DIR, "cv_ddp")
 os.makedirs(RUNS_DIR, exist_ok=True)
 #
