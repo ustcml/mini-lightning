@@ -38,7 +38,7 @@ class Encoder(nn.Sequential):
 class Decoder(nn.Module):
     def __init__(self, in_channels: int, hidden_channels: int, out_channels: int) -> None:
         super().__init__()
-        self.linear = nn.Sequential(
+        self.fc = nn.Sequential(
             nn.Linear(in_channels, 2 * 16 * hidden_channels),
             nn.GELU()
         )
@@ -59,7 +59,7 @@ class Decoder(nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         N = x.shape[0]
-        x = self.linear(x)
+        x = self.fc(x)
         x = x.reshape(N, -1, 4, 4)
         x = self.model(x)
         return x
@@ -96,9 +96,6 @@ class AutoEncoder(ml.LModule):
         self,
         batch: Tuple[List[Tensor], Tensor]
     ) -> Tensor:
-        """
-        return: loss, acc, acc_top5
-        """
         x_batch, _ = batch
         z = self.encoder(x_batch)
         x_hat: Tensor = self.decoder(z)

@@ -65,6 +65,14 @@ python examples/contrastive_learning.py
 python examples/gnn.py
 python examples/gnn2.py
 
+### ae.py
+pip install "torchvision>=0.13.*" "scikit-learn>=1.1.*"
+python examples/ae.py
+
+### vae.py
+pip install "torchvision>=0.13.*"
+python examples/vae.py
+
 ########## 
 ### cv_ddp.py; cv_ddp_spawn.py
 # torchrun (Recommended)

@@ -73,7 +73,7 @@ class Discriminator(nn.Module):
         return logits
 
 
-class MyLModule(ml.LModule):
+class GAN(ml.LModule):
     def __init__(self, hparams: Dict[str, Any]) -> None:
         self.in_channels = hparams["G_hparams"]["in_channels"]
         G, D = Generator(**hparams["G_hparams"]), Discriminator(**hparams["D_hparams"])
@@ -92,6 +92,7 @@ class MyLModule(ml.LModule):
         self.images_dir = os.path.join(trainer.runs_dir, "images")
         os.makedirs(self.images_dir, exist_ok=True)
         logger.info(f"images_dir: {self.images_dir}")
+        self.example_z = self.example_z.to(trainer.device)
         return super().trainer_init(trainer)
 
     def training_step(self, batch: Tuple[Tensor, Tensor], opt_idx: int) -> Tensor:
@@ -122,8 +123,7 @@ class MyLModule(ml.LModule):
 
     def validation_epoch_end(self) -> Dict[str, float]:
         # no grad; eval
-        self.example_z = self.example_z.type_as(next(self.G.parameters()))
-        fake_img = self.G(self.example_z)
+        fake_img = self(self.example_z)
         fpath = os.path.join(self.images_dir, f"epoch{self.global_epoch}.png")
         save_images(fake_img, 8, fpath, norm=True, value_range=(-1, 1))
         return super().validation_epoch_end()  # {}
@@ -160,6 +160,6 @@ if __name__ == "__main__":
         },
     }
     ldm = ml.LDataModule(train_dataset, None, None, **hparams["dataloader_hparams"])
-    lmodel = MyLModule(hparams)
+    lmodel = GAN(hparams)
     trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams["trainer_hparams"])
     trainer.fit(ldm.train_dataloader, None)

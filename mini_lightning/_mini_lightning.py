@@ -108,13 +108,15 @@ class LModule:
     def trainer_init(self, trainer: "Trainer") -> None:
         # handle device
         self.trainer = trainer
+        device = trainer.device
+        #
         for s in self._models:
             model: Module = getattr(self, s)
-            model.to(trainer.device)
+            model.to(device)
             model = en_parallel(model, trainer.parallel_mode, trainer.sync_bn)
             setattr(self, s, model)
         for metric in self.metrics.values():
-            metric.to(trainer.device)
+            metric.to(device)
 
     @classmethod
     def batch_to_device(cls, batch: Any, device: Device) -> Any:
