@@ -86,9 +86,6 @@ if __name__ == "__main__":
             loss, y_pred = self._calculate_loss_pred(batch)
             self.metrics["loss"].update(loss)
             self.metrics["acc"].update(y_pred, y_batch)
-
-        def test_step(self, batch: Tuple[Tensor, Tensor]) -> None:
-            self.validation_step(batch)
         #
 
         def training_epoch_end(self) -> Dict[str, float]:

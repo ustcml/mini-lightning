@@ -212,7 +212,7 @@ class LModule:
         raise NotImplementedError
 
     def test_step(self, batch: Any) -> None:
-        raise NotImplementedError
+        return self.validation_step(batch)
     #
 
     def _val_test_epoch_end(self, stage: Literal["val", "test"]) -> Dict[str, float]:

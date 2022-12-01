@@ -4,7 +4,6 @@
 
 from pre_cv import *
 #
-CIFAR10 = tvd.CIFAR10
 RUNS_DIR = os.path.join(RUNS_DIR, "cv")
 os.makedirs(RUNS_DIR, exist_ok=True)
 
@@ -54,9 +53,6 @@ class MyLModule(ml.LModule):
         loss, y_pred = self._calculate_loss_pred(batch)
         self.metrics["loss"].update(loss)
         self.metrics["acc"].update(y_pred, batch[1])
-
-    def test_step(self, batch: Tuple[Tensor, Tensor]) -> None:
-        self.validation_step(batch)
 
 
 if __name__ == "__main__":

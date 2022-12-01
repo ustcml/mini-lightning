@@ -65,8 +65,6 @@ class MyLModule(ml.LModule):
             else:
                 metric.update(y_pred, batch["labels"])
 
-    def test_step(self, batch: Dict[str, Tensor]) -> None:
-        self.validation_step(batch)
 
 
 if __name__ == "__main__":

@@ -99,9 +99,6 @@ class MyLModule(ml.LModule):
         self.metrics["loss"].update(loss)
         self.metrics["acc"].update(y_pred, y_label)
 
-    def test_step(self, batch: pygd.Data) -> None:
-        self.validation_step(batch)
-
 
 if __name__ == "__main__":
     dataset = pygds.TUDataset(root=DATASETS_PATH, name="MUTAG")

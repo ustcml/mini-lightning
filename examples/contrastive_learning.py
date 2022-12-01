@@ -49,8 +49,8 @@ def info_nce(features: Tensor, temperature: float = 0.07) -> Tuple[Tensor, Tenso
 
 class SimCLR(ml.LModule):
     def __init__(self, hparams: Dict[str, Any]) -> None:
-        hidden_state = hparams["hidden_state"]
-        resnet: ResNet = getattr(tvm, hparams["model_name"])(num_classes=4*hidden_state)
+        out_channels = hparams["out_channels"]
+        resnet: ResNet = getattr(tvm, hparams["model_name"])(num_classes=4*out_channels)
         #
         # state_dict = torch.hub.load_state_dict_from_url(url=tvm.ResNet18_Weights.DEFAULT.url)
         # state_dict = ml._remove_keys(state_dict, ["fc"])
@@ -59,7 +59,7 @@ class SimCLR(ml.LModule):
         resnet.fc = nn.Sequential(
             resnet.fc,
             nn.ReLU(inplace=True),
-            nn.Linear(4*hidden_state, hidden_state)
+            nn.Linear(4*out_channels, out_channels)
         )
         optimizer: Optimizer = getattr(optim, hparams["optim_name"])(resnet.parameters(), **hparams["optim_hparams"])
         lr_s: LRScheduler = ml.warmup_decorator(
@@ -107,9 +107,6 @@ class SimCLR(ml.LModule):
         self.metrics["acc"].update(acc)
         self.metrics["acc_top5"].update(acc_top5)
 
-    def test_step(self, batch: Tuple[List[Tensor], Tensor]) -> None:
-        self.validation_step(batch)
-
 
 class MLP(ml.LModule):
     def __init__(self, hparams: Dict[str, Any]) -> None:
@@ -155,59 +152,6 @@ class MLP(ml.LModule):
         self.metrics["loss"].update(loss)
         self.metrics["acc"].update(y_pred, batch[1])
 
-    def test_step(self, batch: Tuple[Tensor, Tensor]) -> None:
-        self.validation_step(batch)
-
-
-@torch.no_grad()
-def prepare_features(model: Module, dataset: Dataset) -> TensorDataset:
-    """
-    3 step: to; eval; no_grad
-    """
-    loader: DataLoader = ml.LDataModule(None, dataset, None, 64, 4).val_dataloader
-    model.eval()
-    device = Device(device_ids[0])
-    model.to(device)
-    features, labels = [], []
-    for x, y in tqdm(loader, desc="Prepare Features"):
-        x, y = ml.LModule.batch_to_device((x, y), device=device)
-        f: Tensor = model(x)
-        features.append(f)
-        labels.append(y)
-    #
-    features = torch.concat(features, dim=0)
-    labels = torch.concat(labels, dim=0)
-    #
-    return TensorDataset(features.cpu(), labels.cpu())
-
-
-def draw_similar_images(dataset: TensorDataset,
-                        imgs_np: ndarray, topk: int, fpath: str) -> None:
-    x, y = dataset.tensors
-    imgs = torch.from_numpy(imgs_np).div(255)
-    y, idxs = y.sort()
-    x, imgs = x[idxs], imgs[idxs]
-    qx = [x[y == i][0] for i in range(10)]
-    qx = torch.stack(qx, dim=0)
-    #
-    cos_sim = pairwise_cosine_similarity(qx, x)
-    idxs = cos_sim.topk(topk, dim=1)[1]
-    #
-    save_images(imgs[idxs].flatten(0, 1), topk, fpath, norm=True)
-    logger.info(f"`draw_similar_images` Done. The image is saved in `{fpath}`")
-
-
-def draw_tsne(dataset: TensorDataset, tsne_fpath: str):
-    x, y = dataset.tensors
-    tsne = TSNE(2, learning_rate="auto", init="random")
-    x_2d = tsne.fit_transform(x.numpy())
-    for label in range(10):
-        plt.scatter(x_2d[:, 0][y == label], x_2d[:, 1][y == label], label=label, alpha=0.5)
-    plt.legend()
-    plt.savefig(tsne_fpath, bbox_inches='tight')
-    plt.close()
-    logger.info(f"`draw_tsne` Done. The image is saved in `{fpath}`")
-
 
 if __name__ == "__main__":
     ml.seed_everything(42, gpu_dtm=False)
@@ -241,13 +185,13 @@ if __name__ == "__main__":
     #
     max_epochs = 10
     batch_size = 256
-    n_accumulate_grad = {5: 2, 10: 4}  # {0: 1, 5: 2, 10: 4}
-    hidden_state = 128
+    n_accumulate_grad = 4
+    out_channels = 128  # channels of representation
     #
     hparams = {
         "device_ids": device_ids,
         "model_name": "resnet18",
-        "hidden_state": hidden_state,
+        "out_channels": out_channels,
         "temperature": 0.07,
         "dataloader_hparams": {"batch_size": batch_size, "num_workers": 8},
         "optim_name": "AdamW",
@@ -296,12 +240,12 @@ if __name__ == "__main__":
         transform=transforms2,
     )
     imgs = train_dataset.data
-    train_dataset = prepare_features(resnet, train_dataset)
-    val_dataset = prepare_features(resnet, val_dataset)
+    train_dataset = prepare_features(resnet, train_dataset, Device(device_ids[0]))
+    val_dataset = prepare_features(resnet, val_dataset, Device(device_ids[0]))
     fpath = os.path.join(runs_dir, f"similar_images.png")
     tsne_fpath = os.path.join(runs_dir, f"tsne.png")
     draw_similar_images(train_dataset, imgs, 10, fpath)
-    draw_tsne(train_dataset, tsne_fpath)
+    draw_tsne(train_dataset, tsne_fpath, TSNE)
 
     # ########## Logistic Regression
     max_epochs = 50

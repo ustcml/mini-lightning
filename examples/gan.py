@@ -85,15 +85,19 @@ class MyLModule(ml.LModule):
         self.D = D
         self.example_z = torch.randn(64, self.in_channels)
 
+    def forward(self, z: Tensor) -> Tensor:
+        return self.G(z)
+
     def trainer_init(self, trainer: "ml.Trainer") -> None:
         self.images_dir = os.path.join(trainer.runs_dir, "images")
         os.makedirs(self.images_dir, exist_ok=True)
+        logger.info(f"images_dir: {self.images_dir}")
         return super().trainer_init(trainer)
 
     def training_step(self, batch: Tuple[Tensor, Tensor], opt_idx: int) -> Tensor:
         true_img, _ = batch
         N = true_img.shape[0]
-        z = torch.randn(N, self.in_channels).type_as(true_img)
+        z = torch.randn(N, self.in_channels).type_as(true_img)  # z ~ N(0, 1)
         if opt_idx == 0:
             # fake_img -> true
             fake_img = self.G(z)

@@ -57,9 +57,6 @@ class MyLModule(ml.LModule):
         self.metrics["loss"].update(loss)
         self.metrics["acc"].update(y_pred, batch[1])
 
-    def test_step(self, batch: Tuple[Tensor, Tensor]) -> None:
-        self.validation_step(batch)
-
 
 def main(rank: int, world_size: int, device_ids: List[int]) -> None:
     os.environ['MASTER_ADDR'] = 'localhost'

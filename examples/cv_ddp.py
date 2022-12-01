@@ -57,9 +57,6 @@ class MyLModule(ml.LModule):
         self.metrics["loss"].update(loss)
         self.metrics["acc"].update(y_pred, batch[1])
 
-    def test_step(self, batch: Tuple[Tensor, Tensor]) -> None:
-        self.validation_step(batch)
-
 
 def parse_opt() -> Namespace:
     parser = ArgumentParser()
@@ -69,9 +66,8 @@ def parse_opt() -> Namespace:
 
 
 if __name__ == "__main__":
-    opt = parse_opt()
+    device_ids: List[int] = parse_opt().device_ids
     rank = ml.get_dist_setting()[0]
-    device_ids: List[int] = opt.device_ids
     # Calculating mean std
     train_dataset = CIFAR10(root=DATASETS_PATH, train=True, download=True)
     DATA_MEANS: Tensor = (train_dataset.data / 255.0).mean(axis=(0, 1, 2))

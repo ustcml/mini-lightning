@@ -127,9 +127,6 @@ class MyLModule(ml.LModule):
         self.metrics["loss"].update(loss)
         self.metrics["acc"].update(y_pred, y_label)
 
-    def test_step(self, batch: pygd.Data) -> None:
-        self.validation_step(batch, "test")
-
 
 if __name__ == "__main__":
     dataset = pygds.Planetoid(root=DATASETS_PATH, name="Cora")
