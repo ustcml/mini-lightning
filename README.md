@@ -14,7 +14,7 @@
 5. If you have any problems or bug finding, please raise issue, Thank you.
 
 
-## Install
+## Installation
 1. Create a virtual environment and install Python (>= 3.8)
 2. Download the latest version (>=1.12) of Torch(corresponding CUDA version) from the [official website](https://pytorch.org/get-started/locally/) of Torch. It is not recommended to automatically install Torch (CUDA 10.2 default) using the Mini-Lightning dependency, which will cause CUDA version mismatch.
 3. Install mini-lightning
@@ -96,4 +96,4 @@ torchrun --nnodes 2 --node_rank 1 --master_addr xxx.xxx.xxx.xxx --nproc_per_node
 
 ## TODO
 1. Automatic parameter adjustment
-2. Examples: Audio, Meta-learning, AE, VAE, Diffusion
+2. Examples: Audio, Meta-learning, Diffusion

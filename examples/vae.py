@@ -10,7 +10,7 @@
 
 from pre_cv import *
 #
-RUNS_DIR = os.path.join(RUNS_DIR, "ae")
+RUNS_DIR = os.path.join(RUNS_DIR, "vae")
 os.makedirs(RUNS_DIR, exist_ok=True)
 
 #
@@ -45,7 +45,7 @@ class Encoder(nn.Module):
         x = self.model(x)
         x = x.flatten(1, -1)
         mu = self.fc_mu(x)
-        log_var = self.fc_log_var(x)
+        log_var = self.fc_log_var(x)  # var > 0
         return mu, log_var
 
 
@@ -102,7 +102,7 @@ def kl_z(mu: Tensor, log_var: Tensor) -> Tensor:
     return: [N]
     """
     # KL(z~N(mu, sigma^2), N(0, 1)) = -1/2*(1+log(sigma^2)-mu^2-sigma^2).sum(dim=1)
-    # Ref: https://arxiv.org/abs/1312.6114
+    # Ref: https://arxiv.org/abs/1312.6114 (in Appendix B)
     return (log_var + 1).sub_(mu*mu).sub_(log_var.exp()).sum(dim=1).div_(-2)
 
 
@@ -185,7 +185,7 @@ class AutoEncoder(ml.LModule):
         fake_img = self(self.example_z)
         fpath = os.path.join(self.images_dir, f"epoch{self.global_epoch}.png")
         save_images(fake_img, 8, fpath, norm=True, value_range=(-1, 1))
-        return super().validation_epoch_end()  # {}
+        return super().validation_epoch_end()
 
 
 if __name__ == "__main__":
