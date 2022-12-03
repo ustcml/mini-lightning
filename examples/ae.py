@@ -83,10 +83,10 @@ class AutoEncoder(ml.LModule):
         }
         #
         super().__init__([optimizer], metrics, "loss", hparams)
-        self.loss_fn = nn.MSELoss(reduction="none")
         self.encoder = encoder
         self.decoder = decoder
         self.lr_s = lr_s
+        self.loss_fn = nn.MSELoss(reduction="none")
 
     def optimizer_step(self, opt_idx: int) -> None:
         super().optimizer_step(opt_idx)

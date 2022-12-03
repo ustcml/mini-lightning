@@ -13,23 +13,26 @@ device_ids = [0]
 
 class MyLModule(ml.LModule):
     def __init__(self, hparams: Dict[str, Any]) -> None:
-        model: Module = getattr(tvm, hparams["model_name"])(**hparams["model_hparams"])
+        num_classes = hparams["num_classes"]
+        model: Module = getattr(tvm, hparams["model_name"])(num_classes=num_classes)
         state_dict = torch.hub.load_state_dict_from_url(**hparams["model_pretrain_model"])
         state_dict = ml._remove_keys(state_dict, ["fc"])
         logger.info(model.load_state_dict(state_dict, strict=False))
-        # 
+        #
         optimizer: Optimizer = getattr(optim, hparams["optim_name"])(model.parameters(), **hparams["optim_hparams"])
         lr_s: LRScheduler = ml.warmup_decorator(
             lrs.CosineAnnealingLR, hparams["warmup"])(optimizer, **hparams["lrs_hparams"])
         metrics = {
             "loss": ml.LossMetric(),
-            "acc":  Accuracy(),
+            "acc":  Accuracy("multiclass", num_classes=num_classes),
         }
         #
         super().__init__([optimizer], metrics, "acc", hparams)
         self.model = model
-        self.loss_fn = nn.CrossEntropyLoss()
         self.lr_s = lr_s
+        self.loss_fn = nn.CrossEntropyLoss()
+        self.acc_func: Callable[[Tensor, Tensor], Tensor] = partial(
+            accuracy, task="multiclass", num_classes=num_classes)
 
     def optimizer_step(self, opt_idx: int) -> None:
         super().optimizer_step(opt_idx)
@@ -44,7 +47,7 @@ class MyLModule(ml.LModule):
 
     def training_step(self, batch: Tuple[Tensor, Tensor], opt_idx: int) -> Tensor:
         loss, y_pred = self._calculate_loss_pred(batch)
-        acc = accuracy(y_pred, batch[1])
+        acc = self.acc_func(y_pred, batch[1])
         self.log("train_loss", loss)
         self.log("train_acc", acc)
         return loss
@@ -92,7 +95,7 @@ if __name__ == "__main__":
     hparams = {
         "device_ids": device_ids,
         "model_name": "resnet50",
-        "model_hparams": {"num_classes": 10},
+        "num_classes": 10,
         "model_pretrain_model": {"url": tvm.ResNet50_Weights.DEFAULT.url},
         "dataloader_hparams": {"batch_size": batch_size, "num_workers": 4},
         "optim_name": "SGD",

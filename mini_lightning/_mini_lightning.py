@@ -23,8 +23,6 @@ from torch.optim import Optimizer
 from torch.nn.utils.clip_grad import clip_grad_norm_
 from torch.cuda.amp.grad_scaler import GradScaler
 from torch.amp.autocast_mode import autocast
-from torch.nn.parallel import DataParallel as DP, DistributedDataParallel as DDP
-from torch.nn.modules.module import _IncompatibleKeys as IncompatibleKeys
 # Ref: https://torchmetrics.readthedocs.io/en/stable/pages/overview.html. (torchmetrics support ddp)
 from torchmetrics import Metric, MeanMetric
 #
@@ -35,8 +33,6 @@ from ._utils import (
 )
 
 
-# Features to be added in the future: automatic parameter adjustment
-#
 # Note: global_epoch, batch_idx starts for 0. global_step starts from 1.
 __all__ = ["LModule", "LDataModule", "Trainer"]
 #
@@ -56,7 +52,7 @@ class LModule:
         core_metric: for model saving
         hparams: Hyperparameters to be saved
         """
-        # for trainer_init: device, ddp; _epoch_start: train, eval; print_model_info; save_ckpt
+        # _models: for trainer_init(device, ddp), _epoch_start(train, eval); print_model_info; save_ckpt
         self._models: Set[str] = set()
         self.optimizers = optimizers
         self.metrics = metrics
@@ -106,7 +102,6 @@ class LModule:
 
     #
     def trainer_init(self, trainer: "Trainer") -> None:
-        # handle device
         self.trainer = trainer
         device = trainer.device
         #
@@ -147,8 +142,8 @@ class LModule:
         if not self.trainer.found_nan and (self.trainer.amp or not self.trainer.found_inf):
             # With amp=False, using 'optimizers[opt_idx].step()' is the same.
             self.trainer.scaler.step(self.optimizers[opt_idx])
-    #
 
+    #
     def _epoch_start(self, stage: Literal["train", "val", "test"]) -> None:
         for s in self._models:
             model: Module = getattr(self, s)
@@ -167,8 +162,8 @@ class LModule:
 
     def test_epoch_start(self) -> None:
         self._epoch_start("test")
-    #
 
+    #
     def toggle_optimizer(self, opt_idx: int) -> None:
         """
         Ref: https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#toggle-optimizer
@@ -318,7 +313,8 @@ class Trainer:
         gradient_clip_norm: Optional[float] = None,
         sync_bn: bool = False,
         replace_sampler_ddp: bool = True,
-        *,
+        model_fpath: Optional[str] = None,
+        #
         val_every_n_epoch: int = 1,
         log_every_n_steps: int = 10,
         prog_bar_n_steps: int = 1,
@@ -364,6 +360,8 @@ class Trainer:
             replace_sampler_ddp=False: each gpu will use the complete dataset.
             replace_sampler_ddp=True: It will slice the dataset into world_size chunks and distribute them to each gpu.
             note: Replace train_dataloader only. Because DDP uses a single gpu for val/test. 
+        model_fpath: only load model_state_dict. 
+            If you want to resume from ckpt. please see `save_optimizers_state_dict` and examples in `examples/test_env.py`
         *
         val_every_n_epoch: Frequency of validation and prog_bar_leave of training. (the last epoch will always be validated)
         log_every_n_steps: Frequency of writing information to the tensorboard(sampling per n steps, not mean). `global_step % `
@@ -474,6 +472,9 @@ class Trainer:
             hparams = lmodel.hparams
             self.save_hparams(hparams)
         #
+        if model_fpath is not None:
+            self._load_ckpt(model_fpath)
+            logger.info(f"Using ckpt: {model_fpath}")
         lmodel.trainer_init(self)
         for s in lmodel._models:
             model: Module = getattr(lmodel, s)
@@ -577,7 +578,8 @@ class Trainer:
         optimizers = lmodel.optimizers if self.save_optimizers_state_dict else []
         save_ckpt(fpath, model_list, optimizers, self.global_epoch, **kwargs)
 
-    def _load_ckpt(self, fpath: str, map_location: Optional[Device] = None) -> None:
+    def _load_ckpt(self, fpath: str) -> None:
+        map_location = self.device
         models_state_dict, _,  _, _ = load_ckpt(fpath, map_location)
         lmodel = self.lmodel
         #
@@ -772,7 +774,7 @@ class Trainer:
     def _val_test(
         self, dataloader: Optional[DataLoader], stage: Literal["val", "test"], desc: str
     ) -> Tuple[Optional[float], Dict[str, float]]:
-        # if core_metric returns None, then val/test was not performed. (e.g. in DDP mode, self.rank>0)
+        # if core_metric returns None, then only save the last model. 
         if self.rank not in {-1, 0}:
             dist.barrier()
             return None, {}
@@ -789,9 +791,8 @@ class Trainer:
             setattr(lmodel, s, model)
         metrics_r: Dict[str, bool] = {k: m._to_sync for k, m in lmodel.metrics.items()}
         for m in lmodel.metrics.values():
-            # torchmetrics(>=0.9.3, <=0.10.1 have been tested) private variable. I don't know whether it will be changed later.
-            #   You can raise issue if finding error.
-            # default: sync_on_compute = True
+            # torchmetrics private variable
+            #   default: sync_on_compute = True
             m._to_sync = False
             m.sync_on_compute = False
         #
@@ -898,7 +899,7 @@ class Trainer:
         #
         if model_type == "best":
             assert self.best_ckpt_path is not None
-            self._load_ckpt(self.best_ckpt_path, self.device)
+            self._load_ckpt(self.best_ckpt_path)
             title = f"Test Best(Epoch={self.global_epoch})"
         else:
             title = f"Test Last(Epoch={self.global_epoch})"
@@ -909,7 +910,7 @@ class Trainer:
         #
         if model_type == "best":
             assert self.last_ckpt_path is not None
-            self._load_ckpt(self.last_ckpt_path, self.device)
+            self._load_ckpt(self.last_ckpt_path)
             res_mes = _key_add_suffix(res_mes, "_best")
         else:
             res_mes = _key_add_suffix(res_mes, "_last")

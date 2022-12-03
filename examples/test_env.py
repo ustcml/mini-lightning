@@ -57,7 +57,7 @@ if __name__ == "__main__":
     class MyLModule(ml.LModule):
         def __init__(self, model: Module, optimizers: List[Optimizer],
                      core_metric: str, ckpt_path: Optional[str] = None) -> None:
-            metrics = {"loss": ml.LossMetric(), "acc": Accuracy()}
+            metrics = {"loss": ml.LossMetric(), "acc": Accuracy("binary")}
             super().__init__(optimizers, metrics, core_metric)
             self.model = model
             self.loss_fn = nn.BCEWithLogitsLoss()
@@ -76,7 +76,7 @@ if __name__ == "__main__":
                 trainer.global_epoch = last_epoch
                 if len(optimizers) > 0:
                     optimizer.load_state_dict(optimizers_state_dict[0])
-            # 
+            #
             if len(optimizers) > 0:
                 self.lr_s = ml.warmup_decorator(MultiStepLR, 5)(
                     optimizer, [10, 50], 0.1, last_epoch=trainer.global_epoch)
@@ -92,7 +92,7 @@ if __name__ == "__main__":
         def training_step(self, batch: Tuple[Tensor, Tensor], opt_idx: int) -> Tensor:
             y_batch = batch[1]
             loss, y_pred = self._calculate_loss_pred(batch)
-            acc = accuracy(y_pred, y_batch)
+            acc = accuracy(y_pred, y_batch, "binary")
             self.log("train_loss", loss)
             self.log("train_acc", acc)
             return loss
@@ -108,7 +108,7 @@ if __name__ == "__main__":
             self.lr_s.step()
             return super().training_epoch_end()
 
-    #
+    ###
     model = MLP_L2(2, 4, 1)
     optimizer = optim.SGD(model.parameters(), 0.1, 0.9)
     ldm = ml.LDataModule(train_dataset, val_dataset, test_dataset, 64)
@@ -120,7 +120,7 @@ if __name__ == "__main__":
     logger.info(trainer.test(ldm.test_dataloader, True, True))
     ckpt_path = trainer.last_ckpt_path
     del model, optimizer, ldm, lmodel, trainer
-    # train from ckpt
+    # train from ckpt (model and optimizer)
     time.sleep(1)
     model = MLP_L2(2, 4, 1)
     optimizer = optim.SGD(model.parameters(), 0.1, 0.9)
@@ -133,10 +133,24 @@ if __name__ == "__main__":
     logger.info(trainer.test(ldm.test_dataloader, True, True))
     ckpt_path = trainer.last_ckpt_path
     del model, optimizer, ldm, lmodel, trainer
-    # test from ckpt
+    # train from ckpt (only model)
+    time.sleep(1)
+    model = MLP_L2(2, 4, 1)
+    optimizer = optim.SGD(model.parameters(), 0.1, 0.9)
+    ldm = ml.LDataModule(train_dataset, val_dataset, test_dataset, 64)
+    lmodel = MyLModule(model, [optimizer], "loss")
+    trainer = ml.Trainer(lmodel, [0], 20, RUNS_DIR, gradient_clip_norm=10,
+                         val_every_n_epoch=10, verbose=True, model_fpath=ckpt_path)
+    logger.info(trainer.test(ldm.val_dataloader, True, True))
+    logger.info(trainer.fit(ldm.train_dataloader, ldm.val_dataloader))
+    logger.info(trainer.test(ldm.test_dataloader, True, True))
+    ckpt_path = trainer.last_ckpt_path
+    del model, optimizer, ldm, lmodel, trainer
+    ###
+    # test
     time.sleep(1)
     model = MLP_L2(2, 4, 1)
     ldm = ml.LDataModule(train_dataset, val_dataset, test_dataset, 64)
-    lmodel = MyLModule(model, [], "loss", ckpt_path=ckpt_path)
-    trainer = ml.Trainer(lmodel, [], None, RUNS_DIR)
+    lmodel = MyLModule(model, [], "loss")
+    trainer = ml.Trainer(lmodel, [], None, RUNS_DIR, model_fpath=ckpt_path)
     logger.info(trainer.test(ldm.test_dataloader, True, True))

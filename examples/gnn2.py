@@ -61,13 +61,13 @@ class MyLModule(ml.LModule):
         lr_s: LRScheduler = lrs.CosineAnnealingLR(optimizer, **hparams["lrs_hparams"])
         metrics = {
             "loss": ml.LossMetric(),
-            "acc":  Accuracy(),
+            "acc":  Accuracy("binary"),
         }
         #
         super().__init__([optimizer], metrics, "acc", hparams)
         self.model = model
-        self.loss_fn = nn.BCEWithLogitsLoss()
         self.lr_s = lr_s
+        self.loss_fn = nn.BCEWithLogitsLoss()
 
     def optimizer_step(self, opt_idx: int) -> None:
         super().optimizer_step(opt_idx)
@@ -89,7 +89,7 @@ class MyLModule(ml.LModule):
 
     def training_step(self, batch: pygd.Data, opt_idx: int) -> Tensor:
         loss, y_pred, y_label = self._calculate_loss_pred_label(batch)
-        acc = accuracy(y_pred, y_label)
+        acc = accuracy(y_pred, y_label, "binary")
         self.log("train_loss", loss)
         self.log("train_acc", acc)
         return loss
@@ -107,11 +107,11 @@ if __name__ == "__main__":
     train_dataset: pygd.Dataset = dataset[:150]
     test_dataset: pygd.Dataset = dataset[150:]
     #
-    max_epochs = 200
+    max_epochs = 250
     batch_size = 256
-    in_channels = dataset[0].x.shape[1]
+    in_channels = dataset.data.x.shape[1]
     hidden_channels = 256
-    out_channels = dataset[0].y.shape[0]
+    out_channels = dataset.data.y.max()  # "binary"
     #
     ml.seed_everything(42, gpu_dtm=False)
     hparams = {

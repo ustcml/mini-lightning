@@ -80,9 +80,9 @@ class GAN(ml.LModule):
         opt_G = getattr(optim, hparams["opt_G_name"])(G.parameters(), **hparams["opt_G_hparams"])
         opt_D = getattr(optim, hparams["opt_D_name"])(D.parameters(), **hparams["opt_D_hparams"])
         super().__init__([opt_G, opt_D], {}, None, hparams)
-        self.loss_fn = nn.BCEWithLogitsLoss()
         self.G = G
         self.D = D
+        self.loss_fn = nn.BCEWithLogitsLoss()
         self.example_z = torch.randn(64, self.in_channels)
 
     def forward(self, z: Tensor) -> Tensor:

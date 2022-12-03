@@ -25,17 +25,17 @@ class MyLModule(ml.LModule):
         optimizer = getattr(optim, hparams["optim_name"])(model.parameters(), **hparams["optim_hparams"])
         metrics: Dict[str, Metric] = {
             "loss": ml.LossMetric(),
-            "acc":  Accuracy(),
-            "auc": AUROC(),  # Must be binary classification problem
-            "prec": Precision(average="macro", num_classes=2),
-            "recall": Recall(average="macro", num_classes=2),
-            "f1": F1Score(average="none", num_classes=2)
+            "acc":  Accuracy("binary"),
+            "auc": AUROC("binary"),
+            "prec": Precision("binary"),
+            "recall": Recall("binary"),
+            "f1": F1Score("binary")
         }
         lr_s = ml.warmup_decorator(lrs.CosineAnnealingLR, hparams["warmup"])(optimizer, **hparams["lrs_hparams"])
         super().__init__([optimizer], metrics, "f1", hparams)
         self.model = model
-        self.loss_fn = nn.CrossEntropyLoss()
         self.lr_s = lr_s
+        self.loss_fn = nn.CrossEntropyLoss()
 
     def optimizer_step(self, opt_idx: int) -> None:
         super().optimizer_step(opt_idx)
@@ -50,7 +50,7 @@ class MyLModule(ml.LModule):
 
     def training_step(self, batch: Dict[str, Tensor], opt_idx: int) -> Tensor:
         loss, _, y_pred = self._calculate_loss_prob_pred(batch)
-        acc = accuracy(y_pred, batch["labels"])
+        acc = accuracy(y_pred, batch["labels"], "binary")
         self.log("train_loss", loss)
         self.log("train_acc", acc)
         return loss
@@ -64,7 +64,6 @@ class MyLModule(ml.LModule):
                 metric.update(loss)
             else:
                 metric.update(y_pred, batch["labels"])
-
 
 
 if __name__ == "__main__":

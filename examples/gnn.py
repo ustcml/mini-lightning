@@ -63,6 +63,7 @@ class MLP(nn.Sequential):
 class MyLModule(ml.LModule):
     def __init__(self, hparams: Dict[str, Any]) -> None:
         self.model_name: Literal["gnn", "mlp"] = hparams["model_name"]
+        num_classes = hparams["model_hparams"]["out_channels"]
         if self.model_name == "mlp":
             model = MLP(**hparams["model_hparams"])
         elif self.model_name == "gnn":
@@ -74,13 +75,15 @@ class MyLModule(ml.LModule):
         lr_s: LRScheduler = lrs.CosineAnnealingLR(optimizer, **hparams["lrs_hparams"])
         metrics = {
             "loss": ml.LossMetric(),
-            "acc":  Accuracy(),
+            "acc":  Accuracy("multiclass", num_classes=num_classes),
         }
         #
         super().__init__([optimizer], metrics, "acc", hparams)
         self.model = model
-        self.loss_fn = nn.CrossEntropyLoss()
         self.lr_s = lr_s
+        self.loss_fn = nn.CrossEntropyLoss()
+        self.acc_func: Callable[[Tensor, Tensor], Tensor] = partial(
+            accuracy, task="multiclass", num_classes=num_classes)
 
     def optimizer_step(self, opt_idx: int) -> None:
         super().optimizer_step(opt_idx)
@@ -110,14 +113,14 @@ class MyLModule(ml.LModule):
             y_proba = self.model(x, edge_index)
         y_proba = y_proba[mask]
         y = y[mask]
-        # 
+        #
         loss = self.loss_fn(y_proba, y)
         y_pred = y_proba.argmax(dim=-1)
         return loss, y_pred, y
 
     def training_step(self, batch: pygd.Data, opt_idx: int) -> Tensor:
         loss, y_pred, y_label = self._calculate_loss_pred_label(batch, "train")
-        acc = accuracy(y_pred, y_label)
+        acc = self.acc_func(y_pred, y_label)
         self.log("train_loss", loss)
         self.log("train_acc", acc)
         return loss
@@ -131,7 +134,7 @@ class MyLModule(ml.LModule):
 if __name__ == "__main__":
     dataset = pygds.Planetoid(root=DATASETS_PATH, name="Cora")
     #
-    max_epochs = 200
+    max_epochs = 250
     batch_size = 1
     in_channels = dataset[0].x.shape[1]
     hidden_channels = 16
