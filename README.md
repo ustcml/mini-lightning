@@ -8,7 +8,7 @@
 
 ## Introduction
 1. [Mini-Lightning](https://github.com/ustcml/mini-lightning/) is a lightweight machine learning training library, which is a mini version of [Pytorch-Lightning](https://www.pytorchlightning.ai/) with only 1k lines of code. It has the advantages of faster, more concise and more flexible.
-2. Existing features: support for DDP(multi-node and multi-gpu), Sync-BN, DP, AMP, gradient accumulation, warmup and lr_scheduler, grad clip, tensorboard, model and result saving, beautiful console log, torchmetrics, resume from ckpt, etc.
+2. Existing features: support for DDP(multi-node and multi-gpu), Sync-BN, DP, AMP, gradient accumulation, warmup and lr_scheduler, grad clip, tensorboard, model and result saving, beautiful console log, torchmetrics, etc.
 3. Only the minimal interfaces are exposed, keeping the features of simplicity, easy to read, use and extend.
 4. examples can be found in `examples/`
 5. If you have any problems or bug finding, please raise issue, Thank you.
@@ -20,7 +20,7 @@
 3. Install mini-lightning
 ```bash
 # from pypi
-pip install mini-lightning==0.1.6
+pip install mini-lightning -U
 
 # Or download the files from the repository to local,
 # and go to the folder where setup.py is located, and run the following command
@@ -73,7 +73,7 @@ python examples/ae.py
 pip install "torchvision>=0.13.*"
 python examples/vae.py
 
-########## 
+########## ddp
 ### cv_ddp.py; cv_ddp_spawn.py
 # torchrun (Recommended)
 #   Ref: https://pytorch.org/docs/stable/elastic/run.html
@@ -96,4 +96,4 @@ torchrun --nnodes 2 --node_rank 1 --master_addr xxx.xxx.xxx.xxx --nproc_per_node
 
 ## TODO
 1. Automatic parameter adjustment
-2. Examples: Audio, Meta-learning, Diffusion
+2. Examples: Audio, Meta-learning, Diffusion, Auto-regressive, Reinforcement Learning

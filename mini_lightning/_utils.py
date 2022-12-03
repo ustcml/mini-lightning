@@ -31,7 +31,7 @@ __all__ = [
     "_remove_keys", "_key_add_suffix", "freeze_layers", "_stat",
     "test_time", "seed_everything", "time_synchronize", "multi_runs",
     "print_model_info", "save_to_yaml", "LossMetric", "get_date_now",
-    "load_ckpt", "save_ckpt"
+    "load_ckpt", "save_ckpt", "StateDict"
 ]
 #
 
@@ -347,22 +347,33 @@ def get_date_now(fmt: str = "%Y-%m-%d %H:%M:%S.%f") -> Tuple[Dict[str, int], str
     return mes, date.strftime(fmt)
 
 
-def save_ckpt(fpath: str, models: Dict[str, Module], optimizer: List[Optimizer], last_epoch: int,
-              **kwargs: Dict[str, Any]) -> None:
+def save_ckpt(
+    fpath: str,
+    #
+    models: Dict[str, Module],
+    optimizers: List[Optimizer],
+    last_epoch: int,
+    **kwargs
+) -> None:
     ckpt: Dict[str, Any] = {
-        "models": models,  # including model structure
-        "optimizer_state_dict": [o.state_dict() for o in optimizer],
-        "last_epoch": last_epoch,  # untrained model last_epoch=-1 (same as lr_scheduler)
-        "date": get_date_now()[1]
+        "models": {k: m.state_dict() for k, m in models.items()},
+        "optimizers": [o.state_dict() for o in optimizers],
+        "last_epoch": last_epoch,
     }
-    ckpt.update(kwargs)
+    #
+    kwargs["date"] = get_date_now()[1]
+    #
+    ckpt["mes"] = kwargs
     torch.save(ckpt, fpath)
 
 
-def load_ckpt(fpath: str, map_location: Optional[Device] = None) -> Tuple[Dict[str, Module], List[Dict[str, Any]], Dict[str, Any]]:
+StateDict = Dict[str, Any]
+
+
+def load_ckpt(fpath: str, map_location: Optional[Device] = None) -> \
+        Tuple[Dict[str, StateDict], List[StateDict], int, Dict[str, Any]]:
     ckpt = torch.load(fpath, map_location=map_location)
-    models = ckpt["models"]
-    optimizer_state_dict = ckpt["optimizer_state_dict"]
-    ckpt.pop("models")
-    ckpt.pop("optimizer_state_dict")
-    return models, optimizer_state_dict, ckpt
+    models_state_dict = ckpt["models"]
+    optimizers_state_dict = ckpt["optimizers"]
+    last_epoch = ckpt["last_epoch"]
+    return models_state_dict, optimizers_state_dict, last_epoch, ckpt["mes"]

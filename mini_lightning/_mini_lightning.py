@@ -318,14 +318,14 @@ class Trainer:
         gradient_clip_norm: Optional[float] = None,
         sync_bn: bool = False,
         replace_sampler_ddp: bool = True,
-        resume_from_ckpt: Optional[str] = None,
         *,
         val_every_n_epoch: int = 1,
         log_every_n_steps: int = 10,
         prog_bar_n_steps: int = 1,
         deterministic:  Optional[bool] = None,
         benchmark: Optional[bool] = None,
-        verbose: bool = True
+        verbose: bool = True,
+        save_optimizers_state_dict: bool = False,
     ) -> None:
         """
         About ddp mode: you can see example in `examples/cv_ddp.py`
@@ -364,7 +364,6 @@ class Trainer:
             replace_sampler_ddp=False: each gpu will use the complete dataset.
             replace_sampler_ddp=True: It will slice the dataset into world_size chunks and distribute them to each gpu.
             note: Replace train_dataloader only. Because DDP uses a single gpu for val/test. 
-        resume_from_ckpt: resume from checkpoint path. This `last-*.ckpt` file type must be mini-lightning checkpoint file.
         *
         val_every_n_epoch: Frequency of validation and prog_bar_leave of training. (the last epoch will always be validated)
         log_every_n_steps: Frequency of writing information to the tensorboard(sampling per n steps, not mean). `global_step % `
@@ -383,6 +382,9 @@ class Trainer:
         verbose: records global_step, lr, (grad_norm if gradient_clip_norm=True) automatically. (tensorboard will always record)
             verbose=True: log in prog_bar.
             verbose=False: not log in prog_bar, making the prog_bar cleaner
+        save_optimizers_state_dict: 
+            not only save the models_state_dict, but also the optimizers_state_dict. 
+            This helps resume from ckpt. (see examples in `examples/test_env.py`)
         """
         self.rank, self.local_rank, self.world_size = get_dist_setting()
         logger.info(f"Using local_rank: {self.local_rank}, rank: {self.rank}, world_size: {self.world_size}")
@@ -420,6 +422,7 @@ class Trainer:
         self.log_every_n_steps = log_every_n_steps
         self.prog_bar_n_steps = prog_bar_n_steps
         self.verbose = verbose
+        self.save_optimizers_state_dict = save_optimizers_state_dict
         #
         self.benchmark = benchmark
         if deterministic is not None:
@@ -470,10 +473,6 @@ class Trainer:
             self.tb_logger = SummaryWriter(self.tb_dir)
             hparams = lmodel.hparams
             self.save_hparams(hparams)
-        #
-        if resume_from_ckpt is not None:
-            self._load_ckpt(resume_from_ckpt, self.device)
-            logger.info(f"Using ckpt: {resume_from_ckpt}")
         #
         lmodel.trainer_init(self)
         for s in lmodel._models:
@@ -568,7 +567,6 @@ class Trainer:
         lmodel = self.lmodel
         kwargs: Dict[str, Any] = {
             "global_step": self.global_step,
-            "optimizers_name": [o.__class__.__name__ for o in lmodel.optimizers],
             "core_metric": {
                 "name": lmodel.core_metric_name,
                 "higher_is_better": lmodel.higher_is_better,
@@ -576,20 +574,16 @@ class Trainer:
             }
         }
         model_list = {s: de_parallel(getattr(lmodel, s)) for s in lmodel._models}
-        save_ckpt(fpath, model_list, lmodel.optimizers, self.global_epoch, **kwargs)
+        optimizers = lmodel.optimizers if self.save_optimizers_state_dict else []
+        save_ckpt(fpath, model_list, optimizers, self.global_epoch, **kwargs)
 
     def _load_ckpt(self, fpath: str, map_location: Optional[Device] = None) -> None:
-        new_model, optimizer_state_dict, mes = load_ckpt(fpath, map_location)
+        models_state_dict, _,  _, _ = load_ckpt(fpath, map_location)
         lmodel = self.lmodel
-        for s, m in new_model.items():
-            setattr(lmodel, s, m)
         #
-        optimizers_name = [o.__class__.__name__ for o in lmodel.optimizers]
-        assert len(lmodel.optimizers) == 0 or optimizers_name == mes["optimizers_name"]
-        for o, osd in zip(lmodel.optimizers, optimizer_state_dict):
-            o.load_state_dict(osd)
-        self.global_epoch = mes["last_epoch"]
-        self.global_step = mes["global_step"]
+        for k, state_dict in models_state_dict.items():
+            model: Module = getattr(lmodel, k)
+            model.load_state_dict(state_dict)
 
     def _model_saving(self, core_metric: Optional[float]) -> bool:
         best_saving = False
@@ -940,7 +934,7 @@ class Trainer:
         last_epoch_idx = m.group(1)
         return best_epoch_idx == last_epoch_idx
 
-    def test(self, dataloader: Optional[DataLoader], test_best: bool = False, test_last: bool = True) -> Dict[str, float]:
+    def test(self, dataloader: Optional[DataLoader], test_best: bool = True, test_last: bool = True) -> Dict[str, float]:
         res_mes = {}
         if test_best:
             # If last first, last will be overridden in tensorboard. So best first.

@@ -5,6 +5,7 @@ import torch.nn as nn
 from torch import optim
 #
 import mini_lightning as ml
+from torchvision.models import resnet18
 
 
 class TestUtils(ut.TestCase):
@@ -49,20 +50,20 @@ class TestUtils(ut.TestCase):
         ml.print_model_info("resnet", model, (input, ))
 
     def test_ckpt(self):
-        model = nn.Linear(10, 10)
+        model = resnet18()
         optimizer = optim.SGD(model.parameters(), lr=0.1, momentum=0.9)
-        for i in range(10):
-            x = torch.randn(10, 10)
+        for _ in range(10):
+            x = torch.randn(16, 3, 224, 224)
             loss = model(x).mean()
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-        ml.save_ckpt("asset/tmp.ckpt", {"model": model}, [optimizer], 0)
+        ml.save_ckpt("asset/tmp.ckpt", {"model": model}, [], 0)
+        # ml.save_ckpt("asset/tmp2.ckpt", {"model": model}, 0, save_optimizers_state_dict=optimizer.state_dict())
         #
-        models, optimizer_state_dict, mes = ml.load_ckpt("asset/tmp.ckpt")
-        optimizer2 = optim.SGD(models["model"].parameters(), lr=0.1, momentum=0.9)
-        optimizer2.load_state_dict(optimizer_state_dict[0])
-        print(mes)
+        models_state_dict, _, last_epoch, mes = ml.load_ckpt("asset/tmp.ckpt")
+        model = models_state_dict["model"]
+        print(last_epoch, mes)
 
 
 if __name__ == "__main__":
