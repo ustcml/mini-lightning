@@ -56,7 +56,7 @@ pip install "torchvision>=0.13.*"
 python examples/gan.py
 
 ### contrastive_learning.py
-pip install "torchvision>=0.13.*" "torchmetrics>=0.10.2" "scikit-learn>=1.1.*"
+pip install "torchvision>=0.13.*" "scikit-learn>=1.1.*"
 python examples/contrastive_learning.py
 
 ### gnn.py gnn2.py

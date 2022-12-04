@@ -313,7 +313,7 @@ class Trainer:
         gradient_clip_norm: Optional[float] = None,
         sync_bn: bool = False,
         replace_sampler_ddp: bool = True,
-        model_fpath: Optional[str] = None,
+        ckpt_fpath: Optional[str] = None,
         #
         val_every_n_epoch: int = 1,
         log_every_n_steps: int = 10,
@@ -360,7 +360,7 @@ class Trainer:
             replace_sampler_ddp=False: each gpu will use the complete dataset.
             replace_sampler_ddp=True: It will slice the dataset into world_size chunks and distribute them to each gpu.
             note: Replace train_dataloader only. Because DDP uses a single gpu for val/test. 
-        model_fpath: only load model_state_dict. 
+        ckpt_fpath: only load model_state_dict. 
             If you want to resume from ckpt. please see `save_optimizers_state_dict` and examples in `examples/test_env.py`
         *
         val_every_n_epoch: Frequency of validation and prog_bar_leave of training. (the last epoch will always be validated)
@@ -472,9 +472,10 @@ class Trainer:
             hparams = lmodel.hparams
             self.save_hparams(hparams)
         #
-        if model_fpath is not None:
-            self._load_ckpt(model_fpath)
-            logger.info(f"Using ckpt: {model_fpath}")
+        self.ckpt_fpath = ckpt_fpath
+        if ckpt_fpath is not None:
+            self._load_ckpt(ckpt_fpath)
+            logger.info(f"Using ckpt: {ckpt_fpath}")
         lmodel.trainer_init(self)
         for s in lmodel._models:
             model: Module = getattr(lmodel, s)

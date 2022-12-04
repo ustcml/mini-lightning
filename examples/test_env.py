@@ -140,7 +140,7 @@ if __name__ == "__main__":
     ldm = ml.LDataModule(train_dataset, val_dataset, test_dataset, 64)
     lmodel = MyLModule(model, [optimizer], "loss")
     trainer = ml.Trainer(lmodel, [0], 20, RUNS_DIR, gradient_clip_norm=10,
-                         val_every_n_epoch=10, verbose=True, model_fpath=ckpt_path)
+                         val_every_n_epoch=10, verbose=True, ckpt_fpath=ckpt_path)
     logger.info(trainer.test(ldm.val_dataloader, True, True))
     logger.info(trainer.fit(ldm.train_dataloader, ldm.val_dataloader))
     logger.info(trainer.test(ldm.test_dataloader, True, True))
@@ -152,5 +152,5 @@ if __name__ == "__main__":
     model = MLP_L2(2, 4, 1)
     ldm = ml.LDataModule(train_dataset, val_dataset, test_dataset, 64)
     lmodel = MyLModule(model, [], "loss")
-    trainer = ml.Trainer(lmodel, [], None, RUNS_DIR, model_fpath=ckpt_path)
+    trainer = ml.Trainer(lmodel, [], None, RUNS_DIR, ckpt_fpath=ckpt_path)
     logger.info(trainer.test(ldm.test_dataloader, True, True))
