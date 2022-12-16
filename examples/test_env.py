@@ -56,9 +56,9 @@ if __name__ == "__main__":
     #
     class MyLModule(ml.LModule):
         def __init__(self, model: Module, optimizers: List[Optimizer],
-                     core_metric: str, ckpt_path: Optional[str] = None) -> None:
-            metrics = {"loss": ml.LossMetric(), "acc": Accuracy("binary")}
-            super().__init__(optimizers, metrics, core_metric)
+                     ckpt_path: Optional[str] = None) -> None:
+            metrics = {"loss": MeanMetric(), "acc": Accuracy("binary")}
+            super().__init__(optimizers, metrics)
             self.model = model
             self.loss_fn = nn.BCEWithLogitsLoss()
             #
@@ -112,9 +112,9 @@ if __name__ == "__main__":
     model = MLP_L2(2, 4, 1)
     optimizer = optim.SGD(model.parameters(), 0.1, 0.9)
     ldm = ml.LDataModule(train_dataset, val_dataset, test_dataset, 64)
-    lmodel = MyLModule(model, [optimizer], "acc")
-    trainer = ml.Trainer(lmodel, [], 40, RUNS_DIR, gradient_clip_norm=10,
-                         val_every_n_epoch=10, verbose=True, save_optimizers_state_dict=True)
+    lmodel = MyLModule(model, [optimizer])
+    trainer = ml.Trainer(lmodel, [], 40, RUNS_DIR, ml.ModelSaving("acc", True, saving_optimizers=True), gradient_clip_norm=10,
+                         val_every_n_epoch=10, verbose=True)
     logger.info(trainer.test(ldm.val_dataloader, True, True))
     logger.info(trainer.fit(ldm.train_dataloader, ldm.val_dataloader))
     logger.info(trainer.test(ldm.test_dataloader, True, True))
@@ -125,8 +125,8 @@ if __name__ == "__main__":
     model = MLP_L2(2, 4, 1)
     optimizer = optim.SGD(model.parameters(), 0.1, 0.9)
     ldm = ml.LDataModule(train_dataset, val_dataset, test_dataset, 64)
-    lmodel = MyLModule(model, [optimizer], "loss", ckpt_path)
-    trainer = ml.Trainer(lmodel, [0], 100, RUNS_DIR, gradient_clip_norm=10,
+    lmodel = MyLModule(model, [optimizer], ckpt_path)
+    trainer = ml.Trainer(lmodel, [0], 100, RUNS_DIR, ml.ModelSaving("loss", False), gradient_clip_norm=10,
                          val_every_n_epoch=10, verbose=True)
     logger.info(trainer.test(ldm.val_dataloader, True, True))
     logger.info(trainer.fit(ldm.train_dataloader, ldm.val_dataloader))
@@ -138,8 +138,8 @@ if __name__ == "__main__":
     model = MLP_L2(2, 4, 1)
     optimizer = optim.SGD(model.parameters(), 0.1, 0.9)
     ldm = ml.LDataModule(train_dataset, val_dataset, test_dataset, 64)
-    lmodel = MyLModule(model, [optimizer], "loss")
-    trainer = ml.Trainer(lmodel, [0], 20, RUNS_DIR, gradient_clip_norm=10,
+    lmodel = MyLModule(model, [optimizer])
+    trainer = ml.Trainer(lmodel, [0], 20, RUNS_DIR, ml.ModelSaving("loss", False), gradient_clip_norm=10,
                          val_every_n_epoch=10, verbose=True, ckpt_fpath=ckpt_path)
     logger.info(trainer.test(ldm.val_dataloader, True, True))
     logger.info(trainer.fit(ldm.train_dataloader, ldm.val_dataloader))
@@ -151,6 +151,6 @@ if __name__ == "__main__":
     time.sleep(1)
     model = MLP_L2(2, 4, 1)
     ldm = ml.LDataModule(train_dataset, val_dataset, test_dataset, 64)
-    lmodel = MyLModule(model, [], "loss")
-    trainer = ml.Trainer(lmodel, [], None, RUNS_DIR, ckpt_fpath=ckpt_path)
+    lmodel = MyLModule(model, [])
+    trainer = ml.Trainer(lmodel, [], None, RUNS_DIR, ml.ModelSaving("loss", False), ckpt_fpath=ckpt_path)
     logger.info(trainer.test(ldm.test_dataloader, True, True))

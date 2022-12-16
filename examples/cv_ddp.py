@@ -26,11 +26,11 @@ class MyLModule(ml.LModule):
         lr_s: LRScheduler = ml.warmup_decorator(
             lrs.CosineAnnealingLR, hparams["warmup"])(optimizer, **hparams["lrs_hparams"])
         metrics = {
-            "loss": ml.LossMetric(),
+            "loss": MeanMetric(),
             "acc":  Accuracy("multiclass", num_classes=num_classes),
         }
         #
-        super().__init__([optimizer], metrics, "acc", hparams)
+        super().__init__([optimizer], metrics, hparams)
         self.model = model
         self.lr_s = lr_s
         self.loss_fn = nn.CrossEntropyLoss()
@@ -114,6 +114,7 @@ if __name__ == "__main__":
         "optim_hparams": {"lr": 1e-2, "weight_decay": 1e-4, "momentum": 0.9},
         "trainer_hparams": {
             "max_epochs": max_epochs,
+            "model_saving": ml.ModelSaving("acc", True),
             "gradient_clip_norm": 10,
             "amp": True,
             "sync_bn": True,  # False

@@ -24,7 +24,7 @@ class MyLModule(ml.LModule):
         ml.freeze_layers(model, ["bert.embeddings."] + [f"bert.encoder.layer.{i}." for i in range(2)], verbose=False)
         optimizer = getattr(optim, hparams["optim_name"])(model.parameters(), **hparams["optim_hparams"])
         metrics: Dict[str, Metric] = {
-            "loss": ml.LossMetric(),
+            "loss": MeanMetric(),
             "acc":  Accuracy("binary"),
             "auc": AUROC("binary"),
             "prec": Precision("binary"),
@@ -32,7 +32,7 @@ class MyLModule(ml.LModule):
             "f1": F1Score("binary")
         }
         lr_s = ml.warmup_decorator(lrs.CosineAnnealingLR, hparams["warmup"])(optimizer, **hparams["lrs_hparams"])
-        super().__init__([optimizer], metrics, "f1", hparams)
+        super().__init__([optimizer], metrics, hparams)
         self.model = model
         self.lr_s = lr_s
         self.loss_fn = nn.CrossEntropyLoss()
@@ -92,6 +92,7 @@ if __name__ == "__main__":
         "optim_hparams": {"lr": 1e-4, "weight_decay": 1e-4},
         "trainer_hparams": {
             "max_epochs": max_epochs,
+            "model_saving": ml.ModelSaving("auc", True),
             "gradient_clip_norm": 10,
             "amp": True,
             "n_accumulate_grad": n_accumulate_grad

@@ -59,7 +59,7 @@ class TestUtils(ut.TestCase):
             loss.backward()
             optimizer.step()
         ml.save_ckpt("asset/tmp.ckpt", {"model": model}, [], 0)
-        # ml.save_ckpt("asset/tmp2.ckpt", {"model": model}, 0, save_optimizers_state_dict=optimizer.state_dict())
+        ml.save_ckpt("asset/tmp2.ckpt", {"model": model}, [optimizer], 0)
         #
         models_state_dict, _, last_epoch, mes = ml.load_ckpt("asset/tmp.ckpt")
         model = models_state_dict["model"]

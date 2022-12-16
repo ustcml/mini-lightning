@@ -60,11 +60,11 @@ class MyLModule(ml.LModule):
         optimizer: Optimizer = getattr(optim, hparams["optim_name"])(model.parameters(), **hparams["optim_hparams"])
         lr_s: LRScheduler = lrs.CosineAnnealingLR(optimizer, **hparams["lrs_hparams"])
         metrics = {
-            "loss": ml.LossMetric(),
+            "loss": MeanMetric(),
             "acc":  Accuracy("binary"),
         }
         #
-        super().__init__([optimizer], metrics, "acc", hparams)
+        super().__init__([optimizer], metrics, hparams)
         self.model = model
         self.lr_s = lr_s
         self.loss_fn = nn.BCEWithLogitsLoss()
@@ -127,6 +127,7 @@ if __name__ == "__main__":
         "optim_hparams": {"lr": 1e-3, "weight_decay": 1e-4},
         "trainer_hparams": {
             "max_epochs": max_epochs,
+            "model_saving": ml.ModelSaving("acc", True),
             "verbose": True,
             "val_every_n_epoch": 10
         },

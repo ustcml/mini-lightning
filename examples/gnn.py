@@ -74,11 +74,11 @@ class MyLModule(ml.LModule):
         optimizer: Optimizer = getattr(optim, hparams["optim_name"])(model.parameters(), **hparams["optim_hparams"])
         lr_s: LRScheduler = lrs.CosineAnnealingLR(optimizer, **hparams["lrs_hparams"])
         metrics = {
-            "loss": ml.LossMetric(),
+            "loss": MeanMetric(),
             "acc":  Accuracy("multiclass", num_classes=num_classes),
         }
         #
-        super().__init__([optimizer], metrics, "acc", hparams)
+        super().__init__([optimizer], metrics, hparams)
         self.model = model
         self.lr_s = lr_s
         self.loss_fn = nn.CrossEntropyLoss()
@@ -130,6 +130,9 @@ class MyLModule(ml.LModule):
         self.metrics["loss"].update(loss)
         self.metrics["acc"].update(y_pred, y_label)
 
+    def test_step(self, batch: Any) -> None:
+        return self.validation_step(batch, "test")
+
 
 if __name__ == "__main__":
     dataset = pygds.Planetoid(root=DATASETS_PATH, name="Cora")
@@ -154,6 +157,7 @@ if __name__ == "__main__":
         "optim_hparams": {"lr": 1e-1, "weight_decay": 2e-3, "momentum": 0.9},
         "trainer_hparams": {
             "max_epochs": max_epochs,
+            "model_saving": ml.ModelSaving("acc", True),
             "verbose": True,
             "val_every_n_epoch": 10
         },
@@ -172,7 +176,6 @@ if __name__ == "__main__":
     ml.seed_everything(42, gpu_dtm=False)
     hparams["model_name"] = "mlp"
     lmodel = MyLModule(hparams)
-    loader = pygl.DataLoader(dataset, **hparams["dataloader_hparams"])
     trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams["trainer_hparams"])
     trainer.fit(loader, loader)
     trainer.test(loader, True, True)

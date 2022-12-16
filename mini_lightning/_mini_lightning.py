@@ -29,7 +29,7 @@ from torchmetrics import Metric, MeanMetric
 from ._utils import (
     en_parallel, de_parallel, get_dist_setting, select_device,
     logger, save_to_yaml, print_model_info, load_ckpt, save_ckpt,
-    _key_add_suffix,
+    _key_add_suffix, ModelSaving
 )
 
 
@@ -41,26 +41,18 @@ __all__ = ["LModule", "LDataModule", "Trainer"]
 class LModule:
     def __init__(
         self,
-        # Use List, for supporting GAN
-        #   GAN Ref: https://pytorch-lightning.readthedocs.io/en/latest/notebooks/lightning_examples/basic-gan.html
         optimizers: List[Optimizer],
         metrics: Dict[str, Metric],
-        core_metric: Optional[str],
         hparams: Optional[Dict[str, Any]] = None
     ) -> None:
         """
-        core_metric: for model saving
+        optimizers: Use List, for supporting GAN
         hparams: Hyperparameters to be saved
         """
         # _models: for trainer_init(device, ddp), _epoch_start(train, eval); print_model_info; save_ckpt
         self._models: Set[str] = set()
         self.optimizers = optimizers
         self.metrics = metrics
-        self.core_metric_name = core_metric  # None for support only train, and only save the last model
-        self.higher_is_better: Optional[bool] = None
-        if core_metric is not None:
-            self.higher_is_better = self.metrics[core_metric].higher_is_better
-            assert self.higher_is_better is not None
         self.hparams: Dict[str, Any] = hparams if hparams is not None else {}
         self.trainer: Optional["Trainer"] = None
 
@@ -117,7 +109,7 @@ class LModule:
     def batch_to_device(cls, batch: Any, device: Device) -> Any:
         if callable(getattr(batch, "to", None)):
             # Ref: https://github.com/Lightning-AI/lightning/blob/master/src/lightning_lite/utilities/apply_func.py
-            # same as pytorch-lightning
+            #   same as pytorch-lightning
             kwargs = {}
             if isinstance(batch, Tensor) and device not in (Device("cpu"), "cpu"):
                 kwargs["non_blocking"] = True
@@ -217,7 +209,15 @@ class LModule:
         for k, metric in self.metrics.items():
             if metric._update_count == 0:
                 continue
-            v: Tensor = metric.compute()
+            v = metric.compute()
+            if isinstance(v, dict):
+                for _k, _v in v.items():
+                    mes[f"{k}_{_k}"] = _v
+                continue
+            #
+            if isinstance(v, (tuple, list)):
+                v = torch.tensor(v)
+            assert isinstance(v, Tensor)
             if v.ndim > 0:
                 mes[k] = v.mean().item()  # "macro" mean
                 for i in range(len(v)):
@@ -308,6 +308,7 @@ class Trainer:
         device_ids: List[int],
         max_epochs: int,
         runs_dir: str,
+        model_saving: Optional[ModelSaving] = None,
         n_accumulate_grad: Union[int, Dict[int, int]] = 1,
         amp: bool = False,
         gradient_clip_norm: Optional[float] = None,
@@ -321,7 +322,6 @@ class Trainer:
         deterministic:  Optional[bool] = None,
         benchmark: Optional[bool] = None,
         verbose: bool = True,
-        save_optimizers_state_dict: bool = False,
     ) -> None:
         """
         About ddp mode: you can see example in `examples/cv_ddp.py`
@@ -361,7 +361,7 @@ class Trainer:
             replace_sampler_ddp=True: It will slice the dataset into world_size chunks and distribute them to each gpu.
             note: Replace train_dataloader only. Because DDP uses a single gpu for val/test. 
         ckpt_fpath: only load model_state_dict. 
-            If you want to resume from ckpt. please see `save_optimizers_state_dict` and examples in `examples/test_env.py`
+            If you want to resume from ckpt. please see examples in `examples/test_env.py`
         *
         val_every_n_epoch: Frequency of validation and prog_bar_leave of training. (the last epoch will always be validated)
         log_every_n_steps: Frequency of writing information to the tensorboard(sampling per n steps, not mean). `global_step % `
@@ -380,9 +380,6 @@ class Trainer:
         verbose: records global_step, lr, (grad_norm if gradient_clip_norm=True) automatically. (tensorboard will always record)
             verbose=True: log in prog_bar.
             verbose=False: not log in prog_bar, making the prog_bar cleaner
-        save_optimizers_state_dict: 
-            not only save the models_state_dict, but also the optimizers_state_dict. 
-            This helps resume from ckpt. (see examples in `examples/test_env.py`)
         """
         self.rank, self.local_rank, self.world_size = get_dist_setting()
         logger.info(f"Using local_rank: {self.local_rank}, rank: {self.rank}, world_size: {self.world_size}")
@@ -420,7 +417,6 @@ class Trainer:
         self.log_every_n_steps = log_every_n_steps
         self.prog_bar_n_steps = prog_bar_n_steps
         self.verbose = verbose
-        self.save_optimizers_state_dict = save_optimizers_state_dict
         #
         self.benchmark = benchmark
         if deterministic is not None:
@@ -461,6 +457,7 @@ class Trainer:
             logger.info(f"runs_dir: {runs_dir}")
             #
             self.runs_dir = runs_dir
+            self.model_saving = model_saving if model_saving is not None else ModelSaving()
             self.ckpt_dir = os.path.join(runs_dir, "checkpoints")
             self.tb_dir = os.path.join(runs_dir, "runs")  # tensorboard
             self.hparams_path = os.path.join(runs_dir, "hparams.yaml")
@@ -567,16 +564,17 @@ class Trainer:
         if self.rank not in {-1, 0}:
             return
         lmodel = self.lmodel
+        model_saving = self.model_saving
         kwargs: Dict[str, Any] = {
             "global_step": self.global_step,
             "core_metric": {
-                "name": lmodel.core_metric_name,
-                "higher_is_better": lmodel.higher_is_better,
+                "name": model_saving.metric_name,
+                "higher_is_better": model_saving.higher_is_better,
                 "best_value": self.best_metric
             }
         }
         model_list = {s: de_parallel(getattr(lmodel, s)) for s in lmodel._models}
-        optimizers = lmodel.optimizers if self.save_optimizers_state_dict else []
+        optimizers = lmodel.optimizers if model_saving.saving_optimizers else []
         save_ckpt(fpath, model_list, optimizers, self.global_epoch, **kwargs)
 
     def _load_ckpt(self, fpath: str) -> None:
@@ -595,11 +593,12 @@ class Trainer:
         #
         metric_str = ""
         if core_metric is not None:
-            core_metric_name = self.lmodel.core_metric_name
-            higher_is_better = self.lmodel.higher_is_better
+            model_saving = self.model_saving
+            metric_name = model_saving.metric_name
+            higher_is_better = model_saving.higher_is_better
             assert higher_is_better is not None
             tag = "+" if higher_is_better else "-"
-            metric_str = f"-{core_metric_name}[{tag}]={core_metric:.6f}"
+            metric_str = f"-{metric_name}[{tag}]={core_metric:.6f}"
             if self._better_equal(core_metric, self.best_metric, higher_is_better):
                 self._remove_ckpt("best")
                 self.best_metric = core_metric
@@ -775,11 +774,10 @@ class Trainer:
     def _val_test(
         self, dataloader: Optional[DataLoader], stage: Literal["val", "test"], desc: str
     ) -> Tuple[Optional[float], Dict[str, float]]:
-        # if core_metric returns None, then only save the last model. 
+        # if core_metric returns None, then only save the last model.
         if self.rank not in {-1, 0}:
             dist.barrier()
             return None, {}
-
         #
         lmodel = self.lmodel
         device = self.device
@@ -801,6 +799,8 @@ class Trainer:
             val_test_epoch_start = lmodel.validation_epoch_start
             val_test_step = lmodel.validation_step
             val_test_epoch_end = lmodel.validation_epoch_end
+            assert self.model_saving.metric_name is not None
+            assert self.model_saving.higher_is_better is not None
         elif stage == "test":
             val_test_epoch_start = lmodel.test_epoch_start
             val_test_step = lmodel.test_step
@@ -843,8 +843,8 @@ class Trainer:
         #
         if len(metrics) > 0:
             if stage == "val":
-                assert self.lmodel.core_metric_name is not None
-                core_metric = metrics["val_" + self.lmodel.core_metric_name]
+                core_metric_name = self.model_saving.metric_name
+                core_metric = metrics["val_" + core_metric_name]
             else:  # test
                 core_metric = float("nan")
             print("- " + self._get_epoch_end_log_string(metrics))
@@ -871,7 +871,7 @@ class Trainer:
         #
         mes: Dict[str, float] = {}
         best_mes: Dict[str, float] = {}
-        assert val_dataloader is None or self.lmodel.core_metric_name is not None
+        assert val_dataloader is None
         #
         for _ in range(self.global_epoch + 1, self.max_epochs):
             self.global_epoch += 1
@@ -920,7 +920,7 @@ class Trainer:
     def fit(self, train_dataloader: DataLoader, val_dataloader: Optional[DataLoader]) -> Dict[str, float]:
         best_mes = self._train(train_dataloader, val_dataloader)
         cuda.empty_cache()
-        return best_mes if self.rank in {-1, 0} else {}  # core_metrics is best
+        return best_mes if self.rank in {-1, 0} else {}  # core_metric is best
 
     def _best_ckpt_is_last(self) -> bool:
         if self.best_ckpt_path is None or self.last_ckpt_path is None:

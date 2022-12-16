@@ -134,7 +134,7 @@ class MyLModule(ml.LModule):
         agent = Agent(env, memo_pool, model, ml.select_device(device_ids))
 
         optimizer = getattr(optim, hparams["optim_name"])(model.parameters(), **hparams["optim_hparams"])
-        super().__init__([optimizer], {}, None, hparams)
+        super().__init__([optimizer], {}, hparams)
         self.model = model
         self.old_model = deepcopy(self.model).requires_grad_(False)
         # New_model and old_model are used for model training.

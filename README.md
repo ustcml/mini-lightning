@@ -30,7 +30,7 @@ pip install .
 
 
 ## Examples
-1. First, you need to complete the steps to install the Mini-Lightning
+1. First, you need to install the Mini-Lightning
 2. Run the following examples
 
 ```bash
@@ -44,7 +44,7 @@ python examples/cv.py
 python examples/cv.py  # setting device_ids=[0, 1]
 
 ### nlp.py
-pip install "transformers>=4.23.*" "datasets>=2.6.*"
+pip install "transformers>=4.25.*" "datasets>=2.7.*"
 python examples/nlp.py
 
 ### dqn.py
@@ -56,7 +56,7 @@ pip install "torchvision>=0.13.*"
 python examples/gan.py
 
 ### contrastive_learning.py
-pip install "torchvision>=0.13.*" "scikit-learn>=1.1.*"
+pip install "torchvision>=0.13.*" "scikit-learn>=1.2.*"
 python examples/contrastive_learning.py
 
 ### gnn.py gnn2.py
@@ -66,7 +66,7 @@ python examples/gnn.py
 python examples/gnn2.py
 
 ### ae.py
-pip install "torchvision>=0.13.*" "scikit-learn>=1.1.*"
+pip install "torchvision>=0.13.*" "scikit-learn>=1.2.*"
 python examples/ae.py
 
 ### vae.py
@@ -89,7 +89,7 @@ python cv_ddp_spawn.py  # setting world_size=2, device_ids=[0, 1]
 
 ## multi-node
 # default: --master_port 29500, or set master_port to prevents port conflicts.
-torchrun --nnodes 2 --node_rank 0 --master_addr 127.0.0.1 --nproc_per_node 4 examples/cv_ddp.py _--device_ids 0 1 2 3
+torchrun --nnodes 2 --node_rank 0 --master_addr 127.0.0.1 --nproc_per_node 4 examples/cv_ddp.py --device_ids 0 1 2 3
 torchrun --nnodes 2 --node_rank 1 --master_addr xxx.xxx.xxx.xxx --nproc_per_node 4 examples/cv_ddp.py --device_ids 0 1 2 3
 ```
 

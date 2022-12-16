@@ -79,10 +79,10 @@ class AutoEncoder(ml.LModule):
         lr_s: LRScheduler = ml.warmup_decorator(
             lrs.CosineAnnealingLR, hparams["warmup"])(optimizer, **hparams["lrs_hparams"])
         metrics: Dict[str, Metric] = {
-            "loss": ml.LossMetric(),
+            "loss": MeanMetric(),
         }
         #
-        super().__init__([optimizer], metrics, "loss", hparams)
+        super().__init__([optimizer], metrics, hparams)
         self.encoder = encoder
         self.decoder = decoder
         self.lr_s = lr_s
@@ -136,6 +136,7 @@ if __name__ == "__main__":
         "trainer_hparams": {
             "max_epochs": max_epochs,
             "gradient_clip_norm": 100,
+            "model_saving": ml.ModelSaving("loss", False),
             "n_accumulate_grad": n_accumulate_grad,
             "amp": True,
             "verbose": True,

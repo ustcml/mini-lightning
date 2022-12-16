@@ -88,7 +88,7 @@ def draw_tsne(dataset: TensorDataset, tsne_fpath: str, TSNE: type) -> None:
     dataset: x: [N, F] float. y: [N] long
     """
     x, y = dataset.tensors
-    tsne = TSNE(2, learning_rate="auto", init="random")
+    tsne = TSNE(2, learning_rate="auto", init="random", n_jobs=4)
     x_2d = tsne.fit_transform(x.numpy())
     for label in range(10):
         plt.scatter(x_2d[:, 0][y == label], x_2d[:, 1][y == label], s=20, alpha=0.5, label=label)

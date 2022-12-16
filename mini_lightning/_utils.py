@@ -30,8 +30,8 @@ __all__ = [
     "en_parallel", "de_parallel", "de_sync_batchnorm", "select_device",
     "_remove_keys", "_key_add_suffix", "freeze_layers", "_stat",
     "test_time", "seed_everything", "time_synchronize", "multi_runs",
-    "print_model_info", "save_to_yaml", "LossMetric", "get_date_now",
-    "load_ckpt", "save_ckpt", "StateDict"
+    "print_model_info", "save_to_yaml", "get_date_now",
+    "load_ckpt", "save_ckpt", "StateDict", "ModelSaving"
 ]
 #
 
@@ -327,12 +327,6 @@ def save_to_yaml(obj: Any, file_path: str, encoding: str = "utf-8", mode: str = 
         yaml.dump(obj, f)
 
 
-class LossMetric(MeanMetric):
-    is_differentiable = False
-    higher_is_better = False
-    full_state_update = False
-
-
 def get_date_now(fmt: str = "%Y-%m-%d %H:%M:%S.%f") -> Tuple[Dict[str, int], str]:
     date = dt.datetime.now()
     mes = {
@@ -377,3 +371,20 @@ def load_ckpt(fpath: str, map_location: Optional[Device] = None) -> \
     optimizers_state_dict = ckpt["optimizers"]
     last_epoch = ckpt["last_epoch"]
     return models_state_dict, optimizers_state_dict, last_epoch, ckpt["mes"]
+
+
+class ModelSaving:
+    def __init__(
+        self,
+        metric_name: Optional[str] = None,  # core_metric
+        higher_is_better: Optional[bool] = None,
+        saving_optimizers: bool = False,
+    ) -> None:
+        #
+        self.metric_name = metric_name
+        self.higher_is_better = higher_is_better
+        self.saving_optimizers = saving_optimizers
+
+    def __repr__(self) -> str:
+        attr_str = ", ".join([f"{k}={v}" for k, v in self.__dict__.items()])
+        return f"{self.__class__.__name__}({attr_str})"
