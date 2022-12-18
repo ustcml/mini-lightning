@@ -3,19 +3,16 @@
 # Date:
 
 # Ref: https://pytorch-lightning.readthedocs.io/en/stable/notebooks/course_UvA-DL/06-graph-neural-networks.html
-#   https://github.com/pyg-team/pytorch_geometric/blob/master/examples/link_pred.py
-# Edge-Level Task. Link Prediction
+# Graph-Level Task
 
 from pre import *
 import torch_geometric.data as pygd
 import torch_geometric.datasets as pygds
 import torch_geometric.nn as pygnn
 import torch_geometric.loader as pygl
-import torch_geometric.transforms as pygt
-from torch_geometric.utils import negative_sampling
 
 #
-RUNS_DIR = os.path.join(RUNS_DIR, "gnn2")
+RUNS_DIR = os.path.join(RUNS_DIR, "gnn3")
 os.makedirs(RUNS_DIR, exist_ok=True)
 #
 device_ids = [0]
@@ -36,29 +33,36 @@ class GNN(nn.Module):
             gnn_layer(in_channels, hidden_channels),
             nn.ReLU(inplace=True),
             nn.Dropout(0.1),
-            gnn_layer(hidden_channels, out_channels),
+            gnn_layer(hidden_channels, hidden_channels),
+            nn.ReLU(inplace=True),
+            nn.Dropout(0.1),
+            gnn_layer(hidden_channels, hidden_channels),
         ])
+        self.head = nn.Sequential(
+            nn.Dropout(0.4),
+            nn.Linear(hidden_channels, out_channels)
+        )
 
-    def forward(self, x: Tensor, edge_index: Tensor) -> Tensor:
+    def forward(self, x: Tensor, edge_index: Tensor, batch_idxs: Tensor) -> Tensor:
         for layer in self.layers:
             if isinstance(layer, pygnn.MessagePassing):
                 x = layer(x, edge_index)
             else:
                 x = layer(x)
+        x = pygnn.global_mean_pool(x, batch_idxs)  # [N, ...], [N] -> [M, ...]
+        x = self.head(x)
         return x
 
 
 class MyLModule(ml.LModule):
     def __init__(self, hparams: Dict[str, Any]) -> None:
-        self.in_channels = hparams["in_channels"]
-        hidden_channels, out_channels = hparams["hidden_channels"], hparams["out_channels"]
-        model = GNN(self.in_channels, hidden_channels, out_channels, "GCN")
+        model = GNN(**hparams["model_hparams"])
         #
         optimizer: Optimizer = getattr(optim, hparams["optim_name"])(model.parameters(), **hparams["optim_hparams"])
         lr_s: LRScheduler = lrs.CosineAnnealingLR(optimizer, **hparams["lrs_hparams"])
         metrics = {
+            "loss": MeanMetric(),
             "acc":  Accuracy("binary"),
-            "auc": AUROC("binary")
         }
         #
         super().__init__([optimizer], metrics, hparams)
@@ -70,90 +74,63 @@ class MyLModule(ml.LModule):
         super().optimizer_step(opt_idx)
         self.lr_s.step()
 
-    def _make_index_labels(self, data: pygd.Data, mode: Literal["train", "val"]) -> Tuple[Tensor, Tensor]:
-        if mode == "train":
-            N = data.edge_label_index.shape[1]
-            neg_edge_index = negative_sampling(edge_index=data.edge_index, num_nodes=self.in_channels,
-                                               num_neg_samples=N, method='sparse')
-
-            y_index = torch.concat([data.edge_label_index, neg_edge_index], dim=1)
-            y_label = torch.concat([data.edge_label, torch.zeros_like(data.edge_label)], dim=0)
-        else:  # val
-            y_index, y_label = data.edge_label_index, data.edge_label
-        return y_index, y_label
-
-    def _calculate_loss_proba_label(
+    def _calculate_loss_pred_label(
         self,
         batch: pygd.Data,
-        mode: Literal["train", "val"],
-    ) -> Tuple[Optional[Tensor], Tensor, Tensor]:
+    ) -> Tuple[Tensor, Tensor, Tensor]:
         x: Tensor = batch.x
         edge_index: Tensor = batch.edge_index
-        y_index, y_label = self._make_index_labels(batch, mode)
-        z = self.model(x, edge_index)
-        y_logits = torch.einsum("ij,ij->i", z[y_index[0]], z[y_index[1]])
+        y: Tensor = batch.y
+        batch_idxs = batch.batch
+        y_logits: Tensor = self.model(x, edge_index, batch_idxs)[:, 0]
         #
-        loss = None
-        if mode == "train":
-            loss = self.loss_fn(y_logits, y_label)
-        return loss, y_logits, y_label
+        loss = self.loss_fn(y_logits, y.float())
+        y_pred = y_logits > 0
+        return loss, y_pred, y
 
     def training_step(self, batch: pygd.Data, opt_idx: int) -> Tensor:
-        loss, y_logits, y_label = self._calculate_loss_proba_label(batch, "train")
-        assert loss is not None
-        y_pred = y_logits > 0
+        loss, y_pred, y_label = self._calculate_loss_pred_label(batch)
         acc = accuracy(y_pred, y_label, "binary")
-        auc: Tensor = auroc(y_logits.sigmoid(), y_label, "binary")
         self.log("train_loss", loss)
         self.log("train_acc", acc)
-        self.log("train_auc", auc)
         return loss
 
     def validation_step(self, batch: pygd.Data) -> None:
-        _, y_logits, y_label = self._calculate_loss_proba_label(batch, "val")
-        y_pred = y_logits > 0
+        loss, y_pred, y_label = self._calculate_loss_pred_label(batch)
+        self.metrics["loss"].update(loss)
         self.metrics["acc"].update(y_pred, y_label)
-        self.metrics["auc"].update(y_logits.sigmoid(), y_label)
-
-
-class PygDataset(Dataset):
-    """data -> dataset"""
-
-    def __init__(self, data: pygd.Data) -> None:
-        self.dataset = [data]
-        super().__init__()
-
-    def __getitem__(self, index: int) -> pygd.Data:
-        return self.dataset[index]
-
-    def __len__(self):
-        return len(self.dataset)  # 1
 
 
 if __name__ == "__main__":
-    transform = pygt.RandomLinkSplit(0.2, 0, True, add_negative_train_samples=False)
-    train_data, test_data, _ = pygds.Planetoid(root=DATASETS_PATH, name="Cora", transform=transform)[0]
+    dataset = pygds.TUDataset(root=DATASETS_PATH, name="MUTAG")
+    ml.seed_everything(42, gpu_dtm=False)
+    dataset = dataset.shuffle()
+    train_dataset: pygd.Dataset = dataset[:150]
+    test_dataset: pygd.Dataset = dataset[150:]
     #
     max_epochs = 250
-    batch_size = 1
-    hidden_channels = 128
-    out_channels = 64
-    train_dataset, test_dataset = PygDataset(train_data), PygDataset(test_data)
+    batch_size = 256
+    in_channels = dataset.data.x.shape[1]
+    hidden_channels = 256
+    out_channels = dataset.data.y.max()  # "binary"
     #
     ml.seed_everything(42, gpu_dtm=False)
     hparams = {
         "device_ids": device_ids,
-        "in_channels": train_data.x.shape[1],
-        "hidden_channels": hidden_channels,
-        "out_channels": out_channels,
+        "model_hparams": {
+            "in_channels": in_channels,
+            "hidden_channels": hidden_channels,
+            "out_channels": out_channels,
+            "layer_name": "GraphConv"
+        },
         "dataloader_hparams": {"batch_size": batch_size},
         "optim_name": "AdamW",
         "optim_hparams": {"lr": 1e-3, "weight_decay": 1e-4},
         "trainer_hparams": {
             "max_epochs": max_epochs,
-            "model_saving": ml.ModelSaving("auc", True),
+            "model_saving": ml.ModelSaving("acc", True),
             "verbose": True,
-            "val_every_n_epoch": 10,
+            "val_every_n_epoch": 10
         },
         "lrs_hparams": {
             "T_max": max_epochs,

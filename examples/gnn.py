@@ -10,6 +10,7 @@ import torch_geometric.data as pygd
 import torch_geometric.datasets as pygds
 import torch_geometric.nn as pygnn
 import torch_geometric.loader as pygl
+
 #
 RUNS_DIR = os.path.join(RUNS_DIR, "gnn")
 os.makedirs(RUNS_DIR, exist_ok=True)
@@ -24,7 +25,7 @@ class GNN(nn.Module):
         in_channels: int,
         hidden_channels: int,
         out_channels: int,
-        layer_name: str = "GCN"
+        layer_name: str
     ) -> None:
         super().__init__()
         gnn_layer = gnn_layers[layer_name]
@@ -106,16 +107,16 @@ class MyLModule(ml.LModule):
             mask = batch.test_mask
         else:
             raise ValueError(f"mode: {mode}")
-        y_proba: Tensor
+        y_logits: Tensor
         if self.model_name == "mlp":
-            y_proba = self.model(x)
+            y_logits = self.model(x)
         else:
-            y_proba = self.model(x, edge_index)
-        y_proba = y_proba[mask]
+            y_logits = self.model(x, edge_index)
+        y_logits = y_logits[mask]
         y = y[mask]
         #
-        loss = self.loss_fn(y_proba, y)
-        y_pred = y_proba.argmax(dim=-1)
+        loss = self.loss_fn(y_logits, y)
+        y_pred = y_logits.argmax(dim=-1)
         return loss, y_pred, y
 
     def training_step(self, batch: pygd.Data, opt_idx: int) -> Tensor:
@@ -150,7 +151,8 @@ if __name__ == "__main__":
         "model_hparams": {
             "in_channels": in_channels,
             "hidden_channels": hidden_channels,
-            "out_channels": out_channels
+            "out_channels": out_channels,
+            "layer_name": "GCN",
         },
         "dataloader_hparams": {"batch_size": batch_size},
         "optim_name": "SGD",
@@ -175,6 +177,7 @@ if __name__ == "__main__":
     # ########## MLP
     ml.seed_everything(42, gpu_dtm=False)
     hparams["model_name"] = "mlp"
+    hparams["model_hparams"].pop("layer_name")
     lmodel = MyLModule(hparams)
     trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams["trainer_hparams"])
     trainer.fit(loader, loader)

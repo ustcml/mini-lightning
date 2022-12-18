@@ -258,8 +258,8 @@ if __name__ == "__main__":
         "in_channels": in_channels,
         "num_classes": 10,
         "dataloader_hparams": {"batch_size": batch_size, "num_workers": 4},
-        "optim_name": "SGD",
-        "optim_hparams": {"lr": 1e-2, "weight_decay": 1e-4, "momentum": 0.9},
+        "optim_name": "AdamW",
+        "optim_hparams": {"lr": 1e-3, "weight_decay": 1e-4},
         "trainer_hparams": {
             "max_epochs": max_epochs,
             "model_saving": ml.ModelSaving("acc", True),
@@ -270,7 +270,7 @@ if __name__ == "__main__":
         },
         "lrs_hparams": {
             "T_max": ...,
-            "eta_min": 1e-3
+            "eta_min": 1e-4
         },
     }
 

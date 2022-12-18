@@ -64,6 +64,7 @@ python examples/contrastive_learning.py
 #   Ref: https://pytorch-geometric.readthedocs.io/en/latest/notes/installation.html
 python examples/gnn.py
 python examples/gnn2.py
+python examples/gnn3.py
 
 ### ae.py
 pip install "torchvision>=0.13.*" "scikit-learn>=1.2.*"
