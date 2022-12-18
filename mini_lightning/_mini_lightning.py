@@ -871,7 +871,7 @@ class Trainer:
         #
         mes: Dict[str, float] = {}
         best_mes: Dict[str, float] = {}
-        assert val_dataloader is None
+        assert val_dataloader is not None
         #
         for _ in range(self.global_epoch + 1, self.max_epochs):
             self.global_epoch += 1

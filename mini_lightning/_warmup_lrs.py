@@ -43,18 +43,18 @@ def warmup_decorator(lr_s: type, warmup: int) -> type:
     class WarmupLRScheduler(lr_s):
         def __init__(self, optimizer: Optimizer, *args, **kwargs) -> None:
             self.warmup = warmup
-            self.lrs_ori: Optional[List[int]] = None
+            self.lrs_before_warmup: Optional[List[int]] = None  # for warmup
             super().__init__(optimizer, *args, **kwargs)
 
         def get_lr(self) -> List[float]:
             # recover
-            if self.lrs_ori is not None:
-                for p, lr in zip(self.optimizer.param_groups, self.lrs_ori):
+            if self.lrs_before_warmup is not None:
+                for p, lr in zip(self.optimizer.param_groups, self.lrs_before_warmup):
                     p["lr"] = lr
             #
             last_epoch = self.last_epoch
             lrs = super().get_lr()
-            self.lrs_ori = lrs
+            self.lrs_before_warmup = lrs
             # warmup
             scale = 1
             if last_epoch < self.warmup:
