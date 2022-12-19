@@ -799,8 +799,6 @@ class Trainer:
             val_test_epoch_start = lmodel.validation_epoch_start
             val_test_step = lmodel.validation_step
             val_test_epoch_end = lmodel.validation_epoch_end
-            assert self.model_saving.metric_name is not None
-            assert self.model_saving.higher_is_better is not None
         elif stage == "test":
             val_test_epoch_start = lmodel.test_epoch_start
             val_test_step = lmodel.test_step
@@ -868,10 +866,12 @@ class Trainer:
                val_dataloader: Optional[DataLoader]) -> Dict[str, float]:
         if self.replace_sampler_ddp and self.rank != -1:
             train_dataloader = self._replace_sampler_ddp(train_dataloader)
+        if val_dataloader is not None:
+            assert self.model_saving.metric_name is not None
+            assert self.model_saving.higher_is_better is not None
         #
         mes: Dict[str, float] = {}
         best_mes: Dict[str, float] = {}
-        assert val_dataloader is not None
         #
         for _ in range(self.global_epoch + 1, self.max_epochs):
             self.global_epoch += 1

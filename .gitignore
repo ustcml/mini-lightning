@@ -3,11 +3,12 @@
 __pycache__/
 /mini_lightning.egg-info/
 /build/
-/examples/exp/
 /dist/
 /test/
 /asset/
 /.pytest_cache/
 /trash/
 /todo
+/examples/exp/
 /examples/dev/
+/examples/trash/
