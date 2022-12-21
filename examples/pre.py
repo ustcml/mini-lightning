@@ -3,15 +3,16 @@
 # Date:
 
 # common
-
+import re
 import math
 import os
 import sys
 import logging
 import warnings
 import time
-from typing import List, Tuple, Dict, Callable, Optional, Union, Any, Deque, Iterator, Literal
-from collections import namedtuple, deque
+import random
+from typing import List, Tuple, Dict, Callable, Optional, Union, Any, Deque, Iterator, Literal, DefaultDict
+from collections import namedtuple, deque, defaultdict
 from pprint import pprint
 from argparse import ArgumentParser, Namespace
 from copy import copy, deepcopy
@@ -29,7 +30,9 @@ from torchmetrics.classification.precision_recall import Precision, Recall
 from torchmetrics.classification.f_beta import F1Score, FBetaScore
 from torchmetrics.classification.auroc import AUROC
 from torchmetrics.classification.average_precision import AveragePrecision
-from torchmetrics.functional import accuracy, pairwise_cosine_similarity, auroc
+from torchmetrics.functional import (
+    accuracy, auroc, pairwise_cosine_similarity, pairwise_euclidean_distance
+)
 
 #
 import torch
@@ -39,9 +42,13 @@ from torch import Tensor, device as Device
 from torch.nn import Module
 from torch.optim import Optimizer
 from torch.nn.parameter import Parameter
+from torch.nn.modules.module import _IncompatibleKeys as IncompatibleKeys
 from torch.optim import lr_scheduler as lrs
 from torch.optim.lr_scheduler import _LRScheduler as LRScheduler
-from torch.utils.data import Dataset, DataLoader, random_split, IterableDataset, TensorDataset
+from torch.utils.data import (
+    Dataset, IterableDataset, TensorDataset,
+    Sampler, DataLoader, random_split,
+)
 from torch.multiprocessing.spawn import spawn
 #
 import mini_lightning as ml

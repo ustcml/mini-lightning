@@ -15,7 +15,7 @@ class MyLModule(ml.LModule):
     def __init__(self, hparams: Dict[str, Any]) -> None:
         num_classes = hparams["num_classes"]
         model: Module = getattr(tvm, hparams["model_name"])(num_classes=num_classes)
-        state_dict = torch.hub.load_state_dict_from_url(**hparams["model_pretrain_model"])
+        state_dict: Dict[str, Any] = tvm.ResNet50_Weights.DEFAULT.get_state_dict(False)
         state_dict = ml._remove_keys(state_dict, ["fc"])
         logger.info(model.load_state_dict(state_dict, strict=False))
         #
@@ -42,7 +42,7 @@ class MyLModule(ml.LModule):
         x_batch, y_batch = batch
         y: Tensor = self.model(x_batch)
         loss = self.loss_fn(y, y_batch)
-        y_pred = y.argmax(dim=-1)
+        y_pred = y.argmax(dim=1)
         return loss, y_pred
 
     def training_step(self, batch: Tuple[Tensor, Tensor], opt_idx: int) -> Tensor:
@@ -96,7 +96,6 @@ if __name__ == "__main__":
         "device_ids": device_ids,
         "model_name": "resnet50",
         "num_classes": 10,
-        "model_pretrain_model": {"url": tvm.ResNet50_Weights.DEFAULT.url},
         "dataloader_hparams": {"batch_size": batch_size, "num_workers": 4},
         "optim_name": "SGD",
         "optim_hparams": {"lr": 1e-2, "weight_decay": 1e-4, "momentum": 0.9},

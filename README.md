@@ -16,7 +16,7 @@
 
 ## Installation
 1. Create a virtual environment and install Python (>= 3.8)
-2. Download the latest version (>=1.12) of Torch(corresponding CUDA version) from the [official website](https://pytorch.org/get-started/locally/) of Torch. It is not recommended to automatically install Torch (CUDA 10.2 default) using the Mini-Lightning dependency, which will cause CUDA version mismatch.
+2. Download the latest version (>=1.12) of Torch(corresponding CUDA version) from the [official website](https://pytorch.org/get-started/locally/) of PyTorch. 
 3. Install mini-lightning
 ```bash
 # from pypi

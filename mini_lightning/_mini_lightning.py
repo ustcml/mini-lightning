@@ -17,7 +17,7 @@ import torch.cuda as cuda
 import torch.distributed as dist
 from torch import device as Device, Tensor
 from torch.utils.tensorboard.writer import SummaryWriter
-from torch.utils.data import Dataset, DataLoader, DistributedSampler, SequentialSampler
+from torch.utils.data import Dataset, DataLoader, DistributedSampler, SequentialSampler, Sampler
 from torch.nn import Module, Parameter
 from torch.optim import Optimizer
 from torch.nn.utils.clip_grad import clip_grad_norm_
@@ -265,16 +265,23 @@ class LDataModule:
         val_dataset: Optional[Dataset],
         test_dataset: Optional[Dataset],
         #
-        batch_size: int,
+        batch_size: int = 1,
+        # 
         num_workers: int = 0,
         pin_memory: bool = True,
         collate_fn: Optional[Callable[[List[Any]], Any]] = None,  # for test/val and (train if collate_fn_train is None)
+        sampler: Optional[Sampler] = None,
+        batch_sampler: Optional[Sampler] = None,
         *,
+        # see sampler_train, batch_sampler_train
         shuffle_train: bool = True,
         drop_last_train: bool = True,  # If DP/DDP, drop_last=False may cause uneven split
+        # 
         num_workers_train: Optional[int] = None,
         pin_memory_train: Optional[bool] = None,
         collate_fn_train: Optional[Callable[[List[Any]], Any]] = None,
+        sampler_train: Optional[Sampler] = None,
+        batch_sampler_train: Optional[Sampler] = None,
     ) -> None:
         if num_workers_train is None:
             num_workers_train = num_workers
@@ -283,6 +290,16 @@ class LDataModule:
         if collate_fn_train is None:
             collate_fn_train = collate_fn
         #
+        if sampler_train is None:
+            sampler_train = sampler
+        if batch_sampler_train is None:
+            batch_sampler_train = batch_sampler
+        # 
+        if sampler_train is not None or batch_sampler_train is not None:
+            shuffle_train = False
+        if batch_sampler_train is not None:
+            drop_last_train = False
+        #
         self.train_dataloader: Optional[DataLoader] = None
         self.val_dataloader: Optional[DataLoader] = None
         self.test_dataloader: Optional[DataLoader] = None
@@ -290,14 +307,16 @@ class LDataModule:
         if train_dataset is not None:
             self.train_dataloader = DataLoader(train_dataset, batch_size, shuffle=shuffle_train,
                                                num_workers=num_workers_train, pin_memory=pin_memory_train,
-                                               drop_last=drop_last_train, collate_fn=collate_fn_train)
+                                               drop_last=drop_last_train, collate_fn=collate_fn_train,
+                                               sampler=sampler_train, batch_sampler=batch_sampler_train)
         #
         rank = get_dist_setting()[0]
         for dataset, loader_name in zip([val_dataset, test_dataset], ["val_dataloader", "test_dataloader"]):
             if rank in {-1, 0} and dataset is not None:
                 loader = DataLoader(dataset, batch_size, shuffle=False,
                                     num_workers=num_workers, pin_memory=pin_memory,
-                                    drop_last=False, collate_fn=collate_fn)
+                                    drop_last=False, collate_fn=collate_fn,
+                                    sampler=sampler, batch_sampler=batch_sampler)
                 setattr(self, loader_name, loader)
 
 

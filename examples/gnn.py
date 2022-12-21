@@ -116,7 +116,7 @@ class MyLModule(ml.LModule):
         y = y[mask]
         #
         loss = self.loss_fn(y_logits, y)
-        y_pred = y_logits.argmax(dim=-1)
+        y_pred = y_logits.argmax(dim=1)
         return loss, y_pred, y
 
     def training_step(self, batch: pygd.Data, opt_idx: int) -> Tensor:

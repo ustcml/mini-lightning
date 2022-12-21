@@ -9,13 +9,6 @@ from sklearn.manifold import TSNE
 RUNS_DIR = os.path.join(RUNS_DIR, "cl")
 os.makedirs(RUNS_DIR, exist_ok=True)
 
-
-class Acc(MeanMetric):
-    is_differentiable = False
-    higher_is_better = True
-    full_state_update = False
-
-
 #
 device_ids = [0]
 
@@ -36,14 +29,14 @@ def info_nce(features: Tensor, temperature: float = 0.07) -> Tuple[Tensor, Tenso
     cos_sim = cos_sim / temperature
     pos_sim = cos_sim[arange_2n, pos_mask]
     #
-    loss = -pos_sim + torch.logsumexp(cos_sim, dim=-1)
+    loss = -pos_sim + torch.logsumexp(cos_sim, dim=1)
     loss = loss.mean()
     #
     pos_sim = pos_sim.clone().detach_()[:, None]  # [2N, 1]
     cos_sim = cos_sim.clone().detach_()  # [2N, 2N]
     cos_sim[arange_2n, pos_mask] = NINF
-    comb_sim = torch.concat([pos_sim, cos_sim], dim=-1)
-    pos_idx = comb_sim.argsort(dim=-1, descending=True).argmin(dim=-1)
+    comb_sim = torch.concat([pos_sim, cos_sim], dim=1)
+    pos_idx = comb_sim.argsort(dim=1, descending=True).argmin(dim=1)
     return loss, pos_idx
 
 
@@ -52,7 +45,7 @@ class SimCLR(ml.LModule):
         out_channels = hparams["out_channels"]
         resnet: ResNet = getattr(tvm, hparams["model_name"])(num_classes=4*out_channels)
         #
-        # state_dict = torch.hub.load_state_dict_from_url(url=tvm.ResNet18_Weights.DEFAULT.url)
+        # state_dict: Dict[str, Any] = tvm.ResNet18_Weights.DEFAULT.get_state_dict(False)
         # state_dict = ml._remove_keys(state_dict, ["fc"])
         # logger.info(resnet.load_state_dict(state_dict, strict=False))
         #
@@ -66,8 +59,8 @@ class SimCLR(ml.LModule):
             lrs.CosineAnnealingLR, hparams["warmup"])(optimizer, **hparams["lrs_hparams"])
         metrics = {
             "loss": MeanMetric(),
-            "acc":  Acc(),
-            "acc_top5": Acc()
+            "acc":  MeanMetric(),
+            "acc_top5": MeanMetric()
         }
         self.temperature = hparams["temperature"]
         #
@@ -139,7 +132,7 @@ class MLP(ml.LModule):
         x_batch, y_batch = batch
         y = self.mlp(x_batch)
         loss = self.loss_fn(y, y_batch)
-        y_pred = y.argmax(dim=-1)
+        y_pred = y.argmax(dim=1)
         return loss, y_pred
 
     def training_step(self, batch: Tuple[Tensor, Tensor], opt_idx: int) -> Tensor:

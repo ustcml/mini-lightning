@@ -45,7 +45,7 @@ class MyLModule(ml.LModule):
         y = self.model(**batch)
         loss, logits = y["loss"], y["logits"]
         y_prob = torch.softmax(logits, 1)[:, 1]
-        y_pred = logits.argmax(dim=-1)
+        y_pred = logits.argmax(dim=1)
         return loss, y_prob, y_pred
 
     def training_step(self, batch: Dict[str, Tensor], opt_idx: int) -> Tensor:
