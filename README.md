@@ -74,6 +74,11 @@ python examples/ae.py
 pip install "torchvision>=0.13.*"
 python examples/vae.py
 
+### meta_learning.py
+pip install "torchvision>=0.13.*"
+python examples/meta_learning.py
+
+
 ########## ddp
 ### cv_ddp.py; cv_ddp_spawn.py
 # torchrun (Recommended)

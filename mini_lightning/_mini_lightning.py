@@ -830,7 +830,11 @@ class Trainer:
         rec_mes: Dict[str, float] = {}  # Save the most recent mes. (for prog_bar)
         mean_metrics: Dict[str, MeanMetric] = {}
         if dataloader is not None:
-            prog_bar = tqdm(total=len(dataloader), desc=desc, dynamic_ncols=True)
+            try:
+                total = len(dataloader)
+            except (TypeError, AttributeError):
+                total = None
+            prog_bar = tqdm(total=total, desc=desc, dynamic_ncols=True)
             batch_idx = -1  # avoid unbound
             self.prog_bar_mean.clear()
             for batch_idx, batch in enumerate(dataloader):
