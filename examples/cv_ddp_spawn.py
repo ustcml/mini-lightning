@@ -143,6 +143,6 @@ def main(rank: int, world_size: int, device_ids: List[int]) -> None:
 
 
 if __name__ == "__main__":
-    device_ids = [0]
+    device_ids = [0, 1]
     world_size = len(device_ids)
     spawn(main, args=(world_size, device_ids), nprocs=world_size, join=True)

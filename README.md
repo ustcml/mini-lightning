@@ -88,13 +88,9 @@ python examples/meta_learning.py
 #   Ref: https://pytorch.org/docs/stable/elastic/run.html
 # spawn
 #   Ref: https://pytorch.org/docs/stable/notes/ddp.html
-## single-gpu  # for test
-torchrun examples/cv_ddp.py --device_ids 0
-python cv_ddp_spawn.py  # setting world_size=1, device_ids=[0]
-
 ## single-node, multi-gpu
 torchrun --nproc_per_node 2 examples/cv_ddp.py --device_ids 0 1
-python cv_ddp_spawn.py  # setting world_size=2, device_ids=[0, 1]
+python cv_ddp_spawn.py  # setting device_ids=[0, 1]
 
 ## multi-node
 # default: --master_port 29500, or set master_port to prevents port conflicts.
