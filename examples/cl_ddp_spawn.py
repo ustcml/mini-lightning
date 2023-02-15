@@ -2,6 +2,11 @@
 # Email: huangjintao@mail.ustc.edu.cn
 # Date:
 
+"""spawn: only support single node. but better to debug. 
+recommend to use torchrun in `cl_ddp.py`. spawn is slower(maybe, I feel)
+    Ref: https://github.com/pytorch/pytorch/issues/47587
+"""
+
 # Ref: https://pytorch-lightning.readthedocs.io/en/stable/notebooks/course_UvA-DL/13-contrastive-learning.html
 from pre_cv import *
 from sklearn.manifold import TSNE
@@ -22,6 +27,7 @@ class GatherLayer(Function):
     @staticmethod
     def backward(ctx, *grads: Tensor) -> Tensor:
         res = grads[dist.get_rank()]
+        res *= dist.get_world_size()  # for same grad with 2 * batch_size; mean operation in ddp across device.
         return res
 
 
@@ -225,6 +231,8 @@ def main(rank: int, world_size: int, device_ids: List[int]) -> None:
             "model_saving": ml.ModelSaving("acc_top5", True),
             "gradient_clip_norm": 20,
             "amp": True,
+            "sync_bn": True,  # False
+            "replace_sampler_ddp": True,
             "n_accumulate_grad": n_accumulate_grad,
             "verbose": True
         },

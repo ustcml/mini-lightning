@@ -267,7 +267,6 @@ class LDataModule:
         test_dataset: Optional[Dataset],
         #
         batch_size: int = 1,
-        #
         num_workers: int = 0,
         pin_memory: bool = True,
         collate_fn: Optional[Callable[[List[Any]], Any]] = None,  # for test/val and (train if collate_fn_train is None)
@@ -278,12 +277,15 @@ class LDataModule:
         shuffle_train: bool = True,
         drop_last_train: bool = True,  # If DP/DDP, drop_last=False may cause uneven split
         #
+        batch_size_train: Optional[int] = None,
         num_workers_train: Optional[int] = None,
         pin_memory_train: Optional[bool] = None,
         collate_fn_train: Optional[Callable[[List[Any]], Any]] = None,
         sampler_train: Optional[Sampler] = None,
         batch_sampler_train: Optional[Sampler] = None,
     ) -> None:
+        if batch_size_train is None:
+            batch_size_train = batch_size
         if num_workers_train is None:
             num_workers_train = num_workers
         if pin_memory_train is None:
@@ -306,7 +308,7 @@ class LDataModule:
         self.test_dataloader: Optional[DataLoader] = None
         #
         if train_dataset is not None:
-            self.train_dataloader = DataLoader(train_dataset, batch_size, shuffle=shuffle_train,
+            self.train_dataloader = DataLoader(train_dataset, batch_size_train, shuffle=shuffle_train,
                                                num_workers=num_workers_train, pin_memory=pin_memory_train,
                                                drop_last=drop_last_train, collate_fn=collate_fn_train,
                                                sampler=sampler_train, batch_sampler=batch_sampler_train)
