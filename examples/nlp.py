@@ -3,7 +3,7 @@
 # Date:
 
 from pre import *
-from transformers.models.bert.modeling_bert import BertForSequenceClassification
+from transformers.models.roberta.modeling_roberta import RobertaForSequenceClassification
 from transformers.models.auto.tokenization_auto import AutoTokenizer
 from transformers.data.data_collator import DataCollatorWithPadding
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
@@ -20,8 +20,8 @@ device_ids = [0]
 
 class MyLModule(ml.LModule):
     def __init__(self, hparams: Optional[Dict[str, Any]] = None) -> None:
-        model = BertForSequenceClassification.from_pretrained(model_name)
-        ml.freeze_layers(model, ["bert.embeddings."] + [f"bert.encoder.layer.{i}." for i in range(2)], verbose=False)
+        model = RobertaForSequenceClassification.from_pretrained(model_name)
+        ml.freeze_layers(model, ["roberta.embeddings."] + [f"roberta.encoder.layer.{i}." for i in range(2)], verbose=False)
         optimizer = getattr(optim, hparams["optim_name"])(model.parameters(), **hparams["optim_hparams"])
         metrics: Dict[str, Metric] = {
             "loss": MeanMetric(),
@@ -69,7 +69,7 @@ class MyLModule(ml.LModule):
 if __name__ == "__main__":
     ml.seed_everything(42, gpu_dtm=False)
     dataset = load_dataset("glue", "mrpc")
-    model_name = "bert-base-uncased"
+    model_name = "roberta-base"
     tokenizer: PreTrainedTokenizerBase = AutoTokenizer.from_pretrained(model_name)
     tokenizer.deprecation_warnings["Asking-to-pad-a-fast-tokenizer"] = True
 

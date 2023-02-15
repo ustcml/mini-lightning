@@ -70,7 +70,6 @@ def parse_opt() -> Namespace:
 
 if __name__ == "__main__":
     device_ids: List[int] = parse_opt().device_ids
-    rank = ml.get_dist_setting()[0]
     # Calculating mean std
     train_dataset = CIFAR10(root=DATASETS_PATH, train=True, download=True)
     DATA_MEANS: Tensor = (train_dataset.data / 255.0).mean(axis=(0, 1, 2))
@@ -133,7 +132,8 @@ if __name__ == "__main__":
         train_dataset, val_dataset, test_dataset, **hparams["dataloader_hparams"])
 
     def collect_res(seed: int) -> Dict[str, float]:
-        ml.seed_everything(seed, gpu_dtm=False)
+        rank = ml.get_dist_setting()[0]
+        ml.seed_everything(seed+rank, gpu_dtm=False)
         lmodel = MyLModule(hparams)
         trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams["trainer_hparams"])
         res = trainer.fit(ldm.train_dataloader, ldm.val_dataloader)
@@ -142,3 +142,4 @@ if __name__ == "__main__":
         return res
     res = ml.multi_runs(collect_res, 3, seed=42)
     # pprint(res)
+    dist.destroy_process_group()

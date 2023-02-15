@@ -50,7 +50,7 @@ class LModule:
         hparams: Hyperparameters to be saved
         """
         # _models: for trainer_init(device, ddp), _epoch_start(train, eval); print_model_info; save_ckpt
-        self._models: Set[str] = set()
+        self._models: List[str] = []
         self.optimizers = optimizers
         self.metrics = metrics
         self.hparams: Dict[str, Any] = hparams if hparams is not None else {}
@@ -248,7 +248,8 @@ class LModule:
 
     def __setattr__(self, name: str, value: Any) -> None:
         if isinstance(value, Module) and not self._parameters_empty(value):  # avoid loss_fn
-            self._models.add(name)
+            if name not in self._models:
+                self._models.append(name)
         super().__setattr__(name, value)
 
     def __delattr__(self, name: str) -> None:
@@ -266,7 +267,7 @@ class LDataModule:
         test_dataset: Optional[Dataset],
         #
         batch_size: int = 1,
-        # 
+        #
         num_workers: int = 0,
         pin_memory: bool = True,
         collate_fn: Optional[Callable[[List[Any]], Any]] = None,  # for test/val and (train if collate_fn_train is None)
@@ -276,7 +277,7 @@ class LDataModule:
         # see sampler_train, batch_sampler_train
         shuffle_train: bool = True,
         drop_last_train: bool = True,  # If DP/DDP, drop_last=False may cause uneven split
-        # 
+        #
         num_workers_train: Optional[int] = None,
         pin_memory_train: Optional[bool] = None,
         collate_fn_train: Optional[Callable[[List[Any]], Any]] = None,
@@ -294,7 +295,7 @@ class LDataModule:
             sampler_train = sampler
         if batch_sampler_train is None:
             batch_sampler_train = batch_sampler
-        # 
+        #
         if sampler_train is not None or batch_sampler_train is not None:
             shuffle_train = False
         if batch_sampler_train is not None:
@@ -387,8 +388,9 @@ class Trainer:
         prog_bar_n_steps: updating Frequency of progress bar. `batch_idx % `
             note: In the case of DDP+train, metrics are collected from all gpus. (same as log_every_n_steps)
             note: torchmetrics is recommended for metrics calculation.
-                It is not recommended to use the mean value of log as metrics, 
-                because errors will occur when the length of the last batch is not equal to batch_size.
+                if you use `self.log` in training, errors will occur when the length of the last batch is not equal to batch_size.
+                    and it will just log rank=0 if in ddp mode.
+                please don't use `self.log` in validation
             note: train: scalar of inf, nan will be skipped, val/test: scalar of inf, nan will be recorded.
         deterministic: 
             deterministic=None: not modify
@@ -536,12 +538,12 @@ class Trainer:
 
     @staticmethod
     def _metrics_update(metrics: Dict[str, MeanMetric], new_mes: Dict[str, float], prog_bar_mean: Dict[str, bool],
-                        device: Device, ignore_inf_nan: bool = False, sync_on_compute: bool = True) -> None:
+                        device: Device, ignore_inf_nan: bool = False) -> None:
         for k, v in new_mes.items():
             if not prog_bar_mean[k]:
                 continue
             if k not in metrics:
-                metrics[k] = MeanMetric(sync_on_compute=sync_on_compute).to(device)
+                metrics[k] = MeanMetric(sync_on_compute=False).to(device)
             if ignore_inf_nan and (math.isinf(v) or math.isnan(v)):  # ignore
                 continue
             metrics[k].update(v)
@@ -658,6 +660,7 @@ class Trainer:
             tensors /= self.world_size
             for k, t in zip(mes.keys(), tensors):
                 tb_mes[k] = t.item()
+        #
         if self.rank > 0:
             tb_mes = {}
         else:
@@ -756,8 +759,7 @@ class Trainer:
                     self.found_inf = False
                     self.found_nan = False
             #
-            self._metrics_update(mean_metrics, self.new_mes, self.prog_bar_mean, device,
-                                 ignore_inf_nan=True, sync_on_compute=self.rank >= 0)
+            self._metrics_update(mean_metrics, self.new_mes, self.prog_bar_mean, device, True)
             rec_mes.update(self.new_mes)
             # prog_bar
             if (batch_idx + 1) % self.prog_bar_n_steps == 0:
@@ -843,7 +845,7 @@ class Trainer:
                     batch = lmodel.batch_to_device(batch, device)
                     val_test_step(batch)
                 #
-                self._metrics_update(mean_metrics, self.new_mes, self.prog_bar_mean, device, False, False)
+                self._metrics_update(mean_metrics, self.new_mes, self.prog_bar_mean, device, False)
                 rec_mes.update(self.new_mes)
                 # prog_bar
                 if (batch_idx + 1) % self.prog_bar_n_steps == 0:

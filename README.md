@@ -55,9 +55,12 @@ python examples/dqn.py
 pip install "torchvision>=0.13.*"
 python examples/gan.py
 
-### contrastive_learning.py
+### cl.py  (contrastive_learning)
 pip install "torchvision>=0.13.*" "scikit-learn>=1.2.*"
-python examples/contrastive_learning.py
+python examples/cl.py
+
+### cl_ddp.py
+torchrun --nproc_per_node 2 examples/cl_ddp.py --device_ids 0 1
 
 ### gnn.py gnn2.py
 # download torch_geometric

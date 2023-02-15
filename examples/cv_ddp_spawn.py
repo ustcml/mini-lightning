@@ -129,7 +129,8 @@ def main(rank: int, world_size: int, device_ids: List[int]) -> None:
         train_dataset, val_dataset, test_dataset, **hparams["dataloader_hparams"])
 
     def collect_res(seed: int) -> Dict[str, float]:
-        ml.seed_everything(seed, gpu_dtm=False)
+        rank = ml.get_dist_setting()[0]
+        ml.seed_everything(seed+rank, gpu_dtm=False)
         lmodel = MyLModule(hparams)
         trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams["trainer_hparams"])
         res = trainer.fit(ldm.train_dataloader, ldm.val_dataloader)
@@ -138,9 +139,10 @@ def main(rank: int, world_size: int, device_ids: List[int]) -> None:
         return res
     res = ml.multi_runs(collect_res, 3, seed=42)
     # pprint(res)
+    dist.destroy_process_group()
 
 
 if __name__ == "__main__":
-    world_size = 1
     device_ids = [0]
+    world_size = len(device_ids)
     spawn(main, args=(world_size, device_ids), nprocs=world_size, join=True)

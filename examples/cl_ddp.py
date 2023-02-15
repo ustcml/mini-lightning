@@ -6,38 +6,52 @@
 from pre_cv import *
 from sklearn.manifold import TSNE
 #
-RUNS_DIR = os.path.join(RUNS_DIR, "cl")
+RUNS_DIR = os.path.join(RUNS_DIR, "cl_ddp")
 os.makedirs(RUNS_DIR, exist_ok=True)
 
-#
-device_ids = [0]
+
+class GatherLayer(Function):
+    """ref: https://github.com/Spijkervet/SimCLR/blob/master/simclr/modules/gather.py"""
+
+    @staticmethod
+    def forward(ctx, x: Tensor) -> Tuple[Tensor]:
+        res = [torch.zeros_like(x) for _ in range(dist.get_world_size())]
+        dist.all_gather(res, x)
+        return tuple(res)
+
+    @staticmethod
+    def backward(ctx, *grads: Tensor) -> Tensor:
+        res = grads[dist.get_rank()]
+        return res
 
 
-def info_nce(features: Tensor, temperature: float = 0.07) -> Tuple[Tensor, Tensor]:
+def NT_Xent_loss(features: Tensor, temperature: float = 0.1) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
     """
     features: Tensor[float]. [2N, E]
-    return: loss: [], pos_idx: [2N]
+    return: loss: [], pos_idx_mean: [2N], acc: [2N], acc_5: [2N]
     """
     NINF = -torch.inf
-    # torchmetrics>=10.2. (torchmetrics<10.2 have bug in pairwise_cosine_similarity)
+    device = features.device
+    N = features.shape[0] // 2
     cos_sim = pairwise_cosine_similarity(features, features)
-    N = cos_sim.shape[0] // 2
-    self_mask = torch.arange(2 * N, dtype=torch.long, device=cos_sim.device)
-    arange_2n = self_mask
-    pos_mask = self_mask.roll(N)  # [2N]
-    cos_sim[arange_2n, self_mask] = NINF
     cos_sim = cos_sim / temperature
-    pos_sim = cos_sim[arange_2n, pos_mask]
+    self_mask = torch.arange(2 * N, dtype=torch.long, device=device)
+    pos_mask = self_mask.roll(N)  # [2N]
+    cos_sim[self_mask, self_mask] = NINF
+    pos_sim = cos_sim[self_mask, pos_mask]
     #
-    loss = -pos_sim + torch.logsumexp(cos_sim, dim=1)
+    loss = -pos_sim + torch.logsumexp(cos_sim, dim=-1)
     loss = loss.mean()
     #
     pos_sim = pos_sim.clone().detach_()[:, None]  # [2N, 1]
     cos_sim = cos_sim.clone().detach_()  # [2N, 2N]
-    cos_sim[arange_2n, pos_mask] = NINF
-    comb_sim = torch.concat([pos_sim, cos_sim], dim=1)
-    pos_idx = comb_sim.argsort(dim=1, descending=True).argmin(dim=1)
-    return loss, pos_idx
+    cos_sim[self_mask, pos_mask] = NINF
+    comb_sim = torch.concat([pos_sim, cos_sim], dim=-1)
+    # pos_sim在哪一位, 即idx/order.
+    pos_idx = comb_sim.argsort(dim=-1, descending=True).argmin(dim=-1)  # 最后两位是NINF(即忽略)
+    acc = (pos_idx == 0).float()
+    acc_5 = (pos_idx < 5).float()
+    return loss, pos_idx, acc, acc_5
 
 
 class SimCLR(ml.LModule):
@@ -59,6 +73,7 @@ class SimCLR(ml.LModule):
             lrs.CosineAnnealingLR, hparams["warmup"])(optimizer, **hparams["lrs_hparams"])
         metrics = {
             "loss": MeanMetric(),
+            "pos_idx": MeanMetric(),
             "acc":  MeanMetric(),
             "acc_top5": MeanMetric()
         }
@@ -74,29 +89,35 @@ class SimCLR(ml.LModule):
 
     def _calculate(
         self,
-        batch: Tuple[List[Tensor], Tensor]
-    ) -> Tuple[Tensor, Tensor, Tensor]:
+        batch: Tuple[List[Tensor], Tensor],
+        mode: Literal["train", "val"],
+    ) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
         """
         return: loss, acc, acc_top5
         """
         x_batch, _ = batch
         x_batch = torch.concat(x_batch, dim=0)
         features = self.resnet(x_batch)
-        loss, pos_idx = info_nce(features, self.temperature)
-        acc = (pos_idx == 0).float()
-        acc_top5 = (pos_idx < 5).float()
-        return loss, acc, acc_top5
+        if mode == "train" and dist.get_rank() >= 0:
+            features = torch.stack(GatherLayer.apply(features))  # [W, 2 * N, E]
+            W, _2N, E = features.shape
+            N = _2N // 2
+            features = features.view(W, 2, N, E).permute(1, 0, 2, 3).contiguous().view(2*W*N, E)  # -> [2*W*N, E]
+        loss, pos_idx, acc, acc5 = NT_Xent_loss(features, self.temperature)
+        return loss, pos_idx.float(), acc, acc5
 
     def training_step(self, batch: Tuple[List[Tensor], Tensor], opt_idx: int) -> Tensor:
-        loss, acc, acc_top5 = self._calculate(batch)
+        loss, pos_idx, acc, acc_top5 = self._calculate(batch, "train")
         self.log("train_loss", loss)
+        self.log("pos_idx", pos_idx.mean())
         self.log("train_acc", acc.mean())
         self.log("acc_top5", acc_top5.mean())
         return loss
 
     def validation_step(self, batch: Tuple[List[Tensor], Tensor]) -> None:
-        loss, acc, acc_top5 = self._calculate(batch)
+        loss, pos_idx, acc, acc_top5 = self._calculate(batch, "val")
         self.metrics["loss"].update(loss)
+        self.metrics["pos_idx"].update(pos_idx)
         self.metrics["acc"].update(acc)
         self.metrics["acc_top5"].update(acc_top5)
 
@@ -148,7 +169,15 @@ class MLP(ml.LModule):
         self.metrics["acc"].update(y_pred, batch[1])
 
 
+def parse_opt() -> Namespace:
+    parser = ArgumentParser()
+    parser.add_argument("--device_ids", nargs="*", type=int,
+                        default=[0], help="e.g. [], [0], [0, 1, 2]. --device_ids; --device_ids 0; --device_ids 0 1 2")
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
+    device_ids: List[int] = parse_opt().device_ids
     ml.seed_everything(42, gpu_dtm=False)
     # ########## SimCLR
 
@@ -188,7 +217,8 @@ if __name__ == "__main__":
         "model_name": "resnet18",
         "out_channels": out_channels,
         "temperature": 0.07,
-        "dataloader_hparams": {"batch_size": batch_size, "num_workers": 8},
+        #
+        "dataloader_hparams": {"batch_size": batch_size, "num_workers": 16},
         "optim_name": "AdamW",
         "optim_hparams": {"lr": 5e-4, "weight_decay": 1e-4},
         "trainer_hparams": {
@@ -258,6 +288,8 @@ if __name__ == "__main__":
             "model_saving": ml.ModelSaving("acc", True),
             "gradient_clip_norm": 10,
             "amp": False,
+            "sync_bn": True,  # False
+            "replace_sampler_ddp": True,
             "verbose": True,
             "val_every_n_epoch": 5
         },
@@ -273,3 +305,5 @@ if __name__ == "__main__":
     lmodel = MLP(hparams)
     trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams["trainer_hparams"])
     logger.info(trainer.fit(ldm.train_dataloader, ldm.val_dataloader))
+
+    dist.destroy_process_group()
