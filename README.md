@@ -38,13 +38,13 @@ pip install .
 python examples/test_env.py
 
 ### cv.py
-pip install "torchvision>=0.13.*"
+pip install "torchvision>=0.13"
 python examples/cv.py
 # Using DP (not recommended, please use DDP)
 python examples/cv.py  # setting device_ids=[0, 1]
 
 ### nlp.py
-pip install "transformers>=4.25.*" "datasets>=2.7.*"
+pip install "transformers>=4.25" "datasets>=2.7"
 python examples/nlp.py
 
 ### dqn.py
@@ -52,11 +52,11 @@ pip install "gym>=0.26.2" "pygame>=2.1.2"
 python examples/dqn.py
 
 ### gan.py
-pip install "torchvision>=0.13.*"
+pip install "torchvision>=0.13"
 python examples/gan.py
 
 ### cl.py  (contrastive_learning)
-pip install "torchvision>=0.13.*" "scikit-learn>=1.2.*"
+pip install "torchvision>=0.13" "scikit-learn>=1.2"
 python examples/cl.py
 
 ### cl_ddp.py
@@ -70,15 +70,15 @@ python examples/gnn2.py
 python examples/gnn3.py
 
 ### ae.py
-pip install "torchvision>=0.13.*" "scikit-learn>=1.2.*"
+pip install "torchvision>=0.13" "scikit-learn>=1.2"
 python examples/ae.py
 
 ### vae.py
-pip install "torchvision>=0.13.*"
+pip install "torchvision>=0.13"
 python examples/vae.py
 
 ### meta_learning.py
-pip install "torchvision>=0.13.*"
+pip install "torchvision>=0.13"
 python examples/meta_learning.py
 
 
