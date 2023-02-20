@@ -213,12 +213,11 @@ if __name__ == "__main__":
         "optim_hparams": {"lr": 5e-4, "weight_decay": 1e-4},
         "trainer_hparams": {
             "max_epochs": max_epochs,
-            "model_saving": ml.ModelSaving("loss", False),
+            "model_checkpoint": ml.ModelCheckpoint("loss", False, 5),
             "gradient_clip_norm": 100,
             "n_accumulate_grad": n_accumulate_grad,
             "amp": True,
             "verbose": True,
-            "val_every_n_epoch": 5
         },
         "warmup": 100,  # 100 optim step
         "lrs_hparams": {
@@ -234,4 +233,4 @@ if __name__ == "__main__":
     lmodel = AutoEncoder(hparams)
     #
     trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams["trainer_hparams"])
-    logger.info(trainer.fit(ldm.train_dataloader, ldm.val_dataloader))
+    trainer.fit(ldm.train_dataloader, ldm.val_dataloader)

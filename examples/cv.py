@@ -101,7 +101,7 @@ if __name__ == "__main__":
         "optim_hparams": {"lr": 1e-2, "weight_decay": 1e-4, "momentum": 0.9},
         "trainer_hparams": {
             "max_epochs": max_epochs,
-            "model_saving": ml.ModelSaving("acc", True),
+            "model_checkpoint": ml.ModelCheckpoint("acc", True, 500, "step"),
             "gradient_clip_norm": 10,
             "amp": True,
             "n_accumulate_grad": n_accumulate_grad,
@@ -119,13 +119,11 @@ if __name__ == "__main__":
     ldm = ml.LDataModule(
         train_dataset, val_dataset, test_dataset, **hparams["dataloader_hparams"])
 
-    def collect_res(seed: int) -> Dict[str, float]:
-        ml.seed_everything(seed, gpu_dtm=False)
-        lmodel = MyLModule(hparams)
-        trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams["trainer_hparams"])
-        res = trainer.fit(ldm.train_dataloader, ldm.val_dataloader)
-        res2 = trainer.test(ldm.test_dataloader, True, True)
-        res.update(res2)
-        return res
-    res = ml.multi_runs(collect_res, 3, seed=42)
-    # pprint(res)
+    max_ = np.iinfo(np.int32).max
+    seed = np.random.randint(0, max_)
+    rank = ml.get_dist_setting()[0]
+    ml.seed_everything(seed+rank, gpu_dtm=False)
+    lmodel = MyLModule(hparams)
+    trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams["trainer_hparams"])
+    trainer.fit(ldm.train_dataloader, ldm.val_dataloader)
+    trainer.test(ldm.test_dataloader, True, True)

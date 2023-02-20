@@ -136,11 +136,10 @@ if __name__ == "__main__":
         "trainer_hparams": {
             "max_epochs": max_epochs,
             "gradient_clip_norm": 100,
-            "model_saving": ml.ModelSaving("loss", False),
+            "model_saving": ml.ModelCheckpoint("loss", False, 10),
             "n_accumulate_grad": n_accumulate_grad,
             "amp": True,
             "verbose": True,
-            "val_every_n_epoch": 10
         },
         "warmup": 100,  # 100 optim step
         "lrs_hparams": {
@@ -156,7 +155,7 @@ if __name__ == "__main__":
     lmodel = AutoEncoder(hparams)
     #
     trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams["trainer_hparams"])
-    logger.info(trainer.fit(ldm.train_dataloader, ldm.val_dataloader))
+    trainer.fit(ldm.train_dataloader, ldm.val_dataloader)
     #
     encoder = deepcopy(lmodel.encoder)
     runs_dir = trainer.runs_dir

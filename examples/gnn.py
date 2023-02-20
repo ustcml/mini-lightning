@@ -159,9 +159,8 @@ if __name__ == "__main__":
         "optim_hparams": {"lr": 1e-1, "weight_decay": 2e-3, "momentum": 0.9},
         "trainer_hparams": {
             "max_epochs": max_epochs,
-            "model_saving": ml.ModelSaving("acc", True),
+            "model_checkpoint": ml.ModelCheckpoint("acc", True, 10),
             "verbose": True,
-            "val_every_n_epoch": 10
         },
         "lrs_hparams": {
             "T_max": max_epochs,

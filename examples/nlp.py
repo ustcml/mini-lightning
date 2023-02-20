@@ -92,7 +92,7 @@ if __name__ == "__main__":
         "optim_hparams": {"lr": 1e-4, "weight_decay": 1e-4},
         "trainer_hparams": {
             "max_epochs": max_epochs,
-            "model_saving": ml.ModelSaving("auc", True),
+            "model_checkpoint": ml.ModelCheckpoint("auc", True),
             "gradient_clip_norm": 10,
             "amp": True,
             "n_accumulate_grad": n_accumulate_grad
@@ -113,10 +113,10 @@ if __name__ == "__main__":
     lmodel = MyLModule(hparams)
     trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams["trainer_hparams"])
     try:
-        logger.info(trainer.fit(ldm.train_dataloader, ldm.val_dataloader))
+        trainer.fit(ldm.train_dataloader, ldm.val_dataloader)
     except KeyboardInterrupt:
         # If nohup, use 'kill -2 ' to generate KeyboardInterrupt
         logger.info("KeyboardInterrupt Detected...")
         raise
     finally:
-        logger.info(trainer.test(ldm.test_dataloader, True, True))
+        trainer.test(ldm.test_dataloader, True, True)

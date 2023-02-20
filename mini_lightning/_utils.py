@@ -5,6 +5,7 @@
 import logging
 import random
 import os
+import csv
 import time
 import datetime as dt
 from typing import Any, Dict, List, Literal, Optional, Tuple, Callable, TypeVar
@@ -28,10 +29,10 @@ from torchmetrics import MeanMetric
 __all__ = [
     "get_dist_setting", "logger",
     "en_parallel", "de_parallel", "de_sync_batchnorm", "select_device",
-    "_remove_keys", "_key_add_suffix", "freeze_layers", "_stat",
-    "test_time", "seed_everything", "time_synchronize", "multi_runs",
-    "print_model_info", "save_to_yaml", "get_date_now",
-    "load_ckpt", "save_ckpt", "StateDict", "ModelSaving"
+    "_remove_keys", "_key_add_suffix", "freeze_layers", "stat_array",
+    "test_time", "seed_everything", "time_synchronize",
+    "print_model_info", "write_to_yaml", "read_from_yaml", "write_to_csv",
+    "get_date_now", "load_ckpt", "save_ckpt", "StateDict", "ModelCheckpoint"
 ]
 #
 
@@ -175,7 +176,7 @@ def freeze_layers(model: Module, layer_prefix_names: List[str], verbose: bool = 
         p.requires_grad_(requires_grad)
 
 
-def _stat(x: ndarray) -> Tuple[Tuple[float, float, float, float], str]:
+def stat_array(x: ndarray) -> Tuple[Tuple[float, float, float, float], str]:
     """statistics. return: (mean, std, max_, min_), stat_str"""
     mean = x.mean().item()
     std = x.std().item()
@@ -206,7 +207,7 @@ def test_time(func: Callable[[], T], number: int = 1, warm_up: int = 0,
         ts.append(t2 - t1)
     #
     ts = np.array(ts)
-    _, stat_str = _stat(ts)
+    _, stat_str = stat_array(ts)
     # print
     logger.info(f"time[number={number}]: {stat_str}")
     return res
@@ -241,60 +242,6 @@ def time_synchronize() -> float:
     return time.perf_counter()  # second
 
 
-def _gen_seed_list(n: int, seed: Optional[int] = None,) -> List[int]:
-    max_ = np.iinfo(np.int32).max
-    random_state = np.random.RandomState(seed)
-    return random_state.randint(0, max_, n).tolist()
-
-
-def multi_runs(collect_res: Callable[[int], Dict[str, float]], n: int, seed: Optional[int] = None, *,
-               seed_list: Optional[List[int]] = None) -> Dict[str, Dict[str, Any]]:  # Any: int, float, List[int]
-    """
-    collect_res: function(seed: int) -> Dict[str, float]
-    n: the number of runs. Seed_list has the higher priority. If seed_list is provided, n, seed is invalid
-    """
-    rank = get_dist_setting()[0]
-    t = time.perf_counter()
-    if seed_list is None:
-        seed_list = _gen_seed_list(n, seed)
-    n = len(seed_list)
-    result: Dict[str, List] = defaultdict(list)
-    for _seed in seed_list:
-        _res = collect_res(_seed)
-        if rank in {-1, 0}:
-            logger.info(f"Result: {_res}")
-        for k, v in _res.items():
-            result[k].append(v)
-    t = int(time.perf_counter() - t)
-    h, m, s = t // 3600, t // 60 % 60, t % 60
-    t = f"{h:02d}:{m:02d}:{s:02d}"
-    #
-    res: Dict[str, Dict[str, Any]] = {}
-    res_str: List = []
-    res_str.append(
-        f"[RUNS_MES] n_runs={n}, time={t}, seed={seed}, seed_list={seed_list}"
-    )
-    res["runs_mes"] = {
-        "n_runs": n,
-        "time": t,
-        "seed": seed,
-        "seed_list": seed_list
-    }
-    for k, v_list in result.items():
-        v_list = np.array(v_list)
-        (mean, std, max_, min_), stat_str = _stat(v_list)
-        res_str.append(f"  {k}: {stat_str}")
-        res[k] = {
-            "mean": mean,
-            "std": std,
-            "max_": max_,
-            "min_": min_,
-        }
-    if rank in {-1, 0}:
-        logger.info("\n".join(res_str))
-    return res
-
-
 def print_model_info(name: str, model: Module, inputs: Optional[Tuple[Any, ...]] = None) -> None:
     n_layers = len(list(model.modules()))
     n_params = sum(p.numel() for p in model.parameters())
@@ -322,9 +269,22 @@ def print_model_info(name: str, model: Module, inputs: Optional[Tuple[Any, ...]]
     logger.info("".join(s))
 
 
-def save_to_yaml(obj: Any, file_path: str, encoding: str = "utf-8", mode: str = "w") -> None:
-    with open(file_path, mode, encoding=encoding) as f:
+def write_to_yaml(obj: Any, fpath: str, encoding: str = "utf-8", mode: str = "w") -> None:
+    with open(fpath, mode, encoding=encoding) as f:
         yaml.dump(obj, f)
+
+
+def read_from_yaml(fpath: str, encoding: str = "utf-8", loader=None) -> Any:
+    loader = yaml.SafeLoader if loader is None else loader
+    with open(fpath, "r", encoding=encoding) as f:
+        res = yaml.load(f, loader)
+    return res
+
+
+def write_to_csv(obj: List[List[Any]], fpath: str, *, sep: str = ",", mode="w") -> None:
+    with open(fpath, mode, newline="") as f:
+        writer = csv.writer(f, delimiter=sep)
+        writer.writerows(obj)
 
 
 def get_date_now(fmt: str = "%Y-%m-%d %H:%M:%S.%f") -> Tuple[Dict[str, int], str]:
@@ -346,13 +306,11 @@ def save_ckpt(
     #
     models: Dict[str, Module],
     optimizers: List[Optimizer],
-    last_epoch: int,
     **kwargs
 ) -> None:
     ckpt: Dict[str, Any] = {
         "models": {k: m.state_dict() for k, m in models.items()},
         "optimizers": [o.state_dict() for o in optimizers],
-        "last_epoch": last_epoch,
     }
     #
     kwargs["date"] = get_date_now()[1]
@@ -365,26 +323,34 @@ StateDict = Dict[str, Any]
 
 
 def load_ckpt(fpath: str, map_location: Optional[Device] = None) -> \
-        Tuple[Dict[str, StateDict], List[StateDict], int, Dict[str, Any]]:
+        Tuple[Dict[str, StateDict], List[StateDict], Dict[str, Any]]:
     ckpt = torch.load(fpath, map_location=map_location)
     models_state_dict = ckpt["models"]
     optimizers_state_dict = ckpt["optimizers"]
-    last_epoch = ckpt["last_epoch"]
-    return models_state_dict, optimizers_state_dict, last_epoch, ckpt["mes"]
+    return models_state_dict, optimizers_state_dict, ckpt["mes"]
 
 
-class ModelSaving:
+class ModelCheckpoint:
     def __init__(
         self,
-        metric_name: Optional[str] = None,  # core_metric
-        higher_is_better: Optional[bool] = None,
+        # Define what is a good model (for model saving)
+        core_metric_name: Optional[str] = None,  # e.g. "acc".
+        higher_is_better: Optional[bool] = None,  # e.g. True
+        # note: the last epoch/step will always be validated
+        val_every_n: int = 1,  # val_every_n_epoch or val_every_n_steps
+        val_mode: Literal["epoch", "step"] = "epoch",
+        #
+        write_result_csv: bool = True,
         saving_optimizers: bool = False,
     ) -> None:
         #
-        self.metric_name = metric_name
+        self.core_metric_name = core_metric_name
         self.higher_is_better = higher_is_better
+        self.val_every_n = val_every_n
+        self.val_mode = val_mode
+        self.write_result_csv = write_result_csv
         self.saving_optimizers = saving_optimizers
 
     def __repr__(self) -> str:
-        attr_str = ", ".join([f"{k}={v}" for k, v in self.__dict__.items()])
+        attr_str = ", ".join([f"{k}={v!r}" for k, v in self.__dict__.items()])
         return f"{self.__class__.__name__}({attr_str})"

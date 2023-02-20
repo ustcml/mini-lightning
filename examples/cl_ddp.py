@@ -103,7 +103,7 @@ class SimCLR(ml.LModule):
         """
         x_batch, _ = batch
         x_batch = torch.concat(x_batch, dim=0)
-        features = self.resnet(x_batch)
+        features = self.resnet(x_batch)  # [2 * N, E]
         if mode == "train" and dist.get_rank() >= 0:
             features = torch.stack(GatherLayer.apply(features))  # [W, 2 * N, E]
             W, _2N, E = features.shape
@@ -229,7 +229,7 @@ if __name__ == "__main__":
         "optim_hparams": {"lr": 5e-4, "weight_decay": 1e-4},
         "trainer_hparams": {
             "max_epochs": max_epochs,
-            "model_saving": ml.ModelSaving("acc_top5", True),
+            "model_checkpoint": ml.ModelCheckpoint("acc_top5", True),
             "gradient_clip_norm": 20,
             "amp": True,
             "sync_bn": True,  # False
@@ -251,7 +251,7 @@ if __name__ == "__main__":
     lmodel = SimCLR(hparams)
     #
     trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams["trainer_hparams"])
-    logger.info(trainer.fit(ldm.train_dataloader, ldm.val_dataloader))
+    trainer.fit(ldm.train_dataloader, ldm.val_dataloader)
     #
     resnet = deepcopy(lmodel.resnet)
     in_channels = resnet.fc[0].in_features
@@ -293,13 +293,12 @@ if __name__ == "__main__":
         "optim_hparams": {"lr": 1e-3, "weight_decay": 1e-4},
         "trainer_hparams": {
             "max_epochs": max_epochs,
-            "model_saving": ml.ModelSaving("acc", True),
+            "model_checkpoint": ml.ModelCheckpoint("acc", True, 5),
             "gradient_clip_norm": 10,
             "amp": False,
             "sync_bn": True,  # False
             "replace_sampler_ddp": True,
             "verbose": True,
-            "val_every_n_epoch": 5
         },
         "lrs_hparams": {
             "T_max": ...,
@@ -312,6 +311,6 @@ if __name__ == "__main__":
         train_dataset, val_dataset, None, **hparams["dataloader_hparams"])
     lmodel = MLP(hparams)
     trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams["trainer_hparams"])
-    logger.info(trainer.fit(ldm.train_dataloader, ldm.val_dataloader))
+    trainer.fit(ldm.train_dataloader, ldm.val_dataloader)
 
     dist.destroy_process_group()

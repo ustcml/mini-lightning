@@ -69,11 +69,11 @@ if __name__ == "__main__":
             device = trainer.device
             #
             if self.ckpt_path is not None:
-                models_state_dict, optimizers_state_dict, last_epoch, mes = ml.load_ckpt(self.ckpt_path, Device(0))
+                models_state_dict, optimizers_state_dict, mes = ml.load_ckpt(self.ckpt_path, Device(0))
                 model.to(device)  # for load optimizer state dict
                 model.load_state_dict(models_state_dict["model"])
                 logger.info(f"mes: {mes}")
-                trainer.global_epoch = last_epoch
+                trainer.global_epoch = mes["global_epoch"]
                 if len(optimizers) > 0:
                     optimizer.load_state_dict(optimizers_state_dict[0])
             #
@@ -113,11 +113,10 @@ if __name__ == "__main__":
     optimizer = optim.SGD(model.parameters(), 0.1, 0.9)
     ldm = ml.LDataModule(train_dataset, val_dataset, test_dataset, 64)
     lmodel = MyLModule(model, [optimizer])
-    trainer = ml.Trainer(lmodel, [], 40, RUNS_DIR, ml.ModelSaving("acc", True, saving_optimizers=True), gradient_clip_norm=10,
-                         val_every_n_epoch=10, verbose=True)
-    logger.info(trainer.test(ldm.val_dataloader, True, True))
-    logger.info(trainer.fit(ldm.train_dataloader, ldm.val_dataloader))
-    logger.info(trainer.test(ldm.test_dataloader, True, True))
+    trainer = ml.Trainer(lmodel, [], 40, RUNS_DIR, ml.ModelCheckpoint("acc", True, 100, "step", saving_optimizers=True), gradient_clip_norm=10, verbose=True)
+    trainer.test(ldm.val_dataloader, True, True)
+    trainer.fit(ldm.train_dataloader, ldm.val_dataloader)
+    trainer.test(ldm.test_dataloader, True, True)
     ckpt_path = trainer.last_ckpt_path
     del model, optimizer, ldm, lmodel, trainer
     # train from ckpt (model and optimizer)
@@ -126,11 +125,10 @@ if __name__ == "__main__":
     optimizer = optim.SGD(model.parameters(), 0.1, 0.9)
     ldm = ml.LDataModule(train_dataset, val_dataset, test_dataset, 64)
     lmodel = MyLModule(model, [optimizer], ckpt_path)
-    trainer = ml.Trainer(lmodel, [0], 100, RUNS_DIR, ml.ModelSaving("loss", False), gradient_clip_norm=10,
-                         val_every_n_epoch=10, verbose=True)
-    logger.info(trainer.test(ldm.val_dataloader, True, True))
-    logger.info(trainer.fit(ldm.train_dataloader, ldm.val_dataloader))
-    logger.info(trainer.test(ldm.test_dataloader, True, True))
+    trainer = ml.Trainer(lmodel, [0], 100, RUNS_DIR, ml.ModelCheckpoint("loss", False, 10), gradient_clip_norm=10, verbose=True)
+    trainer.test(ldm.val_dataloader, True, True)
+    trainer.fit(ldm.train_dataloader, ldm.val_dataloader)
+    trainer.test(ldm.test_dataloader, True, True)
     ckpt_path = trainer.last_ckpt_path
     del model, optimizer, ldm, lmodel, trainer
     # train from ckpt (only model)
@@ -139,11 +137,10 @@ if __name__ == "__main__":
     optimizer = optim.SGD(model.parameters(), 0.1, 0.9)
     ldm = ml.LDataModule(train_dataset, val_dataset, test_dataset, 64)
     lmodel = MyLModule(model, [optimizer])
-    trainer = ml.Trainer(lmodel, [0], 20, RUNS_DIR, ml.ModelSaving("loss", False), gradient_clip_norm=10,
-                         val_every_n_epoch=10, verbose=True, ckpt_fpath=ckpt_path)
-    logger.info(trainer.test(ldm.val_dataloader, True, True))
-    logger.info(trainer.fit(ldm.train_dataloader, ldm.val_dataloader))
-    logger.info(trainer.test(ldm.test_dataloader, True, True))
+    trainer = ml.Trainer(lmodel, [0], 20, RUNS_DIR, ml.ModelCheckpoint("loss", False, 10), gradient_clip_norm=10, verbose=True, ckpt_fpath=ckpt_path)
+    trainer.test(ldm.val_dataloader, True, True)
+    trainer.fit(ldm.train_dataloader, ldm.val_dataloader)
+    trainer.test(ldm.test_dataloader, True, True)
     ckpt_path = trainer.last_ckpt_path
     del model, optimizer, ldm, lmodel, trainer
     ###
@@ -152,5 +149,5 @@ if __name__ == "__main__":
     model = MLP_L2(2, 4, 1)
     ldm = ml.LDataModule(train_dataset, val_dataset, test_dataset, 64)
     lmodel = MyLModule(model, [])
-    trainer = ml.Trainer(lmodel, [], None, RUNS_DIR, ml.ModelSaving("loss", False), ckpt_fpath=ckpt_path)
-    logger.info(trainer.test(ldm.test_dataloader, True, True))
+    trainer = ml.Trainer(lmodel, [], None, RUNS_DIR, ml.ModelCheckpoint("loss", False), ckpt_fpath=ckpt_path)
+    trainer.test(ldm.test_dataloader, True, True)

@@ -196,7 +196,7 @@ if __name__ == "__main__":
         "optim_hparams": {"lr": 5e-4, "weight_decay": 1e-4},
         "trainer_hparams": {
             "max_epochs": max_epochs,
-            "model_saving": ml.ModelSaving("acc_top5", True),
+            "model_checkpoint": ml.ModelCheckpoint("acc_top5", True, 500, "step"),
             "gradient_clip_norm": 20,
             "amp": True,
             "n_accumulate_grad": n_accumulate_grad,
@@ -216,7 +216,7 @@ if __name__ == "__main__":
     lmodel = SimCLR(hparams)
     #
     trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams["trainer_hparams"])
-    logger.info(trainer.fit(ldm.train_dataloader, ldm.val_dataloader))
+    trainer.fit(ldm.train_dataloader, ldm.val_dataloader)
     #
     resnet = deepcopy(lmodel.resnet)
     in_channels = resnet.fc[0].in_features
@@ -258,11 +258,10 @@ if __name__ == "__main__":
         "optim_hparams": {"lr": 1e-3, "weight_decay": 1e-4},
         "trainer_hparams": {
             "max_epochs": max_epochs,
-            "model_saving": ml.ModelSaving("acc", True),
+            "model_saving": ml.ModelCheckpoint("acc", True, 5),
             "gradient_clip_norm": 10,
             "amp": False,
             "verbose": True,
-            "val_every_n_epoch": 5
         },
         "lrs_hparams": {
             "T_max": ...,
@@ -275,4 +274,4 @@ if __name__ == "__main__":
         train_dataset, val_dataset, None, **hparams["dataloader_hparams"])
     lmodel = MLP(hparams)
     trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams["trainer_hparams"])
-    logger.info(trainer.fit(ldm.train_dataloader, ldm.val_dataloader))
+    trainer.fit(ldm.train_dataloader, ldm.val_dataloader)

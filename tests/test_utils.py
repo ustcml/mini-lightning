@@ -58,12 +58,12 @@ class TestUtils(ut.TestCase):
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-        ml.save_ckpt("asset/tmp.ckpt", {"model": model}, [], 0)
-        ml.save_ckpt("asset/tmp2.ckpt", {"model": model}, [optimizer], 0)
+        ml.save_ckpt("asset/tmp.ckpt", {"model": model}, [])
+        ml.save_ckpt("asset/tmp2.ckpt", {"model": model}, [optimizer])
         #
-        models_state_dict, _, last_epoch, mes = ml.load_ckpt("asset/tmp.ckpt")
+        models_state_dict, _, mes = ml.load_ckpt("asset/tmp.ckpt")
         model = models_state_dict["model"]
-        print(last_epoch, mes)
+        print(mes)
 
 
 if __name__ == "__main__":
