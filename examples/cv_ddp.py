@@ -112,7 +112,7 @@ if __name__ == "__main__":
         "optim_hparams": {"lr": 1e-2, "weight_decay": 1e-4, "momentum": 0.9},
         "trainer_hparams": {
             "max_epochs": max_epochs,
-            "model_checkpoint": ml.ModelCheckpoint("acc", True),
+            "model_checkpoint": ml.ModelCheckpoint("acc", True, 200, "step"),
             "gradient_clip_norm": 10,
             "amp": True,
             "sync_bn": True,  # False

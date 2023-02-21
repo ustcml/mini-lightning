@@ -367,7 +367,8 @@ class Trainer:
                 (like bigger batch_size if you don't use bn); with big batch_size, you can increase the learning rate appropriately.
             note: It will changes the frequency of optimizer_step() calls.
                 So adjust the parameters of the lr_scheduler called in optimizer_step() (e.g. warmup, T_max, etc.). you can use ml.get_T_max() to get T_max
-            note: the unupdated grad of the last batch will be updated at the end of the epoch. Same behavior as PyTorch Lightning. `batch_idx %`
+            note: the unupdated grad of the last batch will be updated before validation. 
+                Same behavior as PyTorch Lightning. `batch_idx %`
         amp: Whether to use mixed precision training.
             Ref: https://pytorch.org/docs/stable/notes/amp_examples.html
             Effects: Speed up training and reduce memory consumption. Slightly (or not) decrease performance.
@@ -468,8 +469,11 @@ class Trainer:
         # for train epoch
         self._rec_mes_train: Dict[str, float] = {}
         self._mean_metrics_train: Dict[str, MeanMetric] = {}
+        # for last optimize before validation
+        self._last_optimize = False
         #
         self.version: Optional[int] = None
+        self.model_checkpoint = model_checkpoint if model_checkpoint is not None else ModelCheckpoint()
         if self.rank in {-1, 0}:
             runs_dir = os.path.abspath(runs_dir)
             self.version = self._get_version(runs_dir)
@@ -482,7 +486,6 @@ class Trainer:
             logger.info(f"runs_dir: {runs_dir}")
             #
             self.runs_dir = runs_dir
-            self.model_checkpoint = model_checkpoint if model_checkpoint is not None else ModelCheckpoint()
             self.ckpt_dir = os.path.join(runs_dir, "checkpoints")
             self.tb_dir = os.path.join(runs_dir, "runs")  # tensorboard
             self.hparams_path = os.path.join(runs_dir, "hparams.yaml")
@@ -765,7 +768,7 @@ class Trainer:
     def _train_epoch(self, dataloader: DataLoader, val_dataloader: Optional[DataLoader] = None) -> Dict[str, float]:
         lmodel = self.lmodel
         assert len(lmodel.optimizers) > 0
-        lmodel.training_epoch_start()
+        mc = self.model_checkpoint
         device = self.device
         #
         if self.replace_sampler_ddp and self.rank != -1:
@@ -782,7 +785,6 @@ class Trainer:
         else:
             raise TypeError(f"self.n_accumulate_grad: {self.n_accumulate_grad}, type: {type(self.n_accumulate_grad)}")
         #
-        mc = self.model_checkpoint
         try:
             total = len(dataloader)
         except (TypeError, AttributeError):
@@ -798,7 +800,6 @@ class Trainer:
         prog_bar = tqdm(total=total,
                         desc=f"Epoch {self.global_epoch}", dynamic_ncols=True, disable=self.rank > 0, leave=_leave)  # mininterval=0.01
         batch_idx = -1  # avoid unbound
-        _last_optimize = False
         self._prog_bar_mean.clear()
         for batch_idx, batch in enumerate(dataloader):
             self.global_step += 1
@@ -807,7 +808,7 @@ class Trainer:
             lmodel.log(f"global_step", self.global_step, prog_bar_mean=False)
             #
             batch = lmodel.batch_to_device(batch, device)
-            _last_optimize = True
+            self._last_optimize = True
             for opt_idx in range(len(lmodel.optimizers)):
                 if len(lmodel.optimizers) > 1:
                     lmodel.toggle_optimizer(opt_idx)
@@ -820,7 +821,7 @@ class Trainer:
                     lmodel.untoggle_optimizer(opt_idx)
             # optimize
             if (batch_idx + 1) % n_accumulate_grad == 0:
-                _last_optimize = False
+                self._last_optimize = False
                 self._optimize_step()
             #
             self._metrics_update(_mean_metrics, self._new_mes, self._prog_bar_mean, device, True)
@@ -843,18 +844,13 @@ class Trainer:
             if mc.val_mode == "step" and self.global_step % mc.val_every_n == 0:
                 res_mes = self._get_res_mes(_mean_metrics, _rec_mes, "result")
                 prog_bar.refresh()
-                self._val_and_save(val_dataloader, res_mes)
-
-        #
-        if _last_optimize:
-            self._optimize_step()
+                self._val_and_save_after_train(val_dataloader, res_mes)
         #
         if (batch_idx + 1 - prog_bar.n) > 0:
             prog_bar.update(batch_idx + 1 - prog_bar.n)
         prog_bar.close()
         res_mes = self._get_res_mes(_mean_metrics, _rec_mes, "result")
         #
-        lmodel.training_epoch_end()
         return res_mes
 
     def _val_test(
@@ -862,6 +858,7 @@ class Trainer:
     ) -> Tuple[Optional[float], Dict[str, float]]:
         # val: if core_metric returns None, then only save the last model.
         # test: core_metric always is None
+        #
         if self.rank not in {-1, 0}:
             dist.barrier()
             return None, {}
@@ -949,7 +946,10 @@ class Trainer:
         res_mes.update({"global_epoch": self.global_epoch, "global_step": self.global_step})
         return core_metric, res_mes
 
-    def _val_and_save(self, val_dataloader: Optional[DataLoader], train_mes: Dict[str, float]) -> None:
+    def _val_and_save_after_train(self, val_dataloader: Optional[DataLoader], train_mes: Dict[str, float]) -> None:
+        self.lmodel.training_epoch_end()
+        if self._last_optimize:
+            self._optimize_step()
         core_metric, val_mes = self._val_test(val_dataloader, "val", "  Val: ")
         val_mes.update(train_mes)
         # save model and result
@@ -960,6 +960,7 @@ class Trainer:
         self._rec_mes_train.clear()
         self._mean_metrics_train.clear()
         self._last_val = False
+        self.lmodel.training_epoch_start()
 
     def _test(self, dataloader: Optional[DataLoader],
               model_type: Literal["last", "best"]) -> None:
@@ -1003,14 +1004,15 @@ class Trainer:
             assert mc.core_metric_name is not None
             assert mc.higher_is_better is not None
         #
+        self.lmodel.training_epoch_start()
         train_mes = {}
         for _ in range(self.global_epoch + 1, self.max_epochs):
             self.global_epoch += 1
             train_mes = self._train_epoch(train_dataloader, val_dataloader, )
             if mc.val_mode == "epoch" and (self.global_epoch + 1) % mc.val_every_n == 0:
-                self._val_and_save(val_dataloader, train_mes)
+                self._val_and_save_after_train(val_dataloader, train_mes)
         if self._last_val:
-            self._val_and_save(val_dataloader, train_mes)
+            self._val_and_save_after_train(val_dataloader, train_mes)
         cuda.empty_cache()
 
     def test(self, dataloader: Optional[DataLoader], test_best: bool = True, test_last: bool = True) -> None:

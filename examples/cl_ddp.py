@@ -152,8 +152,6 @@ class MLP(ml.LModule):
         super().optimizer_step(opt_idx)
         self.lr_s.step()
 
-    def training_epoch_start(self) -> None:
-        super().training_epoch_start()
 
     def _calculate_loss_pred(self, batch: Tuple[Tensor, Tensor]) -> Tuple[Tensor, Tensor]:
         x_batch, y_batch = batch
@@ -229,7 +227,7 @@ if __name__ == "__main__":
         "optim_hparams": {"lr": 5e-4, "weight_decay": 1e-4},
         "trainer_hparams": {
             "max_epochs": max_epochs,
-            "model_checkpoint": ml.ModelCheckpoint("acc_top5", True),
+            "model_checkpoint": ml.ModelCheckpoint("acc_top5", True, 250, "step"),
             "gradient_clip_norm": 20,
             "amp": True,
             "sync_bn": True,  # False

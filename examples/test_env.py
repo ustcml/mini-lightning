@@ -104,16 +104,16 @@ if __name__ == "__main__":
             self.metrics["acc"].update(y_pred, y_batch)
         #
 
-        def training_epoch_end(self) -> Dict[str, float]:
+        def training_epoch_end(self) -> None:
             self.lr_s.step()
-            return super().training_epoch_end()
 
     ###
     model = MLP_L2(2, 4, 1)
     optimizer = optim.SGD(model.parameters(), 0.1, 0.9)
     ldm = ml.LDataModule(train_dataset, val_dataset, test_dataset, 64)
     lmodel = MyLModule(model, [optimizer])
-    trainer = ml.Trainer(lmodel, [], 40, RUNS_DIR, ml.ModelCheckpoint("acc", True, 100, "step", saving_optimizers=True), gradient_clip_norm=10, verbose=True)
+    trainer = ml.Trainer(lmodel, [], 40, RUNS_DIR, ml.ModelCheckpoint(
+        "acc", True, 100, "step", saving_optimizers=True), gradient_clip_norm=10, verbose=True)
     trainer.test(ldm.val_dataloader, True, True)
     trainer.fit(ldm.train_dataloader, ldm.val_dataloader)
     trainer.test(ldm.test_dataloader, True, True)
@@ -125,7 +125,8 @@ if __name__ == "__main__":
     optimizer = optim.SGD(model.parameters(), 0.1, 0.9)
     ldm = ml.LDataModule(train_dataset, val_dataset, test_dataset, 64)
     lmodel = MyLModule(model, [optimizer], ckpt_path)
-    trainer = ml.Trainer(lmodel, [0], 100, RUNS_DIR, ml.ModelCheckpoint("loss", False, 10), gradient_clip_norm=10, verbose=True)
+    trainer = ml.Trainer(lmodel, [0], 100, RUNS_DIR, ml.ModelCheckpoint(
+        "loss", False, 10), gradient_clip_norm=10, verbose=True)
     trainer.test(ldm.val_dataloader, True, True)
     trainer.fit(ldm.train_dataloader, ldm.val_dataloader)
     trainer.test(ldm.test_dataloader, True, True)
@@ -137,7 +138,8 @@ if __name__ == "__main__":
     optimizer = optim.SGD(model.parameters(), 0.1, 0.9)
     ldm = ml.LDataModule(train_dataset, val_dataset, test_dataset, 64)
     lmodel = MyLModule(model, [optimizer])
-    trainer = ml.Trainer(lmodel, [0], 20, RUNS_DIR, ml.ModelCheckpoint("loss", False, 10), gradient_clip_norm=10, verbose=True, ckpt_fpath=ckpt_path)
+    trainer = ml.Trainer(lmodel, [0], 20, RUNS_DIR, ml.ModelCheckpoint("loss", False, 10),
+                         gradient_clip_norm=10, verbose=True, ckpt_fpath=ckpt_path)
     trainer.test(ldm.val_dataloader, True, True)
     trainer.fit(ldm.train_dataloader, ldm.val_dataloader)
     trainer.test(ldm.test_dataloader, True, True)

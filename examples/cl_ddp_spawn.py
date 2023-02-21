@@ -152,8 +152,6 @@ class MLP(ml.LModule):
         super().optimizer_step(opt_idx)
         self.lr_s.step()
 
-    def training_epoch_start(self) -> None:
-        super().training_epoch_start()
 
     def _calculate_loss_pred(self, batch: Tuple[Tensor, Tensor]) -> Tuple[Tensor, Tensor]:
         x_batch, y_batch = batch
