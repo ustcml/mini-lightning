@@ -2,10 +2,7 @@
 # Email: huangjintao@mail.ustc.edu.cn
 # Date:
 
-import os
-from typing import List, Dict
-# 
-from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
+from ._types import *
 
 __all__ = ["tensorboard_smoothing", "read_tensorboard_file"]
 Item = Dict[str, float]  # e.g. keys of Item: step, value

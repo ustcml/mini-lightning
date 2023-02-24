@@ -2,10 +2,7 @@
 # Email: huangjintao@mail.ustc.edu.cn
 # Date:
 
-import math
-from typing import List, Callable, Union, Dict, Optional
-#
-from torch.optim import Optimizer
+from ._types import *
 __all__ = ["get_T_max", "warmup_decorator", "cosine_annealing_lr"]
 
 

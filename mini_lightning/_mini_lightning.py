@@ -2,30 +2,7 @@
 # Email: huangjintao@mail.ustc.edu.cn
 # Date:
 
-import os
-import re
-import math
-import datetime
-import platform
-from bisect import bisect_right
-from typing import List, Any, Dict, Optional, Tuple, Callable, Union, Sequence, Mapping, Literal, Set
-#
-from tqdm import tqdm
-#
-import torch
-import torch.cuda as cuda
-import torch.distributed as dist
-from torch import device as Device, Tensor
-from torch.utils.tensorboard.writer import SummaryWriter
-from torch.utils.data import Dataset, DataLoader, DistributedSampler, SequentialSampler, Sampler
-from torch.nn import Module, Parameter
-from torch.optim import Optimizer
-from torch.nn.utils.clip_grad import clip_grad_norm_
-from torch.cuda.amp.grad_scaler import GradScaler
-from torch.amp.autocast_mode import autocast
-# Ref: https://torchmetrics.readthedocs.io/en/stable/pages/overview.html. (torchmetrics support ddp)
-from torchmetrics import Metric, MeanMetric
-#
+from ._types import *
 from ._utils import (
     en_parallel, de_parallel, get_dist_setting, select_device,
     logger, write_to_yaml, write_to_csv, read_from_yaml,
@@ -478,10 +455,10 @@ class Trainer:
             runs_dir = os.path.abspath(runs_dir)
             self.version = self._get_version(runs_dir)
             if platform.system().lower() == "windows":
-                time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")  # window not support `:`
+                time = dt.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")  # window not support `:`
                 runs_dir = os.path.join(runs_dir, f"v{self.version}_{time}")
             else:  # "linux"
-                time = datetime.datetime.now().strftime("%Y:%m:%d-%H:%M:%S")
+                time = dt.datetime.now().strftime("%Y:%m:%d-%H:%M:%S")
                 runs_dir = os.path.join(runs_dir, f"v{self.version}-{time}")
             logger.info(f"runs_dir: {runs_dir}")
             #

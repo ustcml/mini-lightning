@@ -9,7 +9,6 @@ import torchvision.transforms as tvt
 import torchvision.datasets as tvd
 import torchvision.models as tvm
 from torchvision.utils import make_grid
-from torchvision.models._api import WeightsEnum
 #
 MNIST = tvd.MNIST
 CIFAR10 = tvd.CIFAR10
@@ -36,7 +35,7 @@ def save_images(
     images.clip_(0, 1)
     images = images.permute(1, 2, 0).numpy()
     #
-    fig, ax = plt.subplots(figsize=(2 * ncols, 2 * nrows), dpi=200)
+    _, ax = plt.subplots(figsize=(2 * ncols, 2 * nrows), dpi=200)
     ax.imshow(images, cmap=None, origin="upper", vmin=0, vmax=1)
     ax.axis("off")
     plt.savefig(path, bbox_inches='tight')
