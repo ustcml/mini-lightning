@@ -385,6 +385,18 @@ class Trainer:
         #
         self.lmodel = lmodel
         self.device_ids = device_ids
+        # 
+        if deterministic is not None:
+            torch.backends.cudnn.deterministic = deterministic
+        deterministic = torch.backends.cudnn.deterministic
+        if deterministic:
+            benchmark = False
+        else:
+            benchmark = True if benchmark is None else benchmark
+        torch.backends.cudnn.benchmark = benchmark
+        logger.info(f"Setting deterministic: {deterministic}")
+        logger.info(f"Setting benchmark: {benchmark}")
+        # 
         self.device = select_device(device_ids)
         if self.rank == -1:
             parallel_mode = "DP" if len(device_ids) > 1 else None
@@ -416,18 +428,8 @@ class Trainer:
         self.prog_bar_n_steps = prog_bar_n_steps
         self.verbose = verbose
         #
+        self.deterministic = deterministic
         self.benchmark = benchmark
-        if deterministic is not None:
-            torch.backends.cudnn.deterministic = deterministic
-        deterministic = torch.backends.cudnn.deterministic
-        #
-        if deterministic:
-            benchmark = False
-        else:
-            benchmark = True if benchmark is None else benchmark
-        torch.backends.cudnn.benchmark = benchmark
-        logger.info(f"Setting deterministic: {deterministic}")
-        logger.info(f"Setting benchmark: {benchmark}")
         #
         self.scaler = GradScaler(enabled=amp)
         self.best_metric: Optional[float] = None

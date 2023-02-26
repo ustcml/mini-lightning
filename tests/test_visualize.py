@@ -15,7 +15,7 @@ class TestVisualize(ut.TestCase):
         print(sv[490//5 - 1], v[490//5-1])
 
         def plot_loss():
-            fig, ax = plt.subplots(figsize=(10, 5))
+            _, ax = plt.subplots(figsize=(10, 5))
             cg, cb = "#FFE2D9", "#FF7043"
             ax.plot(step, v, color=cg)  # color grey
             ax.plot(step, sv, color=cb)  # color bright

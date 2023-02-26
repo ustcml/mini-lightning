@@ -7,8 +7,8 @@
 
 
 ## Introduction
-1. [Mini-Lightning](https://github.com/ustcml/mini-lightning/) is a lightweight machine learning training library, which is a mini version of [Pytorch-Lightning](https://www.pytorchlightning.ai/) with only 1k lines of code. It has the advantages of faster, more concise and more flexible.
-2. Existing features: support for DDP(multi-node and multi-gpu), Sync-BN, DP, AMP, gradient accumulation, warmup and lr_scheduler, grad clip, tensorboard, model and result saving, beautiful console log, torchmetrics, etc.
+1. [Mini-Lightning](https://github.com/ustcml/mini-lightning/) is a **lightweight** machine learning training library, which is a mini version of [Pytorch-Lightning](https://www.pytorchlightning.ai/) with only **1k lines of code**. It has the advantages of faster, more concise and more flexible.
+2. **Existing features**: support for DDP(multi-node and multi-gpu), Sync-BN, DP, AMP, gradient accumulation, warmup and lr_scheduler, grad clip, tensorboard, model and result saving, beautiful console log, torchmetrics, etc.
 3. Only the minimal interfaces are exposed, keeping the features of simplicity, easy to read, use and extend.
 4. examples can be found in `examples/`
 5. If you have any problems or bug finding, please raise issue, Thank you.
