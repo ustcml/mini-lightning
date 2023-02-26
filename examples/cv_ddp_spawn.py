@@ -127,11 +127,9 @@ def main(rank: int, world_size: int, device_ids: List[int]) -> None:
     #
     ldm = ml.LDataModule(
         train_dataset, val_dataset, test_dataset, **hparams["dataloader_hparams"])
-    # 
-    max_ = np.iinfo(np.int32).max
-    seed = np.random.randint(0, max_)
+    #
     rank = ml.get_dist_setting()[0]
-    ml.seed_everything(seed+rank, gpu_dtm=False)
+    ml.seed_everything(42+rank, gpu_dtm=False)  # avoid same dropout
     lmodel = MyLModule(hparams)
     trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams["trainer_hparams"])
     trainer.fit(ldm.train_dataloader, ldm.val_dataloader)

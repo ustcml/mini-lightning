@@ -26,8 +26,8 @@ from torch.utils.tensorboard.writer import SummaryWriter
 from torch.utils.data import Dataset, DataLoader, DistributedSampler, SequentialSampler, Sampler
 from torch.nn import Module, Parameter
 from torch.nn.parallel import DataParallel as DP, DistributedDataParallel as DDP
-from torch.optim import Optimizer
 from torch.nn.utils.clip_grad import clip_grad_norm_
+from torch.optim import Optimizer
 from torch.cuda.amp.grad_scaler import GradScaler
 from torch.amp.autocast_mode import autocast
 # Ref: https://torchmetrics.readthedocs.io/en/stable/pages/overview.html. (torchmetrics support ddp)

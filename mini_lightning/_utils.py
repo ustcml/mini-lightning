@@ -193,7 +193,9 @@ def test_time(func: Callable[[], T], number: int = 1, warm_up: int = 0,
 
 
 def seed_everything(seed: Optional[int] = None, gpu_dtm: bool = False) -> int:
-    """gpu_dtm: gpu_deterministic"""
+    """gpu_dtm: gpu_deterministic. 
+    seed: please in [0..np.iinfo(np.uint32).max]
+    """
     if seed is None:
         seed_max = np.iinfo(np.int32).max
         seed = random.randint(0, seed_max)

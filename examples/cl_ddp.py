@@ -26,7 +26,7 @@ class GatherLayer(Function):
 
     @staticmethod
     def backward(ctx, *grads: Tensor) -> Tensor:
-        res = grads[dist.get_rank()]
+        res = grads[ml.get_dist_setting()[0]]
         res *= dist.get_world_size()  # for same grad with 2 * batch_size; mean operation in ddp across device.
         return res
 
@@ -104,7 +104,7 @@ class SimCLR(ml.LModule):
         x_batch, _ = batch
         x_batch = torch.concat(x_batch, dim=0)
         features = self.resnet(x_batch)  # [2 * N, E]
-        if mode == "train" and dist.get_rank() >= 0:
+        if mode == "train" and ml.get_dist_setting()[0] >= 0:
             features = torch.stack(GatherLayer.apply(features))  # [W, 2 * N, E]
             W, _2N, E = features.shape
             N = _2N // 2
@@ -182,7 +182,8 @@ def parse_opt() -> Namespace:
 
 if __name__ == "__main__":
     device_ids: List[int] = parse_opt().device_ids
-    ml.seed_everything(42, gpu_dtm=False)
+    rank = ml.get_dist_setting()[0]
+    ml.seed_everything(42+rank, gpu_dtm=False)
     # ########## SimCLR
 
     def transforms(x: Image.Image) -> List[Tensor]:
