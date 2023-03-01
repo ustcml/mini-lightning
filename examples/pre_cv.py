@@ -99,6 +99,8 @@ def draw_tsne(dataset: TensorDataset, tsne_fpath: str, TSNE: type) -> None:
     plt.close()
     logger.info(f"`draw_tsne` Done. The image is saved in `{tsne_fpath}`")
 
+# for meta-learning
+
 
 class ImageDataset(Dataset):
     def __init__(
@@ -128,10 +130,7 @@ def load_densenet_state_dict(
     state_dict: Dict[str, Any],
     strict: bool = False
 ) -> IncompatibleKeys:
-    # '.'s are no longer allowed in module names, but previous _DenseLayer
-    # has keys 'norm.1', 'relu.1', 'conv.1', 'norm.2', 'relu.2', 'conv.2'.
-    # They are also in the checkpoints in model_urls. This pattern is used
-    # to find such keys.
+    """copy from `torchvision.models.densenet`"""
     pattern = re.compile(
         r"^(.*denselayer\d+\.(?:norm|relu|conv))\.((?:[12])\.(?:weight|bias|running_mean|running_var))$"
     )
@@ -142,3 +141,50 @@ def load_densenet_state_dict(
             state_dict[new_key] = state_dict[key]
             del state_dict[key]
     return model.load_state_dict(state_dict, strict=strict)
+
+
+# for contrastive_learning
+
+def NT_Xent_loss(features: Tensor, temperature: float = 0.1) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
+    """
+    features: Tensor[float]. [2N, E]
+    return: loss: [], pos_idx_mean: [2N], acc: [2N], acc_5: [2N]
+    """
+    NINF = -torch.inf
+    device = features.device
+    N = features.shape[0] // 2
+    cos_sim = pairwise_cosine_similarity(features, features)
+    cos_sim = cos_sim / temperature
+    self_mask = torch.arange(2 * N, dtype=torch.long, device=device)
+    pos_mask = self_mask.roll(N)  # [2N]
+    cos_sim[self_mask, self_mask] = NINF
+    pos_sim = cos_sim[self_mask, pos_mask]
+    #
+    loss = -pos_sim + torch.logsumexp(cos_sim, dim=-1)
+    loss = loss.mean()
+    #
+    pos_sim = pos_sim.clone().detach_()[:, None]  # [2N, 1]
+    cos_sim = cos_sim.clone().detach_()  # [2N, 2N]
+    cos_sim[self_mask, pos_mask] = NINF  # ignore
+    comb_sim = torch.concat([pos_sim, cos_sim], dim=-1)
+    # idx of pos_sim
+    pos_idx = comb_sim.argsort(dim=-1, descending=True).argmin(dim=-1)
+    acc = (pos_idx == 0).float()
+    acc_5 = (pos_idx < 5).float()
+    return loss, pos_idx, acc, acc_5
+
+
+class GatherLayer(Function):
+    """ref: https://github.com/Spijkervet/SimCLR/blob/master/simclr/modules/gather.py"""
+
+    @staticmethod
+    def forward(ctx, x: Tensor) -> Tuple[Tensor]:
+        res = [torch.zeros_like(x) for _ in range(dist.get_world_size())]
+        dist.all_gather(res, x)
+        return tuple(res)
+
+    @staticmethod
+    def backward(ctx, *grads: Tensor) -> Tensor:
+        res = grads[ml.get_dist_setting()[0]]
+        res *= dist.get_world_size()  # for same grad with W * batch_size; mean operation in ddp across device.
+        return res

@@ -13,35 +13,6 @@ os.makedirs(RUNS_DIR, exist_ok=True)
 device_ids = [0]
 
 
-def NT_Xent_loss(features: Tensor, temperature: float = 0.1) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
-    """
-    features: Tensor[float]. [2N, E]
-    return: loss: [], pos_idx_mean: [2N], acc: [2N], acc_5: [2N]
-    """
-    NINF = -torch.inf
-    device = features.device
-    N = features.shape[0] // 2
-    cos_sim = pairwise_cosine_similarity(features, features)
-    cos_sim = cos_sim / temperature
-    self_mask = torch.arange(2 * N, dtype=torch.long, device=device)
-    pos_mask = self_mask.roll(N)  # [2N]
-    cos_sim[self_mask, self_mask] = NINF
-    pos_sim = cos_sim[self_mask, pos_mask]
-    #
-    loss = -pos_sim + torch.logsumexp(cos_sim, dim=-1)
-    loss = loss.mean()
-    #
-    pos_sim = pos_sim.clone().detach_()[:, None]  # [2N, 1]
-    cos_sim = cos_sim.clone().detach_()  # [2N, 2N]
-    cos_sim[self_mask, pos_mask] = NINF
-    comb_sim = torch.concat([pos_sim, cos_sim], dim=-1)
-    # pos_sim在哪一位, 即idx/order.
-    pos_idx = comb_sim.argsort(dim=-1, descending=True).argmin(dim=-1)  # 最后两位是NINF(即忽略)
-    acc = (pos_idx == 0).float()
-    acc_5 = (pos_idx < 5).float()
-    return loss, pos_idx, acc, acc_5
-
-
 class SimCLR(ml.LModule):
     def __init__(self, hparams: Dict[str, Any]) -> None:
         out_channels = hparams["out_channels"]
@@ -127,7 +98,6 @@ class MLP(ml.LModule):
     def optimizer_step(self, opt_idx: int) -> None:
         super().optimizer_step(opt_idx)
         self.lr_s.step()
-
 
     def _calculate_loss_pred(self, batch: Tuple[Tensor, Tensor]) -> Tuple[Tensor, Tensor]:
         x_batch, y_batch = batch
