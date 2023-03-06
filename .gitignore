@@ -4,7 +4,7 @@ __pycache__/
 /mini_lightning.egg-info/
 /build/
 /dist/
-/test/
+/_test/
 /asset/
 /.pytest_cache/
 /trash/

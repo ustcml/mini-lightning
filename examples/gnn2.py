@@ -74,7 +74,7 @@ class MyLModule(ml.LModule):
         if mode == "train":
             N = data.edge_label_index.shape[1]
             neg_edge_index = negative_sampling(edge_index=data.edge_index, num_nodes=self.in_channels,
-                                               num_neg_samples=N, method='sparse')
+                                               num_neg_samples=N, method="sparse")
 
             y_index = torch.concat([data.edge_label_index, neg_edge_index], dim=1)
             y_label = torch.concat([data.edge_label, torch.zeros_like(data.edge_label)], dim=0)

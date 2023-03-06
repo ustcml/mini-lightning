@@ -21,7 +21,7 @@ class TestVisualize(ut.TestCase):
             ax.plot(step, sv, color=cb)  # color bright
         plot_loss()
         os.makedirs("./asset/images", exist_ok=True)
-        plt.savefig("./asset/images/1.png", dpi=200, bbox_inches='tight')
+        plt.savefig("./asset/images/1.png", dpi=200, bbox_inches="tight")
         # plt.show()
 
 

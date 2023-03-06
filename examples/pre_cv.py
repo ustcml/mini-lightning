@@ -38,7 +38,7 @@ def save_images(
     _, ax = plt.subplots(figsize=(2 * ncols, 2 * nrows), dpi=200)
     ax.imshow(images, cmap=None, origin="upper", vmin=0, vmax=1)
     ax.axis("off")
-    plt.savefig(path, bbox_inches='tight')
+    plt.savefig(path, bbox_inches="tight")
     plt.close()
 
 #
@@ -95,7 +95,7 @@ def draw_tsne(dataset: TensorDataset, tsne_fpath: str, TSNE: type) -> None:
     for label in range(10):
         plt.scatter(x_2d[:, 0][y == label], x_2d[:, 1][y == label], s=20, alpha=0.5, label=label)
     plt.legend()
-    plt.savefig(tsne_fpath, bbox_inches='tight')
+    plt.savefig(tsne_fpath, bbox_inches="tight")
     plt.close()
     logger.info(f"`draw_tsne` Done. The image is saved in `{tsne_fpath}`")
 

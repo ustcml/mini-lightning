@@ -62,11 +62,11 @@ class MyLModule(ml.LModule):
 
 
 def main(rank: int, world_size: int, device_ids: List[int]) -> None:
-    os.environ['MASTER_ADDR'] = 'localhost'
-    os.environ['MASTER_PORT'] = '29500'
-    os.environ['LOCAL_RANK'] = f'{rank}'
-    os.environ['RANK'] = f'{rank}'
-    os.environ['WORLD_SIZE'] = f'{world_size}'
+    os.environ["MASTER_ADDR"] = "localhost"
+    os.environ["MASTER_PORT"] = "29500"
+    os.environ["LOCAL_RANK"] = f"{rank}"
+    os.environ["RANK"] = f"{rank}"
+    os.environ["WORLD_SIZE"] = f"{world_size}"
     # Calculating mean std
     train_dataset = CIFAR10(root=DATASETS_PATH, train=True, download=True)
     DATA_MEANS: Tensor = (train_dataset.data / 255.0).mean(axis=(0, 1, 2))

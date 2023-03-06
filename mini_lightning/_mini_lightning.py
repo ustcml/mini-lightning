@@ -110,7 +110,7 @@ class LModule:
         trainer = self.trainer
         assert trainer is not None
         if not trainer._found_nan and (trainer.amp or not trainer._found_inf):
-            # With amp=False, using 'optimizers[opt_idx].step()' is the same.
+            # With amp=False, using `optimizers[opt_idx].step()` is the same.
             trainer.scaler.step(self.optimizers[opt_idx])
 
     #
@@ -732,7 +732,7 @@ class Trainer:
                 lmodel.log(gn_tag, grad_norm, prog_bar_mean=True)
         # log lr
         for opt_idx, opt in enumerate(lmodel.optimizers):
-            for i, lr in enumerate([group['lr'] for group in opt.param_groups]):
+            for i, lr in enumerate([group["lr"] for group in opt.param_groups]):
                 lr_tag = f"lr{i}" if len(lmodel.optimizers) == 1 else f"lr{i}_opt{opt_idx}"
                 lmodel.log(lr_tag, lr, prog_bar_mean=False)
             #

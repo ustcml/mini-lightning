@@ -142,11 +142,11 @@ def transforms(x: Image.Image) -> List[Tensor]:
 
 
 def main(rank: int, world_size: int, device_ids: List[int]) -> None:
-    os.environ['MASTER_ADDR'] = 'localhost'
-    os.environ['MASTER_PORT'] = '29500'
-    os.environ['LOCAL_RANK'] = f'{rank}'
-    os.environ['RANK'] = f'{rank}'
-    os.environ['WORLD_SIZE'] = f'{world_size}'
+    os.environ["MASTER_ADDR"] = "localhost"
+    os.environ["MASTER_PORT"] = "29500"
+    os.environ["LOCAL_RANK"] = f"{rank}"
+    os.environ["RANK"] = f"{rank}"
+    os.environ["WORLD_SIZE"] = f"{world_size}"
     #
     rank = ml.get_dist_setting()[0]
     ml.seed_everything(42+rank, gpu_dtm=False)

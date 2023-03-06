@@ -13,7 +13,7 @@ install_requires = read_file("requirements.txt").splitlines(False)
 classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
-    'Programming Language :: Python',
+    "Programming Language :: Python",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
@@ -24,7 +24,7 @@ setup(
     version="0.1.9",
     description=description,
     long_description=long_description,
-    long_description_content_type='text/markdown',
+    long_description_content_type="text/markdown",
     license="MIT",
     url="https://github.com/ustcml/mini-lightning/",
     author="Jintao Huang",

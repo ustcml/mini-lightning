@@ -35,7 +35,7 @@ class TestUtils(ut.TestCase):
         s = ml.seed_everything(3234335211)
         print(s)
         # test time_synchronize
-        x = torch.randn(10000, 10000, device='cuda')
+        x = torch.randn(10000, 10000, device="cuda")
         # test test_time
         res = ml.test_time(lambda: x @ x, 10, 0, ml.time_synchronize)
 

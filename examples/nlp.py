@@ -115,7 +115,7 @@ if __name__ == "__main__":
     try:
         trainer.fit(ldm.train_dataloader, ldm.val_dataloader)
     except KeyboardInterrupt:
-        # If nohup, use 'kill -2 ' to generate KeyboardInterrupt
+        # If nohup, use `kill -2` to generate KeyboardInterrupt
         logger.info("KeyboardInterrupt Detected...")
         raise
     finally:

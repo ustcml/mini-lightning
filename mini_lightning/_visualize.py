@@ -17,7 +17,7 @@ def read_tensorboard_file(fpath: str) -> Dict[str, List[Item]]:
     ea = EventAccumulator(fpath)
     ea.Reload()
     res = {}
-    tags = ea.Tags()['scalars']
+    tags = ea.Tags()["scalars"]
     for tag in tags:
         values = ea.Scalars(tag)
         _res = []

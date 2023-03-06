@@ -18,9 +18,9 @@ __all__ = [
 
 def get_dist_setting() -> Tuple[int, int, int]:
     """return rank, local_rank, world_size"""
-    rank = int(os.getenv('RANK', -1))
-    local_rank = int(os.getenv('LOCAL_RANK', -1))
-    world_size = int(os.getenv('WORLD_SIZE', 1))
+    rank = int(os.getenv("RANK", -1))
+    local_rank = int(os.getenv("LOCAL_RANK", -1))
+    world_size = int(os.getenv("WORLD_SIZE", 1))
     return rank, local_rank, world_size
 
 
@@ -165,18 +165,18 @@ def stat_array(x: ndarray) -> Tuple[Tuple[float, float, float, float], str]:
     return (mean, std, max_, min_), stat_str
 
 
-T = TypeVar("T")
+_T = TypeVar("_T")
 
 
-def test_time(func: Callable[[], T], number: int = 1, warm_up: int = 0,
-              timer: Optional[Callable[[], float]] = None) -> T:
+def test_time(func: Callable[[], _T], number: int = 1, warmup: int = 0,
+              timer: Optional[Callable[[], float]] = None) -> _T:
     # timer: e.g. time_synchronize
     timer = timer if timer is not None else time.perf_counter
     #
     ts = []
     res = None
     # warmup
-    for _ in range(warm_up):
+    for _ in range(warmup):
         res = func()
     #
     for _ in range(number):
@@ -246,7 +246,7 @@ def print_model_info(name: str, model: Module, inputs: Optional[Tuple[Any, ...]]
         flops = macs * 2
         flops /= 1e9
         s += f", {flops:.4f}G FLOPs"
-    s += '.'
+    s += "."
     logger.info("".join(s))
 
 
