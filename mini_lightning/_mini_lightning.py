@@ -314,7 +314,7 @@ class Trainer:
         gradient_clip_norm: Optional[float] = None,
         sync_bn: bool = False,
         replace_sampler_ddp: bool = True,
-        ckpt_fpath: Optional[str] = None,
+        resume_from_ckpt: Optional[str] = None,
         #
         tb_every_n_steps: int = 10,
         prog_bar_n_steps: int = 1,
@@ -360,7 +360,7 @@ class Trainer:
             replace_sampler_ddp=False: each gpu will use the complete dataset.
             replace_sampler_ddp=True: It will slice the dataset into world_size chunks and distribute them to each gpu.
             note: Replace train_dataloader only. Because DDP uses a single gpu for val/test.
-        ckpt_fpath: only load model_state_dict.
+        resume_from_ckpt: only load model_state_dict. `*.ckpt`
             If you want to resume from ckpt. please see examples in `examples/test_env.py`
         *
         tb_every_n_steps: Frequency of writing information to the tensorboard(sampling per n steps, not mean; all gpus). `global_step % `
@@ -477,10 +477,10 @@ class Trainer:
             hparams = lmodel.hparams
             self.save_hparams(hparams)
         #
-        self.ckpt_fpath = ckpt_fpath
-        if ckpt_fpath is not None:
-            self._load_ckpt(ckpt_fpath)
-            logger.info(f"Using ckpt: {ckpt_fpath}")
+        self.resume_from_ckpt = resume_from_ckpt
+        if resume_from_ckpt is not None:
+            self._load_ckpt(resume_from_ckpt)
+            logger.info(f"Using ckpt: {resume_from_ckpt}")
         lmodel.trainer_init(self)
         for s in lmodel._models:
             model: Module = getattr(lmodel, s)

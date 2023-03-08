@@ -46,67 +46,67 @@ class XORDataset(Dataset):
         return self.n_samples
 
 
+class MyLModule(ml.LModule):
+    def __init__(self, model: Module, optimizers: List[Optimizer],
+                 ckpt_path: Optional[str] = None) -> None:
+        metrics = {"loss": MeanMetric(), "acc": Accuracy("binary")}
+        super().__init__(optimizers, metrics)
+        self.model = model
+        self.loss_fn = nn.BCEWithLogitsLoss()
+        #
+        self.ckpt_path = ckpt_path
+
+    def trainer_init(self, trainer: "ml.Trainer") -> None:
+        optimizers = trainer.lmodel.optimizers
+        device = trainer.device
+        #
+        if self.ckpt_path is not None:
+            # resume from ckpt(model and optimizer)
+            models_state_dict, optimizers_state_dict, mes = ml.load_ckpt(self.ckpt_path, Device(0))
+            model.to(device)
+            model.load_state_dict(models_state_dict["model"])
+            logger.info(f"mes: {mes}")
+            trainer.global_epoch = mes["global_epoch"]
+            if len(optimizers) > 0:
+                optimizer.load_state_dict(optimizers_state_dict[0])
+        #
+        if len(optimizers) > 0:
+            self.lr_s = ml.warmup_decorator(MultiStepLR, 5)(
+                optimizer, [10, 50], 0.1, last_epoch=trainer.global_epoch)
+        super().trainer_init(trainer)
+
+    def _calculate_loss_pred(self, batch: Tuple[Tensor, Tensor]) -> Tuple[Tensor, Tensor]:
+        x_batch, y_batch = batch
+        y = self.model(x_batch)[:, 0]
+        loss = self.loss_fn(y, y_batch.float())
+        y_pred = y >= 0
+        return loss, y_pred
+
+    def training_step(self, batch: Tuple[Tensor, Tensor], opt_idx: int) -> Tensor:
+        y_batch = batch[1]
+        loss, y_pred = self._calculate_loss_pred(batch)
+        acc = accuracy(y_pred, y_batch, "binary")
+        self.log("train_loss", loss)
+        self.log("train_acc", acc)
+        return loss
+
+    def validation_step(self, batch: Tuple[Tensor, Tensor]) -> None:
+        y_batch = batch[1]
+        loss, y_pred = self._calculate_loss_pred(batch)
+        self.metrics["loss"].update(loss)
+        self.metrics["acc"].update(y_pred, y_batch)
+    #
+
+    def training_epoch_end(self) -> None:
+        self.lr_s.step()
+
+
 if __name__ == "__main__":
     ml.select_device([0])
     ml.seed_everything(2, gpu_dtm=True)
     train_dataset = XORDataset(512)
     val_dataset = XORDataset(256)
     test_dataset = XORDataset(256)
-
-    #
-    class MyLModule(ml.LModule):
-        def __init__(self, model: Module, optimizers: List[Optimizer],
-                     ckpt_path: Optional[str] = None) -> None:
-            metrics = {"loss": MeanMetric(), "acc": Accuracy("binary")}
-            super().__init__(optimizers, metrics)
-            self.model = model
-            self.loss_fn = nn.BCEWithLogitsLoss()
-            #
-            self.ckpt_path = ckpt_path
-
-        def trainer_init(self, trainer: "ml.Trainer") -> None:
-            optimizers = trainer.lmodel.optimizers
-            device = trainer.device
-            #
-            if self.ckpt_path is not None:
-                models_state_dict, optimizers_state_dict, mes = ml.load_ckpt(self.ckpt_path, Device(0))
-                model.to(device)  # for load optimizer state dict
-                model.load_state_dict(models_state_dict["model"])
-                logger.info(f"mes: {mes}")
-                trainer.global_epoch = mes["global_epoch"]
-                if len(optimizers) > 0:
-                    optimizer.load_state_dict(optimizers_state_dict[0])
-            #
-            if len(optimizers) > 0:
-                self.lr_s = ml.warmup_decorator(MultiStepLR, 5)(
-                    optimizer, [10, 50], 0.1, last_epoch=trainer.global_epoch)
-            super().trainer_init(trainer)
-
-        def _calculate_loss_pred(self, batch: Tuple[Tensor, Tensor]) -> Tuple[Tensor, Tensor]:
-            x_batch, y_batch = batch
-            y = self.model(x_batch)[:, 0]
-            loss = self.loss_fn(y, y_batch.float())
-            y_pred = y >= 0
-            return loss, y_pred
-
-        def training_step(self, batch: Tuple[Tensor, Tensor], opt_idx: int) -> Tensor:
-            y_batch = batch[1]
-            loss, y_pred = self._calculate_loss_pred(batch)
-            acc = accuracy(y_pred, y_batch, "binary")
-            self.log("train_loss", loss)
-            self.log("train_acc", acc)
-            return loss
-
-        def validation_step(self, batch: Tuple[Tensor, Tensor]) -> None:
-            y_batch = batch[1]
-            loss, y_pred = self._calculate_loss_pred(batch)
-            self.metrics["loss"].update(loss)
-            self.metrics["acc"].update(y_pred, y_batch)
-        #
-
-        def training_epoch_end(self) -> None:
-            self.lr_s.step()
-
     ###
     model = MLP_L2(2, 4, 1)
     optimizer = optim.SGD(model.parameters(), 0.1, 0.9)
@@ -139,7 +139,7 @@ if __name__ == "__main__":
     ldm = ml.LDataModule(train_dataset, val_dataset, test_dataset, 64)
     lmodel = MyLModule(model, [optimizer])
     trainer = ml.Trainer(lmodel, [0], 20, RUNS_DIR, ml.ModelCheckpoint("loss", False, 10),
-                         gradient_clip_norm=10, verbose=True, ckpt_fpath=ckpt_path)
+                         gradient_clip_norm=10, verbose=True, resume_from_ckpt=ckpt_path)
     trainer.test(ldm.val_dataloader, True, True)
     trainer.fit(ldm.train_dataloader, ldm.val_dataloader)
     trainer.test(ldm.test_dataloader, True, True)
@@ -151,5 +151,5 @@ if __name__ == "__main__":
     model = MLP_L2(2, 4, 1)
     ldm = ml.LDataModule(train_dataset, val_dataset, test_dataset, 64)
     lmodel = MyLModule(model, [])
-    trainer = ml.Trainer(lmodel, [], None, RUNS_DIR, ml.ModelCheckpoint("loss", False), ckpt_fpath=ckpt_path)
+    trainer = ml.Trainer(lmodel, [], None, RUNS_DIR, ml.ModelCheckpoint("loss", False), resume_from_ckpt=ckpt_path)
     trainer.test(ldm.test_dataloader, True, True)
