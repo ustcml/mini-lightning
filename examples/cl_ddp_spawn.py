@@ -30,8 +30,8 @@ class SimCLR(ml.LModule):
             nn.Linear(4*out_channels, out_channels)
         )
         optimizer: Optimizer = getattr(optim, hparams["optim_name"])(resnet.parameters(), **hparams["optim_hparams"])
-        lr_s: LRScheduler = ml.warmup_decorator(
-            lrs.CosineAnnealingLR, hparams["warmup"])(optimizer, **hparams["lrs_hparams"])
+        lr_s: LRScheduler = lrs.CosineAnnealingLR(optimizer, **hparams["lrs_hparams"])
+        lr_s = ml.warmup_decorator(lr_s, hparams["warmup"])
         metrics = {
             "loss": MeanMetric(),
             "pos_idx": MeanMetric(),

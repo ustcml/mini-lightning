@@ -51,7 +51,7 @@ class FewShotBatchSampler(Sampler):
         #
         self._shuffle_data()
 
-    def _shuffle_data(self):
+    def _shuffle_data(self) -> None:
         for label, idxs in self.label_to_idxs.items():
             perm = torch.randperm(idxs.shape[0])
             self.label_to_idxs[label] = idxs[perm]
@@ -87,8 +87,8 @@ class ProtoNet(ml.LModule):
         logger.info(load_densenet_state_dict(model, state_dict, strict=False))
         #
         optimizer: Optimizer = getattr(optim, hparams["optim_name"])(model.parameters(), **hparams["optim_hparams"])
-        lr_s: LRScheduler = ml.warmup_decorator(
-            lrs.CosineAnnealingLR, hparams["warmup"])(optimizer, **hparams["lrs_hparams"])
+        lr_s: LRScheduler = lrs.CosineAnnealingLR(optimizer, **hparams["lrs_hparams"])
+        lr_s = ml.warmup_decorator(lr_s, hparams["warmup"])
         metrics = {
             "loss": MeanMetric(),
             "acc":  Accuracy("multiclass", num_classes=proto_dim),

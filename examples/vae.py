@@ -118,8 +118,8 @@ class AutoEncoder(ml.LModule):
         params = list(encoder.parameters()) + list(decoder.parameters())
         #
         optimizer: Optimizer = getattr(optim, hparams["optim_name"])(params, **hparams["optim_hparams"])
-        lr_s: LRScheduler = ml.warmup_decorator(
-            lrs.CosineAnnealingLR, hparams["warmup"])(optimizer, **hparams["lrs_hparams"])
+        lr_s: LRScheduler = lrs.CosineAnnealingLR(optimizer, **hparams["lrs_hparams"])
+        lr_s = ml.warmup_decorator(lr_s, hparams["warmup"])
         metrics: Dict[str, Metric] = {
             "mse_loss": MeanMetric(),
             "kl_loss": MeanMetric(),

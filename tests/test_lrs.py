@@ -19,39 +19,39 @@ def allclose(lr: float, lr2: float, atol=1e-6) -> Tuple[bool, float]:
 
 
 class TestLrs(ut.TestCase):
-    def test_calr(self):
+    def test_calr(self) -> None:
         # test cosine_annealing_lr
         initial_lr = 1e-2
         T_max = 10
         eta_min = 1e-4
         max_epoch = 20
         #
-        optim = SGD([Parameter(torch.randn(100,))], initial_lr)
-        lrs = CosineAnnealingLR(optim, T_max, eta_min)
+        optimizer = SGD([Parameter(torch.randn(100,))], initial_lr)
+        lr_s = CosineAnnealingLR(optimizer, T_max, eta_min)
         for i in range(max_epoch):
             lr = ml.cosine_annealing_lr(i, T_max, eta_min, [initial_lr])[0]
-            lr2 = lrs.get_last_lr()[0]
+            lr2 = lr_s.get_last_lr()[0]
             b, atol = allclose(lr, lr2)
             self.assertTrue(b, msg=f"atol: {atol}")
-            optim.step()
-            lrs.step()
+            optimizer.step()
+            lr_s.step()
         #
         lr = ml.cosine_annealing_lr(max_epoch, T_max, eta_min, [initial_lr])[0]
-        lr2 = lrs.get_last_lr()[0]
+        lr2 = lr_s.get_last_lr()[0]
         b, atol = allclose(lr, lr2)
         self.assertTrue(b, msg=f"atol: {atol}")
 
-    def test_warmup1(self):
+    def test_warmup1(self) -> None:
         initial_lr = 1e-2
         T_max = 10
         eta_min = 1e-4
         max_epoch = 20
         #
-        optim = SGD([Parameter(torch.randn(100,))], initial_lr)
+        optimizer = SGD([Parameter(torch.randn(100,))], initial_lr)
         warmup = 3
-        lrs = ml.warmup_decorator(CosineAnnealingLR, warmup)(optim, T_max, eta_min)
+        lr_s = ml.warmup_decorator(CosineAnnealingLR(optimizer, T_max, eta_min), warmup)
         for i in range(max_epoch):
-            lr = lrs.get_last_lr()[0]
+            lr = lr_s.get_last_lr()[0]
             lr2 = ml.cosine_annealing_lr(i, T_max, eta_min, [initial_lr])[0]
             b, atol = allclose(lr, lr2)
             if i == 0:
@@ -62,8 +62,8 @@ class TestLrs(ut.TestCase):
                 self.assertTrue(b, msg=f"atol: {atol}")
                 if i == T_max:
                     self.assertTrue(lr == eta_min)
-            optim.step()
-            lrs.step()
+            optimizer.step()
+            lr_s.step()
 
 
 if __name__ == "__main__":

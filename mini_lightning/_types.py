@@ -28,6 +28,7 @@ from torch.nn import Module, Parameter
 from torch.nn.parallel import DataParallel as DP, DistributedDataParallel as DDP
 from torch.nn.utils.clip_grad import clip_grad_norm_
 from torch.optim import Optimizer
+from torch.optim.lr_scheduler import _LRScheduler as LRScheduler
 from torch.cuda.amp.grad_scaler import GradScaler
 from torch.amp.autocast_mode import autocast
 # Ref: https://torchmetrics.readthedocs.io/en/stable/pages/overview.html. (torchmetrics support ddp)

@@ -19,8 +19,8 @@ device_ids = [0]
 
 
 class MyLModule(ml.LModule):
-    def __init__(self, hparams: Optional[Dict[str, Any]] = None) -> None:
-        model = RobertaForSequenceClassification.from_pretrained(model_name)
+    def __init__(self, hparams: Dict[str, Any]) -> None:
+        model: Module = RobertaForSequenceClassification.from_pretrained(model_name)
         ml.freeze_layers(model, ["roberta.embeddings."] + [f"roberta.encoder.layer.{i}." for i in range(2)], verbose=False)
         optimizer = getattr(optim, hparams["optim_name"])(model.parameters(), **hparams["optim_hparams"])
         metrics: Dict[str, Metric] = {
@@ -31,7 +31,8 @@ class MyLModule(ml.LModule):
             "recall": Recall("binary"),
             "f1": F1Score("binary")
         }
-        lr_s = ml.warmup_decorator(lrs.CosineAnnealingLR, hparams["warmup"])(optimizer, **hparams["lrs_hparams"])
+        lr_s: LRScheduler = lrs.CosineAnnealingLR(optimizer, **hparams["lrs_hparams"])
+        lr_s = ml.warmup_decorator(lr_s, hparams["warmup"])
         super().__init__([optimizer], metrics, hparams)
         self.model = model
         self.lr_s = lr_s

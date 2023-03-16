@@ -71,8 +71,8 @@ class MyLModule(ml.LModule):
                 optimizer.load_state_dict(optimizers_state_dict[0])
         #
         if len(optimizers) > 0:
-            self.lr_s = ml.warmup_decorator(MultiStepLR, 5)(
-                optimizer, [10, 50], 0.1, last_epoch=trainer.global_epoch)
+            lr_s = MultiStepLR(optimizer, [10, 50], 0.1, last_epoch=trainer.global_epoch)
+            self.lr_s = ml.warmup_decorator(lr_s, 5)
         super().trainer_init(trainer)
 
     def _calculate_loss_pred(self, batch: Tuple[Tensor, Tensor]) -> Tuple[Tensor, Tensor]:

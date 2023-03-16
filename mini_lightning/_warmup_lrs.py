@@ -36,28 +36,28 @@ def get_T_max(dataset_len: int, batch_size: int, max_epochs: int,
     return T_max
 
 
-def warmup_decorator(lr_s: type, warmup: int) -> type:
-    class WarmupLRScheduler(lr_s):
-        def __init__(self, optimizer: Optimizer, *args, **kwargs) -> None:
-            self.warmup = warmup
-            self.lrs_before_warmup: Optional[List[int]] = None  # for warmup
-            super().__init__(optimizer, *args, **kwargs)
-
-        def get_lr(self) -> List[float]:
-            # recover
-            if self.lrs_before_warmup is not None:
-                for p, lr in zip(self.optimizer.param_groups, self.lrs_before_warmup):
-                    p["lr"] = lr
-            #
-            last_epoch = self.last_epoch
-            lrs = super().get_lr()
-            self.lrs_before_warmup = lrs
-            # warmup
-            scale = 1
-            if last_epoch < self.warmup:
-                scale = (last_epoch + 1) / (self.warmup + 1)
-            return [lr * scale for lr in lrs]
-    return WarmupLRScheduler
+def warmup_decorator(lr_s: LRScheduler, warmup: int) -> LRScheduler:
+    # 
+    _lrs_before_warmup: Optional[List[int]] = None
+    _get_lr = lr_s.get_lr
+    # 
+    def get_lr(self) -> List[float]:
+        nonlocal _lrs_before_warmup, _get_lr  # free var (function closure)
+        # recover
+        if _lrs_before_warmup is not None:
+            for p, lr in zip(self.optimizer.param_groups, _lrs_before_warmup):
+                p["lr"] = lr
+        #
+        last_epoch = self.last_epoch
+        lr_list: List[float] = _get_lr()
+        _lrs_before_warmup = lr_list
+        # warmup
+        scale = 1
+        if last_epoch < warmup:
+            scale = (last_epoch + 1) / (warmup + 1)
+        return [lr * scale for lr in lr_list]
+    lr_s.get_lr = get_lr.__get__(lr_s)  # bind self
+    return lr_s
 
 
 #

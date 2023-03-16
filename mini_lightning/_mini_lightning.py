@@ -830,6 +830,7 @@ class Trainer:
         prog_bar.close()
         res_mes = self._get_res_mes(_mean_metrics, _rec_mes, "result")
         #
+        self.lmodel.training_epoch_end()
         return res_mes
 
     def _val_test(
@@ -926,7 +927,6 @@ class Trainer:
         return core_metric, res_mes
 
     def _val_and_save_after_train(self, val_dataloader: Optional[DataLoader], train_mes: Dict[str, float]) -> None:
-        self.lmodel.training_epoch_end()
         if self._last_optimize:
             self._optimize_step()
         core_metric, val_mes = self._val_test(val_dataloader, "val", "  Val: ")

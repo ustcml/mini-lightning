@@ -23,8 +23,8 @@ class MyLModule(ml.LModule):
         logger.info(model.load_state_dict(state_dict, strict=False))
         #
         optimizer: Optimizer = getattr(optim, hparams["optim_name"])(model.parameters(), **hparams["optim_hparams"])
-        lr_s: LRScheduler = ml.warmup_decorator(
-            lrs.CosineAnnealingLR, hparams["warmup"])(optimizer, **hparams["lrs_hparams"])
+        lr_s: LRScheduler = lrs.CosineAnnealingLR(optimizer, **hparams["lrs_hparams"])
+        lr_s = ml.warmup_decorator(lr_s, hparams["warmup"])
         metrics = {
             "loss": MeanMetric(),
             "acc":  Accuracy("multiclass", num_classes=num_classes),

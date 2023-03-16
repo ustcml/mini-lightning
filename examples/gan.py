@@ -15,7 +15,7 @@ device_ids = [0]
 
 
 class Generator(nn.Module):
-    def __init__(self, in_channels: int, img_shape: Tuple[int, int, int]):
+    def __init__(self, in_channels: int, img_shape: Tuple[int, int, int]) -> None:
         super(Generator, self).__init__()
         C, H, W = img_shape
         self.linear = nn.Linear(in_channels, 128 * H * W // 16)
@@ -43,7 +43,7 @@ class Generator(nn.Module):
 
 class Discriminator(nn.Module):
     @staticmethod
-    def _make_block(in_channels: int, out_channels: int, stride: int = 1, bn: bool = True):
+    def _make_block(in_channels: int, out_channels: int, stride: int = 1, bn: bool = True) -> Module:
         layers = [
             nn.Conv2d(in_channels, out_channels, 3, stride, 1),
             nn.LeakyReLU(0.2, inplace=True),
@@ -55,7 +55,7 @@ class Discriminator(nn.Module):
             *layers
         )
 
-    def __init__(self, img_shape: Tuple[int, int, int]):
+    def __init__(self, img_shape: Tuple[int, int, int]) -> None:
         super(Discriminator, self).__init__()
         C, H, W = img_shape
         self.model = nn.Sequential(

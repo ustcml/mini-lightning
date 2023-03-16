@@ -88,9 +88,9 @@ class Agent:
         self.device = Device(device) if isinstance(device, str) else device
         #
         self.state = None
-        self.reset_env()
+        self._reset_env()
 
-    def reset_env(self) -> None:
+    def _reset_env(self) -> None:
         self.state, _ = self.env.reset()
 
     def step(self, rand_p: float) -> Tuple[float, bool]:
@@ -100,7 +100,7 @@ class Agent:
         memo = Memory(self.state, action, reward, done, next_state)
         self.memo_pool.add(memo)
         if done:
-            self.reset_env()
+            self._reset_env()
         else:
             self.state = next_state
         return reward, done  # for log

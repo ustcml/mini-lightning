@@ -126,7 +126,7 @@ class PygDataset(Dataset):
     def __getitem__(self, index: int) -> pygd.Data:
         return self.dataset[index]
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.dataset)  # 1
 
 
