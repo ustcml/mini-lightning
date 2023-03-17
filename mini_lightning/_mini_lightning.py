@@ -939,6 +939,8 @@ class Trainer:
         self._rec_mes_train.clear()
         self._mean_metrics_train.clear()
         self._last_val = False
+        # The reason for this design: training_epoch_start() is mainly for model.train(), metric.reset()
+        #   But the training_epoch_end() is mainly for learning_rate adjustment
         self.lmodel.training_epoch_start()
 
     def _test(self, dataloader: Optional[DataLoader],
@@ -1004,7 +1006,7 @@ class Trainer:
                 self._test(dataloader, "best")
         #
         if test_last:  # just current model
-            if self._best_ckpt_is_last() and test_best is True:
+            if self._best_ckpt_is_last() and test_best:
                 logger.info("Ignore test last: the best ckpt and the last ckpt is the same")
             else:
                 self._test(dataloader, "last")
