@@ -20,10 +20,10 @@ def read_tensorboard_file(fpath: str) -> Dict[str, List[Item]]:
     tags = ea.Tags()["scalars"]
     for tag in tags:
         values = ea.Scalars(tag)
-        _res = []
+        r = []
         for v in values:
-            _res.append({"step": v.step, "value": v.value})
-        res[tag] = _res
+            r.append({"step": v.step, "value": v.value})
+        res[tag] = r
     return res
 
 
