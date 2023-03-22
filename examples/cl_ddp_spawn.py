@@ -195,7 +195,8 @@ def main(rank: int, world_size: int, device_ids: List[int]) -> None:
             "eta_min": 4e-5
         },
     }
-    hparams["lrs_hparams"]["T_max"] = ml.get_T_max(len(train_dataset), batch_size, max_epochs, n_accumulate_grad)
+    hparams["lrs_hparams"]["T_max"] = ml.get_T_max(len(train_dataset), batch_size, max_epochs, 
+                                                   n_accumulate_grad, world_size)
     #
     ldm = ml.LDataModule(
         train_dataset, val_dataset, None, **hparams["dataloader_hparams"])
@@ -232,38 +233,6 @@ def main(rank: int, world_size: int, device_ids: List[int]) -> None:
     tsne_fpath = os.path.join(runs_dir, f"tsne.png")
     draw_similar_images(train_dataset, imgs, 10, fpath)
     draw_tsne(train_dataset, tsne_fpath, TSNE)
-
-    # ########## Logistic Regression
-    max_epochs = 50
-    batch_size = 256
-    hparams = {
-        "device_ids": device_ids,
-        "in_channels": in_channels,
-        "num_classes": 10,
-        "dataloader_hparams": {"batch_size": batch_size, "num_workers": 4},
-        "optim_name": "AdamW",
-        "optim_hparams": {"lr": 1e-3, "weight_decay": 1e-4},
-        "trainer_hparams": {
-            "max_epochs": max_epochs,
-            "model_checkpoint": ml.ModelCheckpoint("acc", True, 5),
-            "gradient_clip_norm": 10,
-            "amp": False,
-            "sync_bn": True,  # False
-            "replace_sampler_ddp": True,
-            "verbose": True,
-        },
-        "lrs_hparams": {
-            "T_max": ...,
-            "eta_min": 1e-4
-        },
-    }
-
-    hparams["lrs_hparams"]["T_max"] = ml.get_T_max(len(train_dataset), batch_size, max_epochs)
-    ldm = ml.LDataModule(
-        train_dataset, val_dataset, None, **hparams["dataloader_hparams"])
-    lmodel = MLP(hparams)
-    trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams["trainer_hparams"])
-    trainer.fit(ldm.train_dataloader, ldm.val_dataloader)
     dist.destroy_process_group()
 
 

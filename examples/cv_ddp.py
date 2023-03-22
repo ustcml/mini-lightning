@@ -126,12 +126,12 @@ if __name__ == "__main__":
             "eta_min": 4e-3
         }
     }
-    hparams["lrs_hparams"]["T_max"] = ml.get_T_max(len(train_dataset), batch_size, max_epochs, n_accumulate_grad)
+    rank, _, world_size = ml.get_dist_setting()
+    hparams["lrs_hparams"]["T_max"] = ml.get_T_max(len(train_dataset), batch_size, max_epochs,
+                                                   n_accumulate_grad, world_size)
     #
     ldm = ml.LDataModule(
         train_dataset, val_dataset, test_dataset, **hparams["dataloader_hparams"])
-
-    rank = ml.get_dist_setting()[0]
     ml.seed_everything(42+rank, gpu_dtm=False)  # avoid same dropout
     lmodel = MyLModule(hparams)
     trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams["trainer_hparams"])

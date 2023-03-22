@@ -123,7 +123,8 @@ def main(rank: int, world_size: int, device_ids: List[int]) -> None:
             "eta_min": 4e-3
         }
     }
-    hparams["lrs_hparams"]["T_max"] = ml.get_T_max(len(train_dataset), batch_size, max_epochs, n_accumulate_grad)
+    hparams["lrs_hparams"]["T_max"] = ml.get_T_max(len(train_dataset), batch_size, max_epochs, 
+                                                   n_accumulate_grad, world_size)
     #
     ldm = ml.LDataModule(
         train_dataset, val_dataset, test_dataset, **hparams["dataloader_hparams"])

@@ -2,7 +2,7 @@ from setuptools import setup
 
 
 def read_file(path: str) -> str:
-    with open(path, "r") as f:
+    with open(path, "r", encoding="utf-8") as f:
         res = f.read()
     return res
 
@@ -21,7 +21,7 @@ classifiers = [
 ]
 setup(
     name="mini-lightning",
-    version="0.1.9",
+    version="0.1.10",
     description=description,
     long_description=long_description,
     long_description_content_type="text/markdown",

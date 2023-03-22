@@ -451,11 +451,11 @@ class Trainer:
         # for last optimize before validation
         self._last_optimize = False
         #
-        self.version: Optional[int] = None
+        self.version = None
         self.model_checkpoint = model_checkpoint if model_checkpoint is not None else ModelCheckpoint()
         if self.rank in {-1, 0}:
             runs_dir = os.path.abspath(runs_dir)
-            self.version = self._get_version(runs_dir)
+            self.version =  self._get_version(runs_dir) 
             if platform.system().lower() == "windows":
                 time = dt.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")  # window not support `:`
                 runs_dir = os.path.join(runs_dir, f"v{self.version}_{time}")
@@ -648,7 +648,7 @@ class Trainer:
                 ckpt_fname = f"best-{mc.val_mode}={val_mode_val}{metric_str}.ckpt"
                 self.best_ckpt_path = os.path.join(self.ckpt_dir, ckpt_fname)
                 self._save_ckpt(self.best_ckpt_path)
-                print((f"- Best model, saving model `{ckpt_fname}`"))
+                logger.info((f"Best model, saving model `{ckpt_fname}`"))
         #
         self._remove_ckpt("last")
         ckpt_fname = f"last-{mc.val_mode}={val_mode_val}{metric_str}.ckpt"
@@ -669,9 +669,6 @@ class Trainer:
             res["global_epoch"] = self.global_epoch
             return res
         # prog_bar
-        if self.version is not None:
-            res["v"] = self.version
-        #
         prog_bar_res = {}
         for k in res.keys():
             if not self.verbose and (k in {"global_step"} or k.startswith("lr") or k.startswith("grad_norm")):
@@ -810,8 +807,10 @@ class Trainer:
                 prog_bar_mes = self._get_res_mes(_mean_metrics, _rec_mes, "prog_bar")
                 if self.rank >= 0:
                     prog_bar_mes = self._reduce_mes(prog_bar_mes, device)
-                # rank > 0 disable.
-                prog_bar.set_postfix(prog_bar_mes, refresh=False)
+                # 
+                if self.version is not None:
+                    prog_bar_mes["v"] = self.version
+                prog_bar.set_postfix(prog_bar_mes, refresh=False)  # rank > 0 disable.
                 prog_bar.update(self.prog_bar_n_steps)
             # tensorboard
             if self.global_step % self.tb_every_n_steps == 0:
@@ -900,6 +899,7 @@ class Trainer:
             prog_bar.refresh()
             prog_bar.fp.write("\n")
             prog_bar.close()
+            print(flush=True)
         #
         res_mes = self._get_res_mes(_mean_metrics, _rec_mes, "result")
         #
@@ -910,7 +910,7 @@ class Trainer:
         #
         core_metric = None
         if len(metrics) > 0:
-            print("- " + self._get_epoch_end_string(metrics))
+            logger.info(self._get_epoch_end_string(metrics))
             if stage == "val":
                 core_metric_name = "val_" + self.model_checkpoint.core_metric_name
                 core_metric = metrics[core_metric_name]

@@ -142,7 +142,7 @@ def _key_add_suffix(_dict: Dict[str, Any], suffix: str) -> Dict[str, Any]:
 
 
 def freeze_layers(model: Module, layer_prefix_names: List[str], verbose: bool = True) -> None:
-    # e.g. ml.freeze_layers(model, ["bert.embeddings."] + [f"bert.encoder.layer.{i}." for i in range(2)], True)
+    # e.g. ml.freeze_layers(model, ["roberta.embeddings."] + [f"roberta.encoder.layer.{i}." for i in range(2)], True)
     lpns = set(layer_prefix_names)
     for n, p in model.named_parameters():
         requires_grad = True
@@ -262,8 +262,9 @@ def read_from_yaml(fpath: str, encoding: str = "utf-8", loader=None) -> Any:
     return res
 
 
-def write_to_csv(obj: List[List[Any]], fpath: str, *, sep: str = ",", mode="w") -> None:
-    with open(fpath, mode, newline="") as f:
+def write_to_csv(obj: List[List[Any]], fpath: str, *, 
+                 sep: str = ",", mode="w", encoding: str = "utf-8") -> None:
+    with open(fpath, mode, encoding=encoding, newline="") as f:
         writer = csv.writer(f, delimiter=sep)
         writer.writerows(obj)
 

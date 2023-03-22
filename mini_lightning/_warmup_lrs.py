@@ -7,8 +7,10 @@ __all__ = ["get_T_max", "warmup_decorator", "cosine_annealing_lr"]
 
 
 def get_T_max(dataset_len: int, batch_size: int, max_epochs: int,
-              n_accumulate_grad: Union[int, Dict[int, int]] = 1, drop_last: bool = True) -> int:
+              n_accumulate_grad: Union[int, Dict[int, int]] = 1,
+              world_size: int = 1, drop_last: bool = True) -> int:
     """Calculate T_max(iteration step) in cosine_annealing_lr"""
+    batch_size *= world_size
     if isinstance(n_accumulate_grad, int):
         if drop_last:
             T_max = dataset_len // batch_size
@@ -37,10 +39,11 @@ def get_T_max(dataset_len: int, batch_size: int, max_epochs: int,
 
 
 def warmup_decorator(lr_s: LRScheduler, warmup: int) -> LRScheduler:
-    # 
+    #
     _lrs_before_warmup: Optional[List[int]] = None
     _get_lr = lr_s.get_lr
-    # 
+    #
+
     def get_lr(self) -> List[float]:
         nonlocal _lrs_before_warmup, _get_lr  # free var (function closure)
         # recover
