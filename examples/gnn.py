@@ -17,6 +17,34 @@ os.makedirs(RUNS_DIR, exist_ok=True)
 #
 device_ids = [0]
 gnn_layers: Dict[str, type] = {"GCN": pygnn.GCNConv, "GAT": pygnn.GATConv, "GraphConv": pygnn.GraphConv}
+max_epochs = 250
+batch_size = 1
+hidden_channels = 16
+
+
+class HParams(ml.HParamsBase):
+    def __init__(self, in_channels: int, out_channels: int) -> None:
+        self.model_name: Literal["gnn", "mlp"] = "gnn"
+        self.model_hparams = {
+            "in_channels": in_channels,
+            "hidden_channels": hidden_channels,
+            "out_channels": out_channels,
+            "layer_name": "GCN",
+        }
+        #
+        dataloader_hparams = {"batch_size": batch_size}
+        optim_name = "SGD"
+        optim_hparams = {"lr": 1e-1, "weight_decay": 2e-5, "momentum": 0.9}
+        trainer_hparams = {
+            "max_epochs": max_epochs,
+            "model_checkpoint": ml.ModelCheckpoint("acc", True, 10),
+            "verbose": True,
+        }
+        lrs_hparams = {
+            "T_max": max_epochs,
+            "eta_min": 1e-2
+        }
+        super().__init__(device_ids, dataloader_hparams, optim_name, optim_hparams, trainer_hparams, None, lrs_hparams)
 
 
 class GNN(nn.Module):
@@ -62,24 +90,24 @@ class MLP(nn.Sequential):
 
 
 class MyLModule(ml.LModule):
-    def __init__(self, hparams: Dict[str, Any]) -> None:
-        self.model_name: Literal["gnn", "mlp"] = hparams["model_name"]
-        num_classes = hparams["model_hparams"]["out_channels"]
+    def __init__(self, hparams: HParams) -> None:
+        self.model_name: Literal["gnn", "mlp"] = hparams.model_name
+        num_classes = hparams.model_hparams["out_channels"]
         if self.model_name == "mlp":
-            model = MLP(**hparams["model_hparams"])
+            model = MLP(**hparams.model_hparams)
         elif self.model_name == "gnn":
-            model = GNN(**hparams["model_hparams"])
+            model = GNN(**hparams.model_hparams)
         else:
             raise ValueError(f"self.model_name: {self.model_name}")
         #
-        optimizer: Optimizer = getattr(optim, hparams["optim_name"])(model.parameters(), **hparams["optim_hparams"])
-        lr_s: LRScheduler = lrs.CosineAnnealingLR(optimizer, **hparams["lrs_hparams"])
+        optimizer: Optimizer = getattr(optim, hparams.optim_name)(model.parameters(), **hparams.optim_hparams)
+        lr_s: LRScheduler = lrs.CosineAnnealingLR(optimizer, **hparams.lrs_hparams)
         metrics = {
             "loss": MeanMetric(),
             "acc":  Accuracy("multiclass", num_classes=num_classes),
         }
         #
-        super().__init__([optimizer], metrics, hparams)
+        super().__init__([optimizer], metrics, hparams.__dict__)
         self.model = model
         self.lr_s = lr_s
         self.loss_fn = nn.CrossEntropyLoss()
@@ -136,48 +164,19 @@ class MyLModule(ml.LModule):
 
 
 if __name__ == "__main__":
-    dataset = pygds.Planetoid(root=DATASETS_PATH, name="Cora")
-    #
-    max_epochs = 250
-    batch_size = 1
-    in_channels = dataset[0].x.shape[1]
-    hidden_channels = 16
-    out_channels = dataset[0].y.shape[0]
-    # ########## GNN
     ml.seed_everything(42, gpu_dtm=False)
-    hparams = {
-        "device_ids": device_ids,
-        "model_name": "gnn",
-        "model_hparams": {
-            "in_channels": in_channels,
-            "hidden_channels": hidden_channels,
-            "out_channels": out_channels,
-            "layer_name": "GCN",
-        },
-        "dataloader_hparams": {"batch_size": batch_size},
-        "optim_name": "SGD",
-        "optim_hparams": {"lr": 1e-1, "weight_decay": 2e-3, "momentum": 0.9},
-        "trainer_hparams": {
-            "max_epochs": max_epochs,
-            "model_checkpoint": ml.ModelCheckpoint("acc", True, 10),
-            "verbose": True,
-        },
-        "lrs_hparams": {
-            "T_max": max_epochs,
-            "eta_min": 1e-2
-        }
-    }
-
+    dataset = pygds.Planetoid(root=DATASETS_PATH, name="Cora")
+    hparams = HParams(dataset[0].x.shape[1], dataset[0].y.shape[0])
+    # ########## GNN
     lmodel = MyLModule(hparams)
-    loader = pygl.DataLoader(dataset, **hparams["dataloader_hparams"])
-    trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams["trainer_hparams"])
+    loader = pygl.DataLoader(dataset, **hparams.dataloader_hparams)
+    trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams.trainer_hparams)
     trainer.fit(loader, loader)
     trainer.test(loader, True, True)
     # ########## MLP
-    ml.seed_everything(42, gpu_dtm=False)
-    hparams["model_name"] = "mlp"
-    hparams["model_hparams"].pop("layer_name")
+    hparams.model_name = "mlp"
+    hparams.model_hparams.pop("layer_name")
     lmodel = MyLModule(hparams)
-    trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams["trainer_hparams"])
+    trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams.trainer_hparams)
     trainer.fit(loader, loader)
     trainer.test(loader, True, True)

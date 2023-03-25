@@ -11,7 +11,8 @@ __all__ = [
     "_remove_keys", "_key_add_suffix", "freeze_layers", "stat_array",
     "test_time", "seed_everything", "time_synchronize",
     "print_model_info", "write_to_yaml", "read_from_yaml", "write_to_csv",
-    "get_date_now", "load_ckpt", "save_ckpt", "StateDict", "ModelCheckpoint"
+    "get_date_now", "load_ckpt", "save_ckpt",
+    "ModelCheckpoint", "HParamsBase", "parse_device_ids"
 ]
 #
 
@@ -262,7 +263,7 @@ def read_from_yaml(fpath: str, encoding: str = "utf-8", loader=None) -> Any:
     return res
 
 
-def write_to_csv(obj: List[List[Any]], fpath: str, *, 
+def write_to_csv(obj: List[List[Any]], fpath: str, *,
                  sep: str = ",", mode="w", encoding: str = "utf-8") -> None:
     with open(fpath, mode, encoding=encoding, newline="") as f:
         writer = csv.writer(f, delimiter=sep)
@@ -336,3 +337,26 @@ class ModelCheckpoint:
     def __repr__(self) -> str:
         attr_str = ", ".join([f"{k}={v!r}" for k, v in self.__dict__.items()])
         return f"{self.__class__.__name__}({attr_str})"
+
+
+class HParamsBase:
+    def __init__(self, device_ids: List[int], dataloader_hparams: Dict[str, Any],
+                 optim_name: str, optim_hparams: Dict[str, Any], trainer_hparams: Dict[str, Any],
+                 warmup: Optional[int] = None, lrs_hparams: Optional[Dict[str, Any]] = None) -> None:
+        self.device_ids = device_ids
+        self.dataloader_hparams = dataloader_hparams
+        self.optim_name = optim_name
+        self.optim_hparams = optim_hparams
+        self.trainer_hparams = trainer_hparams
+        if warmup is not None:
+            self.warmup = warmup
+        if lrs_hparams is not None:
+            self.lrs_hparams = lrs_hparams
+
+
+def parse_device_ids() -> List[int]:
+    parser = ArgumentParser()
+    parser.add_argument("--device_ids", "-d", nargs="*", type=int,
+                        default=[0], help="e.g. [], [0], [0, 1, 2]. --device_ids; --device_ids 0; -d 0 1 2")
+    opt: Namespace = parser.parse_args()  # options
+    return opt.device_ids

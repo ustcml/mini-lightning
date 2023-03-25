@@ -502,7 +502,7 @@ class Trainer:
         return max(v_list) + 1
 
     def _check_hparams(self, hparams: Any) -> Any:
-        if isinstance(hparams, (int, float, str)):  # bool is a subclass of int
+        if hparams is None or isinstance(hparams, (int, float, str, complex)):  # bool is a subclass of int
             return hparams
         if isinstance(hparams, Sequence):
             res = []
@@ -821,6 +821,7 @@ class Trainer:
             # val
             if mc.val_mode == "step" and self.global_step % mc.val_every_n == 0:
                 res_mes = self._get_res_mes(_mean_metrics, _rec_mes, "result")
+                prog_bar.fp.write("\n")
                 prog_bar.refresh()
                 self._val_and_save_after_train(val_dataloader, res_mes)
         #
@@ -878,7 +879,7 @@ class Trainer:
                 total = len(dataloader)
             except (TypeError, AttributeError):
                 total = None
-            prog_bar = tqdm(total=total, desc=desc, dynamic_ncols=True, leave=False)
+            prog_bar = tqdm(total=total, desc=desc, dynamic_ncols=True, leave=True, position=0)
             batch_idx = -1  # avoid unbound
             self._prog_bar_mean.clear()
             for batch_idx, batch in enumerate(dataloader):
@@ -896,10 +897,7 @@ class Trainer:
                     prog_bar.update(self.prog_bar_n_steps)
             if (batch_idx + 1 - prog_bar.n) > 0:
                 prog_bar.update(batch_idx + 1 - prog_bar.n)
-            prog_bar.refresh()
-            prog_bar.fp.write("\n")
             prog_bar.close()
-            print(flush=True)
         #
         res_mes = self._get_res_mes(_mean_metrics, _rec_mes, "result")
         #

@@ -12,6 +12,28 @@ RUNS_DIR = os.path.join(RUNS_DIR, "gan")
 os.makedirs(RUNS_DIR, exist_ok=True)
 #
 device_ids = [0]
+max_epochs = 20
+batch_size = 256
+n_accumulate_grad = 4
+img_shape = (1, 28, 28)
+
+
+class HParams:
+    def __init__(self) -> None:
+        self.G_hparams = {"in_channels": 100, "img_shape": img_shape}
+        self.D_hparams = {"img_shape": img_shape}
+        self.dataloader_hparams = {"batch_size": batch_size, "num_workers": 4}
+        self.opt_G_name = "Adam"
+        self.opt_D_name = "Adam"
+        self.opt_G_hparams = {"lr": 2e-4, "betas": (0.5, 0.999)}
+        self.opt_D_hparams = {"lr": 2e-4, "betas": (0.5, 0.999)}
+        self.trainer_hparams = {
+            "max_epochs": max_epochs,
+            "gradient_clip_norm": 10,
+            "amp": True,
+            "n_accumulate_grad": n_accumulate_grad,
+            "verbose": True
+        }
 
 
 class Generator(nn.Module):
@@ -74,12 +96,12 @@ class Discriminator(nn.Module):
 
 
 class GAN(ml.LModule):
-    def __init__(self, hparams: Dict[str, Any]) -> None:
-        self.in_channels = hparams["G_hparams"]["in_channels"]
-        G, D = Generator(**hparams["G_hparams"]), Discriminator(**hparams["D_hparams"])
-        opt_G = getattr(optim, hparams["opt_G_name"])(G.parameters(), **hparams["opt_G_hparams"])
-        opt_D = getattr(optim, hparams["opt_D_name"])(D.parameters(), **hparams["opt_D_hparams"])
-        super().__init__([opt_G, opt_D], {}, hparams)
+    def __init__(self, hparams: HParams) -> None:
+        self.in_channels = hparams.G_hparams["in_channels"]
+        G, D = Generator(**hparams.G_hparams), Discriminator(**hparams.D_hparams)
+        opt_G = getattr(optim, hparams.opt_G_name)(G.parameters(), **hparams.opt_G_hparams)
+        opt_D = getattr(optim, hparams.opt_D_name)(D.parameters(), **hparams.opt_D_hparams)
+        super().__init__([opt_G, opt_D], {}, hparams.__dict__)
         self.G = G
         self.D = D
         self.loss_fn = nn.BCEWithLogitsLoss()
@@ -130,6 +152,7 @@ class GAN(ml.LModule):
 
 
 if __name__ == "__main__":
+    hparams = HParams()
     transform = tvt.Compose(
         [
             tvt.ToTensor(),
@@ -138,28 +161,8 @@ if __name__ == "__main__":
     )
     train_dataset = MNIST(DATASETS_PATH, True, transform, download=True)
     #
-    max_epochs = 20
-    batch_size = 256
-    n_accumulate_grad = 4
-    img_shape = (1, 28, 28)
-    hparams = {
-        "device_ids": device_ids,
-        "dataloader_hparams": {"batch_size": batch_size, "num_workers": 4},
-        "G_hparams": {"in_channels": 100, "img_shape": img_shape},
-        "D_hparams": {"img_shape": img_shape},
-        "opt_G_name": "Adam",
-        "opt_D_name": "Adam",
-        "opt_G_hparams": {"lr": 2e-4, "betas": (0.5, 0.999)},
-        "opt_D_hparams": {"lr": 2e-4, "betas": (0.5, 0.999)},
-        "trainer_hparams": {
-            "max_epochs": max_epochs,
-            "gradient_clip_norm": 10,
-            "amp": True,
-            "n_accumulate_grad": n_accumulate_grad,
-            "verbose": True
-        },
-    }
-    ldm = ml.LDataModule(train_dataset, None, None, **hparams["dataloader_hparams"])
+
+    ldm = ml.LDataModule(train_dataset, None, None, **hparams.dataloader_hparams)
     lmodel = GAN(hparams)
-    trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams["trainer_hparams"])
+    trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams.trainer_hparams)
     trainer.fit(ldm.train_dataloader, None)

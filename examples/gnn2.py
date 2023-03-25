@@ -13,6 +13,32 @@ import torch_geometric.nn as pygnn
 import torch_geometric.loader as pygl
 import torch_geometric.transforms as pygt
 from torch_geometric.utils import negative_sampling
+max_epochs = 250
+batch_size = 1
+hidden_channels = 128
+out_channels = 64
+
+
+class HParams(ml.HParamsBase):
+    def __init__(self, in_channels: int) -> None:
+        self.in_channels = in_channels
+        self.hidden_channels = hidden_channels
+        self.out_channels = out_channels
+        #
+        dataloader_hparams = {"batch_size": batch_size}
+        optim_name = "AdamW"
+        optim_hparams = {"lr": 1e-3, "weight_decay": 2e-5}
+        trainer_hparams = {
+            "max_epochs": max_epochs,
+            "model_checkpoint": ml.ModelCheckpoint("auc", True, 10),
+            "verbose": True,
+        }
+        lrs_hparams = {
+            "T_max": max_epochs,
+            "eta_min": 1e-4
+        }
+        super().__init__(device_ids, dataloader_hparams, optim_name, optim_hparams, trainer_hparams, None, lrs_hparams)
+
 
 #
 RUNS_DIR = os.path.join(RUNS_DIR, "gnn2")
@@ -49,19 +75,19 @@ class GNN(nn.Module):
 
 
 class MyLModule(ml.LModule):
-    def __init__(self, hparams: Dict[str, Any]) -> None:
-        self.in_channels = hparams["in_channels"]
-        hidden_channels, out_channels = hparams["hidden_channels"], hparams["out_channels"]
+    def __init__(self, hparams: HParams) -> None:
+        self.in_channels = hparams.in_channels
+        hidden_channels, out_channels = hparams.hidden_channels, hparams.out_channels
         model = GNN(self.in_channels, hidden_channels, out_channels, "GCN")
         #
-        optimizer: Optimizer = getattr(optim, hparams["optim_name"])(model.parameters(), **hparams["optim_hparams"])
-        lr_s: LRScheduler = lrs.CosineAnnealingLR(optimizer, **hparams["lrs_hparams"])
+        optimizer: Optimizer = getattr(optim, hparams.optim_name)(model.parameters(), **hparams.optim_hparams)
+        lr_s: LRScheduler = lrs.CosineAnnealingLR(optimizer, **hparams.lrs_hparams)
         metrics = {
             "acc":  Accuracy("binary"),
             "auc": AUROC("binary")
         }
         #
-        super().__init__([optimizer], metrics, hparams)
+        super().__init__([optimizer], metrics, hparams.__dict__)
         self.model = model
         self.lr_s = lr_s
         self.loss_fn = nn.BCEWithLogitsLoss()
@@ -131,37 +157,15 @@ class PygDataset(Dataset):
 
 
 if __name__ == "__main__":
+    ml.seed_everything(42, gpu_dtm=False)
     transform = pygt.RandomLinkSplit(0.2, 0, True, add_negative_train_samples=False)
     train_data, test_data, _ = pygds.Planetoid(root=DATASETS_PATH, name="Cora", transform=transform)[0]
-    #
-    max_epochs = 250
-    batch_size = 1
-    hidden_channels = 128
-    out_channels = 64
+    hparams = HParams(train_data.x.shape[1])
     train_dataset, test_dataset = PygDataset(train_data), PygDataset(test_data)
     #
-    ml.seed_everything(42, gpu_dtm=False)
-    hparams = {
-        "device_ids": device_ids,
-        "in_channels": train_data.x.shape[1],
-        "hidden_channels": hidden_channels,
-        "out_channels": out_channels,
-        "dataloader_hparams": {"batch_size": batch_size},
-        "optim_name": "AdamW",
-        "optim_hparams": {"lr": 1e-3, "weight_decay": 1e-4},
-        "trainer_hparams": {
-            "max_epochs": max_epochs,
-            "model_checkpoint": ml.ModelCheckpoint("auc", True, 10),
-            "verbose": True,
-        },
-        "lrs_hparams": {
-            "T_max": max_epochs,
-            "eta_min": 1e-4
-        }
-    }
 
     lmodel = MyLModule(hparams)
-    train_loader = pygl.DataLoader(train_dataset, **hparams["dataloader_hparams"])
-    test_loader = pygl.DataLoader(test_dataset, **hparams["dataloader_hparams"])
-    trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams["trainer_hparams"])
+    train_loader = pygl.DataLoader(train_dataset, **hparams.dataloader_hparams)
+    test_loader = pygl.DataLoader(test_dataset, **hparams.dataloader_hparams)
+    trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams.trainer_hparams)
     trainer.fit(train_loader, test_loader)

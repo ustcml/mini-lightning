@@ -12,6 +12,32 @@ os.makedirs(RUNS_DIR, exist_ok=True)
 
 #
 device_ids = [0]
+max_epochs = 100
+batch_size = 256
+n_accumulate_grad = 4
+z_channels = 128
+
+
+class HParams:
+    def __init__(self) -> None:
+        self.device_ids = device_ids
+        self.z_channels = z_channels
+        self.dataloader_hparams = {"batch_size": batch_size, "num_workers": 4}
+        self.optim_name = "AdamW"
+        self.optim_hparams = {"lr": 5e-4, "weight_decay": 2e-5}
+        self.trainer_hparams = {
+            "max_epochs": max_epochs,
+            "gradient_clip_norm": 100,
+            "model_checkpoint": ml.ModelCheckpoint("loss", False, 10),
+            "n_accumulate_grad": n_accumulate_grad,
+            "amp": True,
+            "verbose": True,
+        }
+        self.warmup = 100  # 100 optim step
+        self.lrs_hparams = {
+            "T_max": ...,
+            "eta_min": 4e-5
+        }
 
 
 class Encoder(nn.Sequential):
@@ -66,23 +92,23 @@ class Decoder(nn.Module):
 
 
 class AutoEncoder(ml.LModule):
-    def __init__(self, hparams: Dict[str, Any]) -> None:
+    def __init__(self, hparams: HParams) -> None:
         in_channels = 3
         hidden_channels = 32
-        out_channels = hparams["z_channels"]
+        out_channels = hparams.z_channels
 
         encoder = Encoder(in_channels, hidden_channels, out_channels)
         decoder = Decoder(out_channels, hidden_channels, in_channels)
         params = list(encoder.parameters()) + list(decoder.parameters())
         #
-        optimizer: Optimizer = getattr(optim, hparams["optim_name"])(params, **hparams["optim_hparams"])
-        lr_s: LRScheduler = lrs.CosineAnnealingLR(optimizer, **hparams["lrs_hparams"])
-        lr_s = ml.warmup_decorator(lr_s, hparams["warmup"])
+        optimizer: Optimizer = getattr(optim, hparams.optim_name)(params, **hparams.optim_hparams)
+        lr_s: LRScheduler = lrs.CosineAnnealingLR(optimizer, **hparams.lrs_hparams)
+        lr_s = ml.warmup_decorator(lr_s, hparams.warmup)
         metrics: Dict[str, Metric] = {
             "loss": MeanMetric(),
         }
         #
-        super().__init__([optimizer], metrics, hparams)
+        super().__init__([optimizer], metrics, hparams.__dict__)
         self.encoder = encoder
         self.decoder = decoder
         self.lr_s = lr_s
@@ -114,7 +140,8 @@ class AutoEncoder(ml.LModule):
 
 if __name__ == "__main__":
     ml.seed_everything(42, gpu_dtm=False)
-
+    hparams = HParams()
+    # 
     transforms = tvt.Compose([tvt.ToTensor(), tvt.Normalize((0.5,), (0.5,))])  # [0, 1] -> [-1, 1]
     train_dataset = CIFAR10(root=DATASETS_PATH, train=True,
                             transform=transforms, download=True)
@@ -122,39 +149,15 @@ if __name__ == "__main__":
     test_dataset = CIFAR10(root=DATASETS_PATH, train=False,
                            transform=transforms, download=True)
     #
-    max_epochs = 100
-    batch_size = 256
-    n_accumulate_grad = 4
-    z_channels = 128
-    #
-    hparams = {
-        "device_ids": device_ids,
-        "z_channels": z_channels,
-        "dataloader_hparams": {"batch_size": batch_size, "num_workers": 4},
-        "optim_name": "AdamW",
-        "optim_hparams": {"lr": 5e-4, "weight_decay": 1e-4},
-        "trainer_hparams": {
-            "max_epochs": max_epochs,
-            "gradient_clip_norm": 100,
-            "model_checkpoint": ml.ModelCheckpoint("loss", False, 10),
-            "n_accumulate_grad": n_accumulate_grad,
-            "amp": True,
-            "verbose": True,
-        },
-        "warmup": 100,  # 100 optim step
-        "lrs_hparams": {
-            "T_max": ...,
-            "eta_min": 4e-5
-        },
-    }
-    hparams["lrs_hparams"]["T_max"] = ml.get_T_max(len(train_dataset), batch_size, max_epochs, n_accumulate_grad)
+
+    hparams.lrs_hparams["T_max"] = ml.get_T_max(len(train_dataset), batch_size, max_epochs, n_accumulate_grad)
     #
     ldm = ml.LDataModule(
-        train_dataset, val_dataset, None, **hparams["dataloader_hparams"])
+        train_dataset, val_dataset, None, **hparams.dataloader_hparams)
 
     lmodel = AutoEncoder(hparams)
     #
-    trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams["trainer_hparams"])
+    trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams.trainer_hparams)
     trainer.fit(ldm.train_dataloader, ldm.val_dataloader)
     #
     encoder = deepcopy(lmodel.encoder)

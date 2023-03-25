@@ -18,6 +18,34 @@ os.makedirs(RUNS_DIR, exist_ok=True)
 device_ids = [0]
 gnn_layers: Dict[str, type] = {"GCN": pygnn.GCNConv, "GAT": pygnn.GATConv, "GraphConv": pygnn.GraphConv}
 
+max_epochs = 250
+batch_size = 256
+hidden_channels = 256
+
+
+class HParams(ml.HParamsBase):
+    def __init__(self, in_channels: int, out_channels: int) -> None:
+        self.model_hparams = {
+            "in_channels": in_channels,
+            "hidden_channels": hidden_channels,
+            "out_channels": out_channels,
+            "layer_name": "GraphConv"
+        }
+        #
+        dataloader_hparams = {"batch_size": batch_size}
+        optim_name = "AdamW"
+        optim_hparams = {"lr": 1e-3, "weight_decay": 2e-5}
+        trainer_hparams = {
+            "max_epochs": max_epochs,
+            "model_checkpoint": ml.ModelCheckpoint("acc", True, 10),
+            "verbose": True,
+        }
+        lrs_hparams = {
+            "T_max": max_epochs,
+            "eta_min": 1e-4
+        }
+        super().__init__(device_ids, dataloader_hparams, optim_name, optim_hparams, trainer_hparams, None, lrs_hparams)
+
 
 class GNN(nn.Module):
     def __init__(
@@ -55,17 +83,17 @@ class GNN(nn.Module):
 
 
 class MyLModule(ml.LModule):
-    def __init__(self, hparams: Dict[str, Any]) -> None:
-        model = GNN(**hparams["model_hparams"])
+    def __init__(self, hparams: HParams) -> None:
+        model = GNN(**hparams.model_hparams)
         #
-        optimizer: Optimizer = getattr(optim, hparams["optim_name"])(model.parameters(), **hparams["optim_hparams"])
-        lr_s: LRScheduler = lrs.CosineAnnealingLR(optimizer, **hparams["lrs_hparams"])
+        optimizer: Optimizer = getattr(optim, hparams.optim_name)(model.parameters(), **hparams.optim_hparams)
+        lr_s: LRScheduler = lrs.CosineAnnealingLR(optimizer, **hparams.lrs_hparams)
         metrics = {
             "loss": MeanMetric(),
             "acc":  Accuracy("binary"),
         }
         #
-        super().__init__([optimizer], metrics, hparams)
+        super().__init__([optimizer], metrics, hparams.__dict__)
         self.model = model
         self.lr_s = lr_s
         self.loss_fn = nn.BCEWithLogitsLoss()
@@ -108,37 +136,13 @@ if __name__ == "__main__":
     train_dataset: pygd.Dataset = dataset[:150]
     test_dataset: pygd.Dataset = dataset[150:]
     #
-    max_epochs = 250
-    batch_size = 256
     in_channels = dataset.data.x.shape[1]
-    hidden_channels = 256
     out_channels = dataset.data.y.max()  # "binary"
+    hparams = HParams(in_channels, out_channels)
     #
     ml.seed_everything(42, gpu_dtm=False)
-    hparams = {
-        "device_ids": device_ids,
-        "model_hparams": {
-            "in_channels": in_channels,
-            "hidden_channels": hidden_channels,
-            "out_channels": out_channels,
-            "layer_name": "GraphConv"
-        },
-        "dataloader_hparams": {"batch_size": batch_size},
-        "optim_name": "AdamW",
-        "optim_hparams": {"lr": 1e-3, "weight_decay": 1e-4},
-        "trainer_hparams": {
-            "max_epochs": max_epochs,
-            "model_checkpoint": ml.ModelCheckpoint("acc", True, 10),
-            "verbose": True,
-        },
-        "lrs_hparams": {
-            "T_max": max_epochs,
-            "eta_min": 1e-4
-        }
-    }
-
     lmodel = MyLModule(hparams)
-    train_loader = pygl.DataLoader(train_dataset, **hparams["dataloader_hparams"])
-    test_loader = pygl.DataLoader(test_dataset, **hparams["dataloader_hparams"])
-    trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams["trainer_hparams"])
+    train_loader = pygl.DataLoader(train_dataset, **hparams.dataloader_hparams)
+    test_loader = pygl.DataLoader(test_dataset, **hparams.dataloader_hparams)
+    trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams.trainer_hparams)
     trainer.fit(train_loader, test_loader)

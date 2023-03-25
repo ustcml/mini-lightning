@@ -26,6 +26,30 @@ os.makedirs(RUNS_DIR, exist_ok=True)
 
 #
 device_ids = [0]
+batch_size = 32
+max_epochs = 20
+
+
+class HParams(ml.HParamsBase):
+    def __init__(self) -> None:
+        self.memo_capacity = 1000
+        self.dataset_len = 5000
+        self.env_name = "CartPole-v1"  # "LunarLander-v2"
+        self.model_hidden_size = 128
+        self.rand_p = {
+            "eta_max": 1,
+            "eta_min": 0,
+            "T_max": ...
+        }
+        self.sync_steps = 50  # synchronization frequency of old_model
+        self.warmup_memory_steps = 1000  # warm up and fill the memory pool
+        self.gamma = 0.99  # reward decay
+        #
+        dataloader_hparams = {"batch_size": batch_size}
+        optim_name = "SGD"
+        optim_hparams = {"lr": 1e-2, "weight_decay": 2e-5}
+        trainer_hparams = {"max_epochs": max_epochs, "gradient_clip_norm": 20, "verbose": False}
+        super().__init__(device_ids, dataloader_hparams, optim_name, optim_hparams, trainer_hparams)
 
 
 class DQN(nn.Module):
@@ -124,17 +148,17 @@ def get_rand_p(global_step: int, T_max: int, eta_min: float, eta_max: float) -> 
 
 
 class MyLModule(ml.LModule):
-    def __init__(self, memo_pool: MemoryPool, hparams: Dict[str, Any]) -> None:
+    def __init__(self, memo_pool: MemoryPool, hparams: HParams) -> None:
 
-        env = gym.make(hparams["env_name"], render_mode=RENDER_MODE)
+        env = gym.make(hparams.env_name, render_mode=RENDER_MODE)
         #
         in_channels: int = env.observation_space.shape[0]
         out_channels: int = env.action_space.n
-        model = DQN(in_channels, out_channels, hparams["model_hidden_size"])
+        model = DQN(in_channels, out_channels, hparams.model_hidden_size)
         agent = Agent(env, memo_pool, model, ml.select_device(device_ids))
 
-        optimizer = getattr(optim, hparams["optim_name"])(model.parameters(), **hparams["optim_hparams"])
-        super().__init__([optimizer], {}, hparams)
+        optimizer = getattr(optim, hparams.optim_name)(model.parameters(), **hparams.optim_hparams)
+        super().__init__([optimizer], {}, hparams.__dict__)
         self.model = model
         self.old_model = deepcopy(self.model).requires_grad_(False)
         # New_model and old_model are used for model training.
@@ -143,7 +167,7 @@ class MyLModule(ml.LModule):
         # Reason: to eliminate associations.
         self.loss_fn = nn.MSELoss()
         self.agent = agent
-        self.get_rand_p = partial(get_rand_p, **hparams["rand_p"])
+        self.get_rand_p = partial(get_rand_p, **hparams.rand_p)
         #
         self.warmup_memory_steps = self.hparams["warmup_memory_steps"]
         # synchronize the model every sync_steps
@@ -207,35 +231,13 @@ class MyLModule(ml.LModule):
 
 if __name__ == "__main__":
     ml.seed_everything(42, gpu_dtm=False)
-    batch_size = 32
-    max_epochs = 20
-    hparams = {
-        "device_ids": device_ids,
-        "memo_capacity": 1000,
-        "dataset_len": 5000,
-        "env_name": "CartPole-v1",  # "LunarLander-v2"
-        "model_hidden_size": 128,
-        "optim_name": "SGD",
-        "dataloader_hparams": {"batch_size": batch_size},
-        "optim_hparams": {"lr": 1e-2, "weight_decay": 1e-4},  #
-        "trainer_hparams": {"max_epochs": max_epochs, "gradient_clip_norm": 20, "verbose": False},
-        #
-        "rand_p": {
-            "eta_max": 1,
-            "eta_min": 0,
-            "T_max": ...
-        },
-        "sync_steps": 50,  # synchronization frequency of old_model
-        "warmup_memory_steps": 1000,  # warm up and fill the memory pool
-        "gamma": 0.99,  # reward decay
-
-    }
-    memo_pool = MemoryPool(hparams["memo_capacity"])
-    dataset = MyDataset(memo_pool, hparams["dataset_len"])
+    hparams = HParams()
+    memo_pool = MemoryPool(hparams.memo_capacity)
+    dataset = MyDataset(memo_pool, hparams.dataset_len)
     ldm = ml.LDataModule(
-        dataset, None, None, **hparams["dataloader_hparams"], shuffle_train=False, num_workers=1)
-    hparams["rand_p"]["T_max"] = ml.get_T_max(len(dataset), batch_size, max_epochs, 1)
+        dataset, None, None, **hparams.dataloader_hparams, shuffle_train=False, num_workers=1)
+    hparams.rand_p["T_max"] = ml.get_T_max(len(dataset), batch_size, max_epochs, 1)
 
     lmodel = MyLModule(memo_pool, hparams)
-    trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams["trainer_hparams"])
+    trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams.trainer_hparams)
     trainer.fit(ldm.train_dataloader, None)

@@ -16,13 +16,40 @@ os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
 #
 device_ids = [0]
+max_epochs = 10
+batch_size = 32
+n_accumulate_grad = 4
+model_name = "roberta-base"
+
+
+class HParams(ml.HParamsBase):
+    def __init__(self, collate_fn: Callable[[List[Any]], Any]) -> None:
+        self.model_name = model_name
+        #
+        dataloader_hparams = {"batch_size": batch_size, "num_workers": 4, "collate_fn": collate_fn}
+        optim_name = "AdamW"
+        optim_hparams = {"lr": 1e-5, "weight_decay": 2e-5}
+        trainer_hparams = {
+            "max_epochs": max_epochs,
+            "model_checkpoint": ml.ModelCheckpoint("auc", True),
+            "gradient_clip_norm": 10,
+            "amp": True,
+            "n_accumulate_grad": n_accumulate_grad
+        }
+        warmup = 30
+        lrs_hparams = {
+            "T_max": ...,
+            "eta_min": 4e-5
+        }
+        super().__init__(device_ids, dataloader_hparams, optim_name, optim_hparams, trainer_hparams, warmup, lrs_hparams)
 
 
 class MyLModule(ml.LModule):
-    def __init__(self, hparams: Dict[str, Any]) -> None:
+    def __init__(self, hparams: HParams) -> None:
         model: Module = RobertaForSequenceClassification.from_pretrained(model_name)
-        ml.freeze_layers(model, ["roberta.embeddings."] + [f"roberta.encoder.layer.{i}." for i in range(2)], verbose=False)
-        optimizer = getattr(optim, hparams["optim_name"])(model.parameters(), **hparams["optim_hparams"])
+        ml.freeze_layers(model, ["roberta.embeddings."] +
+                         [f"roberta.encoder.layer.{i}." for i in range(2)], verbose=False)
+        optimizer = getattr(optim, hparams.optim_name)(model.parameters(), **hparams.optim_hparams)
         metrics: Dict[str, Metric] = {
             "loss": MeanMetric(),
             "acc":  Accuracy("binary"),
@@ -31,20 +58,23 @@ class MyLModule(ml.LModule):
             "recall": Recall("binary"),
             "f1": F1Score("binary")
         }
-        lr_s: LRScheduler = lrs.CosineAnnealingLR(optimizer, **hparams["lrs_hparams"])
-        lr_s = ml.warmup_decorator(lr_s, hparams["warmup"])
-        super().__init__([optimizer], metrics, hparams)
+        lr_s: LRScheduler = lrs.CosineAnnealingLR(optimizer, **hparams.lrs_hparams)
+        lr_s = ml.warmup_decorator(lr_s, hparams.warmup)
+        super().__init__([optimizer], metrics, hparams.__dict__)
         self.model = model
         self.lr_s = lr_s
-        self.loss_fn = nn.CrossEntropyLoss()
+        self.loss_fn = nn.CrossEntropyLoss(label_smoothing=0.1)
 
     def optimizer_step(self, opt_idx: int) -> None:
         super().optimizer_step(opt_idx)
         self.lr_s.step()
 
     def _calculate_loss_prob_pred(self, batch: Dict[str, Tensor]) -> Tuple[Tensor, Tensor, Tensor]:
+        labels = batch.pop("labels")
         y = self.model(**batch)
-        loss, logits = y["loss"], y["logits"]
+        batch["labels"] = labels
+        logits = y["logits"]
+        loss = self.loss_fn(logits, labels)
         y_prob = torch.softmax(logits, 1)[:, 1]
         y_pred = logits.argmax(dim=1)
         return loss, y_prob, y_pred
@@ -70,7 +100,6 @@ class MyLModule(ml.LModule):
 if __name__ == "__main__":
     ml.seed_everything(42, gpu_dtm=False)
     dataset = load_dataset("glue", "mrpc")
-    model_name = "roberta-base"
     tokenizer: PreTrainedTokenizerBase = AutoTokenizer.from_pretrained(model_name)
     tokenizer.deprecation_warnings["Asking-to-pad-a-fast-tokenizer"] = True
 
@@ -82,37 +111,16 @@ if __name__ == "__main__":
     dataset = dataset.rename_column("label", "labels")
     collate_fn = DataCollatorWithPadding(tokenizer=tokenizer, return_tensors="pt")
     #
-    max_epochs = 10
-    batch_size = 32
-    n_accumulate_grad = 4
-    hparams = {
-        "device_ids": device_ids,
-        "model_name": model_name,
-        "dataloader_hparams": {"batch_size": batch_size, "num_workers": 4, "collate_fn": collate_fn},
-        "optim_name": "AdamW",
-        "optim_hparams": {"lr": 1e-4, "weight_decay": 1e-4},
-        "trainer_hparams": {
-            "max_epochs": max_epochs,
-            "model_checkpoint": ml.ModelCheckpoint("auc", True),
-            "gradient_clip_norm": 10,
-            "amp": True,
-            "n_accumulate_grad": n_accumulate_grad
-        },
-        "warmup": 30,  # 30 optim step
-        "lrs_hparams": {
-            "T_max": ...,
-            "eta_min": 4e-5
-        }
-    }
-    hparams["lrs_hparams"]["T_max"] = ml.get_T_max(
+    hparams = HParams(collate_fn)
+    hparams.lrs_hparams["T_max"] = ml.get_T_max(
         len(dataset["train"]), batch_size, max_epochs, n_accumulate_grad)
     #
     ldm = ml.LDataModule(
-        dataset["train"], dataset["validation"], dataset["test"], **hparams["dataloader_hparams"])
+        dataset["train"], dataset["validation"], dataset["test"], **hparams.dataloader_hparams)
     #
 
     lmodel = MyLModule(hparams)
-    trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams["trainer_hparams"])
+    trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams.trainer_hparams)
     try:
         trainer.fit(ldm.train_dataloader, ldm.val_dataloader)
     except KeyboardInterrupt:
