@@ -30,7 +30,7 @@ class HParams(ml.HParamsBase):
             "n_accumulate_grad": n_accumulate_grad,
             "verbose": True
         }
-        warmup = 100  # 100 optim step
+        warmup = 100  # The impact range of warmup is 100 optimization steps.
         lrs_hparams = {
             "T_max": ...,
             "eta_min": 4e-3

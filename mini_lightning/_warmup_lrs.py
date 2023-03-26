@@ -61,7 +61,8 @@ def warmup_decorator(lr_s: LRScheduler, warmup: int) -> LRScheduler:
         return [lr * scale for lr in lr_list]
     lr_s.get_lr = get_lr.__get__(lr_s)  # bind self
     lr_s.last_epoch -= 1
-    lr_s._initial_step()
+    lr_s._step_count -= 1
+    lr_s.step()
     return lr_s
 
 
