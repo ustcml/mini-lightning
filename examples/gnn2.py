@@ -87,7 +87,7 @@ class MyLModule(ml.LModule):
             "auc": AUROC("binary")
         }
         #
-        super().__init__([optimizer], metrics, hparams.__dict__)
+        super().__init__([optimizer], metrics, hparams)
         self.model = model
         self.lr_s = lr_s
         self.loss_fn = nn.BCEWithLogitsLoss()

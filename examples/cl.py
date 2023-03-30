@@ -67,7 +67,7 @@ class SimCLR(ml.LModule):
         }
         self.temperature = hparams.temperature
         #
-        super().__init__([optimizer], metrics, hparams.__dict__)
+        super().__init__([optimizer], metrics, hparams)
         self.resnet = resnet
         self.lr_s = lr_s
 

@@ -60,7 +60,7 @@ class MyLModule(ml.LModule):
         }
         lr_s: LRScheduler = lrs.CosineAnnealingLR(optimizer, **hparams.lrs_hparams)
         lr_s = ml.warmup_decorator(lr_s, hparams.warmup)
-        super().__init__([optimizer], metrics, hparams.__dict__)
+        super().__init__([optimizer], metrics, hparams)
         self.model = model
         self.lr_s = lr_s
         self.loss_fn = nn.CrossEntropyLoss(label_smoothing=0.1)

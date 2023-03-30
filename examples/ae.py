@@ -108,7 +108,7 @@ class AutoEncoder(ml.LModule):
             "loss": MeanMetric(),
         }
         #
-        super().__init__([optimizer], metrics, hparams.__dict__)
+        super().__init__([optimizer], metrics, hparams)
         self.encoder = encoder
         self.decoder = decoder
         self.lr_s = lr_s

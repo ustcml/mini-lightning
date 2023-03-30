@@ -20,17 +20,18 @@ class LModule:
         self,
         optimizers: List[Optimizer],
         metrics: Dict[str, Metric],
-        hparams: Optional[Dict[str, Any]] = None
+        hparams: Any = None
     ) -> None:
         """
         optimizers: Use List, for supporting GAN
         hparams: Hyperparameters to be saved
+            object or Dict[str, Any] or None
         """
         # _models: for trainer_init(device, ddp), _epoch_start(train, eval); print_model_info; save_ckpt
         self._models: List[str] = []
         self.optimizers = optimizers
         self.metrics = metrics
-        self.hparams: Dict[str, Any] = hparams if hparams is not None else {}
+        self.hparams = hparams
         self.trainer: Optional["Trainer"] = None
 
     @property
@@ -516,9 +517,13 @@ class Trainer:
             res = repr(hparams)  # e.g. function
         return res
 
-    def save_hparams(self, hparams: Dict[str, Any]) -> None:
+    def save_hparams(self, hparams: Any) -> None:
         if self.rank not in {-1, 0}:
             return
+        if hparams is None:
+            hparams = {}
+        elif not isinstance(hparams, dict):
+            hparams = hparams.__dict__
         saved_hparams = self._check_hparams(hparams)
         logger.info(f"Saving hparams: {saved_hparams}")
         write_to_yaml(saved_hparams, self.hparams_path)

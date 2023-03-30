@@ -132,7 +132,7 @@ class ProtoNet(ml.LModule):
             "acc":  Accuracy("multiclass", num_classes=proto_dim),
         }
         #
-        super().__init__([optimizer], metrics, hparams.__dict__)
+        super().__init__([optimizer], metrics, hparams)
         self.model = model
         self.lr_s = lr_s
         self.loss_fn = nn.CrossEntropyLoss()

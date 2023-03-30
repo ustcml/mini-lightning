@@ -101,7 +101,7 @@ class GAN(ml.LModule):
         G, D = Generator(**hparams.G_hparams), Discriminator(**hparams.D_hparams)
         opt_G = getattr(optim, hparams.opt_G_name)(G.parameters(), **hparams.opt_G_hparams)
         opt_D = getattr(optim, hparams.opt_D_name)(D.parameters(), **hparams.opt_D_hparams)
-        super().__init__([opt_G, opt_D], {}, hparams.__dict__)
+        super().__init__([opt_G, opt_D], {}, hparams)
         self.G = G
         self.D = D
         self.loss_fn = nn.BCEWithLogitsLoss()

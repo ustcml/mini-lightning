@@ -149,7 +149,7 @@ def get_rand_p(global_step: int, T_max: int, eta_min: float, eta_max: float) -> 
 
 class MyLModule(ml.LModule):
     def __init__(self, memo_pool: MemoryPool, hparams: HParams) -> None:
-
+        self.hparams: HParams
         env = gym.make(hparams.env_name, render_mode=RENDER_MODE)
         #
         in_channels: int = env.observation_space.shape[0]
@@ -158,7 +158,7 @@ class MyLModule(ml.LModule):
         agent = Agent(env, memo_pool, model, ml.select_device(device_ids))
 
         optimizer = getattr(optim, hparams.optim_name)(model.parameters(), **hparams.optim_hparams)
-        super().__init__([optimizer], {}, hparams.__dict__)
+        super().__init__([optimizer], {}, hparams)
         self.model = model
         self.old_model = deepcopy(self.model).requires_grad_(False)
         # New_model and old_model are used for model training.
@@ -169,10 +169,10 @@ class MyLModule(ml.LModule):
         self.agent = agent
         self.get_rand_p = partial(get_rand_p, **hparams.rand_p)
         #
-        self.warmup_memory_steps = self.hparams["warmup_memory_steps"]
+        self.warmup_memory_steps = self.hparams.warmup_memory_steps
         # synchronize the model every sync_steps
-        self.sync_steps = self.hparams["sync_steps"]
-        self.gamma = self.hparams["gamma"]  # reward decay
+        self.sync_steps = self.hparams.sync_steps
+        self.gamma = self.hparams.gamma  # reward decay
 
         #
         self._warmup_memo(self.warmup_memory_steps)
