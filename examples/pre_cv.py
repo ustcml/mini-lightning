@@ -147,7 +147,7 @@ def load_densenet_state_dict(
 
 def NT_Xent_loss(features: Tensor, temperature: float = 0.1) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
     """
-    features: Tensor[float]. [2N, E]
+    features: FloatTensor. [2N, E]
     return: loss: [], pos_idx_mean: [2N], acc: [2N], acc_5: [2N]
     """
     NINF = -torch.inf
@@ -188,3 +188,22 @@ class GatherLayer(Function):
         res = grads[ml.get_dist_setting()[0]]
         res *= dist.get_world_size()  # for same grad with W * batch_size; mean operation in ddp across device.
         return res
+
+
+def pairwise_euclidean_distance(
+    X: Tensor,
+    Y: Tensor,
+    squared: bool = False
+) -> Tensor:
+    """
+    X: shape[N1, F]. FloatTensor
+    Y: shape[N2, F]. FloatTensor
+    return: shape[N1, N2]
+    """
+    XX = torch.einsum("ij,ij->i", X, X)
+    YY = torch.einsum("ij,ij->i", Y, Y)
+    # 
+    res = X @ Y.T
+    res.mul_(-2).add_(XX[:, None]).add_(YY)
+    res.clamp_min_(0.)
+    return res if squared else res.sqrt_()

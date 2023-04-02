@@ -386,7 +386,7 @@ class Trainer:
         #
         self.lmodel = lmodel
         self.device_ids = device_ids
-        # 
+        #
         if deterministic is not None:
             torch.backends.cudnn.deterministic = deterministic
         deterministic = torch.backends.cudnn.deterministic
@@ -397,7 +397,7 @@ class Trainer:
         torch.backends.cudnn.benchmark = benchmark
         logger.info(f"Setting deterministic: {deterministic}")
         logger.info(f"Setting benchmark: {benchmark}")
-        # 
+        #
         self.device = select_device(device_ids)
         if self.rank == -1:
             parallel_mode = "DP" if len(device_ids) > 1 else None
@@ -456,7 +456,7 @@ class Trainer:
         self.model_checkpoint = model_checkpoint if model_checkpoint is not None else ModelCheckpoint()
         if self.rank in {-1, 0}:
             runs_dir = os.path.abspath(runs_dir)
-            self.version =  self._get_version(runs_dir) 
+            self.version = self._get_version(runs_dir)
             if platform.system().lower() == "windows":
                 time = dt.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")  # window not support `:`
                 runs_dir = os.path.join(runs_dir, f"v{self.version}_{time}")
@@ -502,17 +502,18 @@ class Trainer:
             v_list.append(int(v))
         return max(v_list) + 1
 
-    def _check_hparams(self, hparams: Any) -> Any:
+    @classmethod
+    def _check_hparams(cls, hparams: Any) -> Any:
         if hparams is None or isinstance(hparams, (int, float, str, complex)):  # bool is a subclass of int
             return hparams
         if isinstance(hparams, Sequence):
             res = []
             for hp in hparams:
-                res.append(self._check_hparams(hp))
+                res.append(cls._check_hparams(hp))
         elif isinstance(hparams, Mapping):
             res = {}
             for k, v in hparams.items():
-                res[k] = self._check_hparams(v)
+                res[k] = cls._check_hparams(v)
         else:
             res = repr(hparams)  # e.g. function
         return res
@@ -540,7 +541,8 @@ class Trainer:
                 continue
             metrics[k].update(v)
 
-    def _metrics_compute(self, metrics: Dict[str, MeanMetric]) -> Dict[str, float]:
+    @staticmethod
+    def _metrics_compute(metrics: Dict[str, MeanMetric]) -> Dict[str, float]:
         res = {}
         for k in metrics.keys():
             v: Tensor = metrics[k].compute()
@@ -812,7 +814,7 @@ class Trainer:
                 prog_bar_mes = self._get_res_mes(_mean_metrics, _rec_mes, "prog_bar")
                 if self.rank >= 0:
                     prog_bar_mes = self._reduce_mes(prog_bar_mes, device)
-                # 
+                #
                 if self.version is not None:
                     prog_bar_mes["v"] = self.version
                 prog_bar.set_postfix(prog_bar_mes, refresh=False)  # rank > 0 disable.

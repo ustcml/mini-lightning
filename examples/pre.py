@@ -30,7 +30,7 @@ from torchmetrics.classification.f_beta import F1Score, FBetaScore
 from torchmetrics.classification.auroc import AUROC
 from torchmetrics.classification.average_precision import AveragePrecision
 from torchmetrics.functional import (
-    accuracy, auroc, pairwise_cosine_similarity, pairwise_euclidean_distance
+    accuracy, auroc, pairwise_cosine_similarity
 )
 
 #

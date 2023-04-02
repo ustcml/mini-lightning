@@ -181,7 +181,7 @@ class ProtoNet(ml.LModule):
         query_targets: [N]
         return: dist: [N, M], labels: [N]
         """
-        dist = pairwise_euclidean_distance(query_feats, prototypes)  # [N, M]
+        dist = pairwise_euclidean_distance(query_feats, prototypes, True)  # [N, M]
         labels = (query_targets[:, None] == proto_labels[None, :]).float().argmax(dim=1)
         return dist, labels
 
