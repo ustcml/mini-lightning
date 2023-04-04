@@ -24,7 +24,7 @@ class HParams:
         self.z_channels = z_channels
         self.dataloader_hparams = {"batch_size": batch_size, "num_workers": 4}
         self.optim_name = "AdamW"
-        self.optim_hparams = {"lr": 5e-4, "weight_decay": 2e-5}
+        self.optim_hparams = {"lr": 5e-4, "weight_decay": 1e-2}
         self.trainer_hparams = {
             "max_epochs": max_epochs,
             "gradient_clip_norm": 100,

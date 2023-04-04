@@ -47,7 +47,7 @@ class HParams(ml.HParamsBase):
         #
         dataloader_hparams = {"batch_size": batch_size}
         optim_name = "SGD"
-        optim_hparams = {"lr": 1e-2, "weight_decay": 2e-5}
+        optim_hparams = {"lr": 1e-2}
         trainer_hparams = {"max_epochs": max_epochs, "gradient_clip_norm": 20, "verbose": False}
         super().__init__(device_ids, dataloader_hparams, optim_name, optim_hparams, trainer_hparams)
 

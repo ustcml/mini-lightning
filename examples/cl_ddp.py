@@ -26,7 +26,7 @@ class HParams(ml.HParamsBase):
         self.temperature = 0.07
         #
         dataloader_hparams = {"batch_size": batch_size, "num_workers": 16}
-        optim_hparams = {"lr": 5e-4, "weight_decay": 2e-5}
+        optim_hparams = {"lr": 5e-4, "weight_decay": 1e-2}
         optim_name = "AdamW"
         trainer_hparams = {
             "max_epochs": max_epochs,

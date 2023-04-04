@@ -25,7 +25,7 @@ class HParams(ml.HParamsBase):
         #
         dataloader_hparams = {"batch_size": batch_size, "num_workers": 16}
         optim_name = "AdamW"
-        optim_hparams = {"lr": 5e-4, "weight_decay": 2e-5}
+        optim_hparams = {"lr": 5e-4, "weight_decay": 1e-2}
         trainer_hparams = {
             "max_epochs": max_epochs,
             "model_checkpoint": ml.ModelCheckpoint("acc_top5", True),

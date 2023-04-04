@@ -27,7 +27,7 @@ class HParams(ml.HParamsBase):
         #
         dataloader_hparams = {"batch_size": batch_size}
         optim_name = "AdamW"
-        optim_hparams = {"lr": 1e-3, "weight_decay": 2e-5}
+        optim_hparams = {"lr": 1e-3, "weight_decay": 1}
         trainer_hparams = {
             "max_epochs": max_epochs,
             "model_checkpoint": ml.ModelCheckpoint("auc", True, 10),
@@ -129,7 +129,7 @@ class MyLModule(ml.LModule):
         assert loss is not None
         y_pred = y_logits > 0
         acc = accuracy(y_pred, y_label, "binary")
-        auc: Tensor = auroc(y_logits.sigmoid(), y_label, "binary")
+        auc: Tensor = auroc(y_logits.sigmoid(), y_label.long(), "binary")
         self.log("train_loss", loss)
         self.log("train_acc", acc)
         self.log("train_auc", auc)

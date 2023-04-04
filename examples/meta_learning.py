@@ -32,7 +32,7 @@ class HParams(ml.HParamsBase):
             "num_workers": 4
         }
         optim_name = "AdamW"
-        optim_hparams = {"lr": 2e-4, "weight_decay": 2e-5}
+        optim_hparams = {"lr": 2e-4, "weight_decay": 1e-2}
         trainer_hparams = {
             "max_epochs": max_epochs,
             "model_checkpoint": ml.ModelCheckpoint("acc", True),
@@ -190,11 +190,11 @@ class ProtoNet(ml.LModule):
 
     def _calculate_loss_pred_labels(self, batch: Tuple[Tensor, Tensor]) -> Tuple[Tensor, Tensor, Tensor]:
         images, targets = batch
-        feats: Tensor = self.model(images)
+        feats: Tensor = self.model(images)  # [2 * N_WAY*N_SHOT, E]. 2: support, query
         support_feats, query_feats = self._split_support_query(feats)
         support_targets, query_targets = self._split_support_query(targets)
-        prototypes, proto_labels = self._calculate_prototypes(support_feats, support_targets)
-        dist, labels = self._classify_to_prototypes(prototypes, proto_labels, query_feats, query_targets)
+        prototypes, proto_labels = self._calculate_prototypes(support_feats, support_targets)  # [N_WAY, E], [N_WAY]
+        dist, labels = self._classify_to_prototypes(prototypes, proto_labels, query_feats, query_targets)  # [N_WAY*N_SHOT, N_WAY], [N_WAY*N_SHOT]
         loss = self._calculate_loss(dist, labels)
         y_pred = dist.argmin(dim=1)
         return loss, y_pred, labels

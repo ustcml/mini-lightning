@@ -23,8 +23,8 @@ class HParams(ml.HParamsBase):
         self.num_classes = 10
         #
         dataloader_hparams = {"batch_size": batch_size, "num_workers": 4}
-        optim_hparams = {"lr": 1e-2, "weight_decay": 2e-5, "momentum": 0.9}
-        optim_name = "SGD"
+        optim_hparams = {"lr": 1e-4, "weight_decay": 1e-1}
+        optim_name = "AdamW"
         trainer_hparams = {
             "max_epochs": max_epochs,
             "model_checkpoint": ml.ModelCheckpoint("acc", True),
@@ -38,7 +38,7 @@ class HParams(ml.HParamsBase):
         warmup = 100  # 100 optim step
         lrs_hparams = {
             "T_max": ...,
-            "eta_min": 4e-3
+            "eta_min": 4e-5
         }
         super().__init__(device_ids, dataloader_hparams, optim_name, optim_hparams, trainer_hparams, warmup, lrs_hparams)
 

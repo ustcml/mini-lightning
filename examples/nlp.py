@@ -28,7 +28,7 @@ class HParams(ml.HParamsBase):
         #
         dataloader_hparams = {"batch_size": batch_size, "num_workers": 4, "collate_fn": collate_fn}
         optim_name = "AdamW"
-        optim_hparams = {"lr": 1e-5, "weight_decay": 2e-5}
+        optim_hparams = {"lr": 1e-4, "weight_decay": 1}
         trainer_hparams = {
             "max_epochs": max_epochs,
             "model_checkpoint": ml.ModelCheckpoint("auc", True),
@@ -63,7 +63,7 @@ class MyLModule(ml.LModule):
         super().__init__([optimizer], metrics, hparams)
         self.model = model
         self.lr_s = lr_s
-        self.loss_fn = nn.CrossEntropyLoss(label_smoothing=0.1)
+        self.loss_fn = nn.CrossEntropyLoss()
 
     def optimizer_step(self, opt_idx: int) -> None:
         super().optimizer_step(opt_idx)

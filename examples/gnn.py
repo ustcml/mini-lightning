@@ -34,7 +34,7 @@ class HParams(ml.HParamsBase):
         #
         dataloader_hparams = {"batch_size": batch_size}
         optim_name = "SGD"
-        optim_hparams = {"lr": 1e-1, "weight_decay": 2e-5, "momentum": 0.9}
+        optim_hparams = {"lr": 1e-1, "weight_decay": 1e-4, "momentum": 0.9}
         trainer_hparams = {
             "max_epochs": max_epochs,
             "model_checkpoint": ml.ModelCheckpoint("acc", True, 10),

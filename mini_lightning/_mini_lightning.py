@@ -480,7 +480,7 @@ class Trainer:
         #
         self.resume_from_ckpt = resume_from_ckpt
         if resume_from_ckpt is not None:
-            self._load_ckpt(resume_from_ckpt)
+            self._load_ckpt(resume_from_ckpt, False)
             logger.info(f"Using ckpt: {resume_from_ckpt}")
         lmodel.trainer_init(self)
         for s in lmodel._models:
@@ -626,10 +626,13 @@ class Trainer:
         optimizers = lmodel.optimizers if mc.saving_optimizers else []
         save_ckpt(fpath, model_list, optimizers, **kwargs)
 
-    def _load_ckpt(self, fpath: str) -> None:
+    def _load_ckpt(self, fpath: str, load_mes: bool = False) -> None:
         map_location = self.device
-        models_state_dict, _,  _ = load_ckpt(fpath, map_location)
+        models_state_dict, _,  mes = load_ckpt(fpath, map_location)
         lmodel = self.lmodel
+        if load_mes:
+            self.global_step = mes["global_step"]
+            self.global_epoch = mes["global_epoch"]
         #
         for k, state_dict in models_state_dict.items():
             model: Module = getattr(lmodel, k)
@@ -953,7 +956,7 @@ class Trainer:
         #
         if model_type == "best":
             assert self.best_ckpt_path is not None
-            self._load_ckpt(self.best_ckpt_path)
+            self._load_ckpt(self.best_ckpt_path, True)
             title = f"Test Best(Epoch={self.global_epoch})"
         else:
             title = f"Test Last(Epoch={self.global_epoch})"
@@ -965,7 +968,7 @@ class Trainer:
         #
         if model_type == "best":
             assert self.last_ckpt_path is not None
-            self._load_ckpt(self.last_ckpt_path)
+            self._load_ckpt(self.last_ckpt_path, True)
 
     def _best_ckpt_is_last(self) -> bool:
         if self.best_ckpt_path is None or self.last_ckpt_path is None:
