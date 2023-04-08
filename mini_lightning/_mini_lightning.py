@@ -480,7 +480,7 @@ class Trainer:
         #
         self.resume_from_ckpt = resume_from_ckpt
         if resume_from_ckpt is not None:
-            self._load_ckpt(resume_from_ckpt, False)
+            self._load_ckpt(resume_from_ckpt, False, False)
             logger.info(f"Using ckpt: {resume_from_ckpt}")
         lmodel.trainer_init(self)
         for s in lmodel._models:
@@ -626,7 +626,7 @@ class Trainer:
         optimizers = lmodel.optimizers if mc.saving_optimizers else []
         save_ckpt(fpath, model_list, optimizers, **kwargs)
 
-    def _load_ckpt(self, fpath: str, load_mes: bool = False) -> None:
+    def _load_ckpt(self, fpath: str, load_mes: bool = False, strict: bool = True) -> None:
         map_location = self.device
         models_state_dict, _,  mes = load_ckpt(fpath, map_location)
         lmodel = self.lmodel
@@ -636,7 +636,9 @@ class Trainer:
         #
         for k, state_dict in models_state_dict.items():
             model: Module = getattr(lmodel, k)
-            model.load_state_dict(state_dict)
+            load_sd_mes = model.load_state_dict(state_dict, strict=strict)
+            if strict is False:
+                logger.info(load_sd_mes)
 
     def _model_saving(self, core_metric: Optional[float]) -> None:
         if self.rank not in {-1, 0}:
@@ -956,7 +958,7 @@ class Trainer:
         #
         if model_type == "best":
             assert self.best_ckpt_path is not None
-            self._load_ckpt(self.best_ckpt_path, True)
+            self._load_ckpt(self.best_ckpt_path, True, True)
             title = f"Test Best(Epoch={self.global_epoch})"
         else:
             title = f"Test Last(Epoch={self.global_epoch})"
@@ -968,7 +970,7 @@ class Trainer:
         #
         if model_type == "best":
             assert self.last_ckpt_path is not None
-            self._load_ckpt(self.last_ckpt_path, True)
+            self._load_ckpt(self.last_ckpt_path, True, True)
 
     def _best_ckpt_is_last(self) -> bool:
         if self.best_ckpt_path is None or self.last_ckpt_path is None:
