@@ -600,7 +600,7 @@ class Trainer:
         write_to_csv(res, self.result_csv_path, mode="w")
 
     @staticmethod
-    def _better_equal(metric: float, old_metric: Optional[float], higher_is_better: bool) -> bool:
+    def _is_better_than(metric: float, old_metric: Optional[float], higher_is_better: bool) -> bool:
         if old_metric is None:
             return True
         if higher_is_better:
@@ -654,7 +654,7 @@ class Trainer:
             assert mc.higher_is_better is not None
             tag = "+" if mc.higher_is_better else "-"
             metric_str = f"-{mc.core_metric_name}[{tag}]={core_metric:.6f}"
-            if self._better_equal(core_metric, self.best_metric, mc.higher_is_better):
+            if self._is_better_than(core_metric, self.best_metric, mc.higher_is_better):
                 self._remove_ckpt("best")
                 self.best_metric = core_metric
                 ckpt_fname = f"best-{mc.val_mode}={val_mode_val}{metric_str}.ckpt"
@@ -683,9 +683,12 @@ class Trainer:
         # prog_bar
         prog_bar_res = {}
         for k in res.keys():
-            if not self.verbose and (k in {"global_step"} or k.startswith("lr") or k.startswith("grad_norm")):
+            if not self.verbose and (k == "global_step" or k.startswith("lr") or k.startswith("grad_norm")):
                 continue
-            prog_bar_res[k] = res[k]
+            v = res[k]
+            if k == "global_step":
+                v = str(v)
+            prog_bar_res[k] = v
         return prog_bar_res
 
     def _reduce_mes(self, mes: Dict[str, float], device: Device) -> Dict[str, float]:
@@ -999,7 +1002,7 @@ class Trainer:
         train_mes = {}
         for _ in range(self.global_epoch + 1, self.max_epochs):
             self.global_epoch += 1
-            train_mes = self._train_epoch(train_dataloader, val_dataloader, )
+            train_mes = self._train_epoch(train_dataloader, val_dataloader)
             if mc.val_mode == "epoch" and (self.global_epoch + 1) % mc.val_every_n == 0:
                 self._val_and_save_after_train(val_dataloader, train_mes)
         if self._last_val:
