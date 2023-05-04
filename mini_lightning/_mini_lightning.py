@@ -565,8 +565,10 @@ class Trainer:
         if self.rank not in {-1, 0}:
             return
         mc = self.model_checkpoint
-        val_mode_val = self.global_epoch  # validation_mode_value
-        if mc.val_mode == "step":
+        
+        if mc.val_mode == "epoch":
+            val_mode_val = self.global_epoch  # validation_mode_value
+        else:
             val_mode_val = self.global_step
         #
         mode = mes["mode"]
@@ -646,8 +648,9 @@ class Trainer:
         #
         metric_str = ""
         mc = self.model_checkpoint
-        val_mode_val = self.global_epoch
-        if mc.val_mode == "step":
+        if mc.val_mode == "epoch":
+            val_mode_val = self.global_epoch
+        else:
             val_mode_val = self.global_step
         #
         if core_metric is not None:
@@ -860,6 +863,7 @@ class Trainer:
         #
         lmodel = self.lmodel
         device = self.device
+        mc = self.model_checkpoint
         #
         model_r = {}
         for s in lmodel._models:
@@ -919,13 +923,17 @@ class Trainer:
         with torch.no_grad():
             metrics = val_test_epoch_end()
         res_mes.update(metrics)
-        self._tb_logger_add_scalars(res_mes, self.global_epoch)
+        if mc.val_mode == "epoch":
+            step = self.global_epoch
+        else:
+            step = self.global_step
+        self._tb_logger_add_scalars(res_mes, step)
         #
         core_metric = None
         if len(metrics) > 0:
             logger.info(self._get_epoch_end_string(metrics))
             if stage == "val":
-                core_metric_name = "val_" + self.model_checkpoint.core_metric_name
+                core_metric_name = "val_" + mc.core_metric_name
                 core_metric = metrics[core_metric_name]
         # recover
         for s, model in model_r.items():

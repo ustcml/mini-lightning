@@ -29,9 +29,9 @@ def _get_logger() -> logging.Logger:
     level = logging.INFO
     name = "mini-lightning"
     #
-    logger = logging.getLogger(name)
+    logger: Logger = logging.getLogger(name)
     logger.setLevel(level)
-    handler = logging.StreamHandler()
+    handler: Handler = logging.StreamHandler()
     handler.setFormatter(logging.Formatter(f"[%(levelname)s: {name}] %(message)s"))
     handler.setLevel(level)
     logger.addHandler(handler)
@@ -330,7 +330,7 @@ class ModelCheckpoint:
         self.core_metric_name = core_metric_name
         self.higher_is_better = higher_is_better
         self.val_every_n = val_every_n
-        self.val_mode = val_mode
+        self.val_mode: Literal["epoch", "step"] = val_mode
         self.write_result_csv = write_result_csv
         self.saving_optimizers = saving_optimizers
 

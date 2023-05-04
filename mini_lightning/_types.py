@@ -4,6 +4,7 @@ import math
 import datetime as dt
 import platform 
 import logging
+from logging import Logger, Handler
 import random
 import csv
 import time
