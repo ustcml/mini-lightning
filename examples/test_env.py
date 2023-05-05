@@ -57,20 +57,8 @@ class MyLModule(ml.LModule):
         self.ckpt_path = ckpt_path
 
     def trainer_init(self, trainer: "ml.Trainer") -> None:
-        optimizers = trainer.lmodel.optimizers
-        device = trainer.device
         #
-        if self.ckpt_path is not None:
-            # resume from ckpt(model and optimizer)
-            models_state_dict, optimizers_state_dict, mes = ml.load_ckpt(self.ckpt_path, Device(0))
-            model.to(device)
-            model.load_state_dict(models_state_dict["model"])
-            logger.info(f"mes: {mes}")
-            trainer.global_epoch = mes["global_epoch"]
-            if len(optimizers) > 0:
-                optimizer.load_state_dict(optimizers_state_dict[0])
-        #
-        if len(optimizers) > 0:
+        if len(trainer.lmodel.optimizers) > 0:
             lr_s = MultiStepLR(optimizer, [10, 50], 0.1, last_epoch=trainer.global_epoch)
             self.lr_s = ml.warmup_decorator(lr_s, 5)
         super().trainer_init(trainer)
@@ -126,7 +114,7 @@ if __name__ == "__main__":
     ldm = ml.LDataModule(train_dataset, val_dataset, test_dataset, 64)
     lmodel = MyLModule(model, [optimizer], ckpt_path)
     trainer = ml.Trainer(lmodel, [0], 100, RUNS_DIR, ml.ModelCheckpoint(
-        "loss", False, 10), gradient_clip_norm=10, verbose=True)
+        "loss", False, 10, load_optimizers=True, load_message=True), gradient_clip_norm=10, verbose=True, resume_from_ckpt=ckpt_path)
     trainer.test(ldm.val_dataloader, True, True)
     trainer.fit(ldm.train_dataloader, ldm.val_dataloader)
     trainer.test(ldm.test_dataloader, True, True)

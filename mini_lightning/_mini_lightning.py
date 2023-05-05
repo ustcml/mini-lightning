@@ -47,6 +47,11 @@ class LModule:
         return self.trainer.global_epoch
 
     @property
+    def global_optimizer_step(self) -> int:
+        assert self.trainer is not None
+        return self.trainer.global_optimizer_step
+
+    @property
     def device(self) -> Optional[Device]:
         assert self.trainer is not None
         return self.trainer.device
@@ -80,6 +85,10 @@ class LModule:
             model.to(device)
             model = en_parallel(model, trainer.parallel_mode, trainer.sync_bn)
             setattr(self, s, model)
+        # 
+        for o in self.optimizers:
+            o.load_state_dict(o.state_dict())  # to device
+        # 
         for metric in self.metrics.values():
             metric.to(device)
 
@@ -101,6 +110,8 @@ class LModule:
             res = []
             for b in batch:
                 res.append(cls.batch_to_device(b, device))
+        elif isinstance(batch, (int, float)):
+            res = batch
         else:
             raise TypeError(f"batch: {batch}, {type(batch)}")
         return res
@@ -437,6 +448,7 @@ class Trainer:
         self.best_ckpt_path: Optional[str] = None
         self.last_ckpt_path: Optional[str] = None
         self.global_step = 0
+        self.global_optimizer_step = 0
         self.global_epoch = -1
         # for log
         self._new_mes: Dict[str, float] = {}
@@ -480,7 +492,8 @@ class Trainer:
         #
         self.resume_from_ckpt = resume_from_ckpt
         if resume_from_ckpt is not None:
-            self._load_ckpt(resume_from_ckpt, False, False)
+            mc = self.model_checkpoint
+            self._load_ckpt(resume_from_ckpt, mc.load_optimizers, mc.load_message, False)
             logger.info(f"Using ckpt: {resume_from_ckpt}")
         lmodel.trainer_init(self)
         for s in lmodel._models:
@@ -618,6 +631,7 @@ class Trainer:
         kwargs: Dict[str, Any] = {
             "global_step": self.global_step,
             "global_epoch": self.global_epoch,
+            "global_optimizer_step": self.global_optimizer_step,
             "core_metric": {
                 "name": mc.core_metric_name,
                 "higher_is_better": mc.higher_is_better,
@@ -628,13 +642,17 @@ class Trainer:
         optimizers = lmodel.optimizers if mc.saving_optimizers else []
         save_ckpt(fpath, model_list, optimizers, **kwargs)
 
-    def _load_ckpt(self, fpath: str, load_mes: bool = False, strict: bool = True) -> None:
+    def _load_ckpt(self, fpath: str, load_optimizers: bool = False, load_mes: bool = False, strict: bool = True) -> None:
         map_location = self.device
-        models_state_dict, _,  mes = load_ckpt(fpath, map_location)
+        models_state_dict, optimizers_state_dict,  mes = load_ckpt(fpath, map_location)
         lmodel = self.lmodel
+        if load_optimizers:
+            for optimizer, o_sd in zip(self.lmodel.optimizers,optimizers_state_dict):
+                optimizer.load_state_dict(o_sd)
         if load_mes:
             self.global_step = mes["global_step"]
             self.global_epoch = mes["global_epoch"]
+            self.global_optimizer_step = mes.get("global_optimizer_step", 0)
         #
         for k, state_dict in models_state_dict.items():
             model: Module = getattr(lmodel, k)
@@ -731,6 +749,7 @@ class Trainer:
     def _optimize_step(self) -> None:
         lmodel = self.lmodel
         scaler = self.scaler
+        self.global_optimizer_step += 1
         for opt_idx, opt in enumerate(lmodel.optimizers):
             if self.gradient_clip_norm is not None:
                 scaler.unscale_(opt)
@@ -944,7 +963,8 @@ class Trainer:
         #
         if self.rank == 0:
             dist.barrier()
-        res_mes.update({"global_epoch": self.global_epoch, "global_step": self.global_step})
+        res_mes.update({"global_epoch": self.global_epoch, "global_step": self.global_step, 
+                        "global_optimizer_step": self.global_optimizer_step})
         return core_metric, res_mes
 
     def _val_and_save_after_train(self, val_dataloader: Optional[DataLoader], train_mes: Dict[str, float]) -> None:
@@ -969,7 +989,7 @@ class Trainer:
         #
         if model_type == "best":
             assert self.best_ckpt_path is not None
-            self._load_ckpt(self.best_ckpt_path, True, True)
+            self._load_ckpt(self.best_ckpt_path, False, True, True)
             title = f"Test Best(Epoch={self.global_epoch})"
         else:
             title = f"Test Last(Epoch={self.global_epoch})"
@@ -981,7 +1001,7 @@ class Trainer:
         #
         if model_type == "best":
             assert self.last_ckpt_path is not None
-            self._load_ckpt(self.last_ckpt_path, True, True)
+            self._load_ckpt(self.last_ckpt_path, False, True, True)
 
     def _best_ckpt_is_last(self) -> bool:
         if self.best_ckpt_path is None or self.last_ckpt_path is None:

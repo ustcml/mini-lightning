@@ -323,16 +323,20 @@ class ModelCheckpoint:
         val_every_n: int = 1,  # val_every_n_epoch or val_every_n_steps
         val_mode: Literal["epoch", "step"] = "epoch",
         #
+        saving_optimizers: bool = False,  # state_dict
+        load_optimizers: bool = False,
+        load_message: bool = False,  # global_step, global_epoch...
         write_result_csv: bool = True,
-        saving_optimizers: bool = False,
     ) -> None:
         #
         self.core_metric_name = core_metric_name
         self.higher_is_better = higher_is_better
         self.val_every_n = val_every_n
         self.val_mode: Literal["epoch", "step"] = val_mode
-        self.write_result_csv = write_result_csv
         self.saving_optimizers = saving_optimizers
+        self.load_optimizers = load_optimizers
+        self.load_message = load_message
+        self.write_result_csv = write_result_csv
 
     def __repr__(self) -> str:
         attr_str = ", ".join([f"{k}={v!r}" for k, v in self.__dict__.items()])
