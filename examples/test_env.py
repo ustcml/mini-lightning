@@ -114,7 +114,8 @@ if __name__ == "__main__":
     ldm = ml.LDataModule(train_dataset, val_dataset, test_dataset, 64)
     lmodel = MyLModule(model, [optimizer], ckpt_path)
     trainer = ml.Trainer(lmodel, [0], 100, RUNS_DIR, ml.ModelCheckpoint(
-        "loss", False, 10, load_optimizers=True, load_message=True), gradient_clip_norm=10, verbose=True, resume_from_ckpt=ckpt_path)
+        "loss", False, 10), gradient_clip_norm=10, verbose=True, 
+        resume_from_ckpt=ml.ResumeFromCkpt(ckpt_path, True, True))
     trainer.test(ldm.val_dataloader, True, True)
     trainer.fit(ldm.train_dataloader, ldm.val_dataloader)
     trainer.test(ldm.test_dataloader, True, True)

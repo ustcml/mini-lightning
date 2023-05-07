@@ -12,7 +12,7 @@ __all__ = [
     "test_time", "seed_everything", "time_synchronize",
     "print_model_info", "write_to_yaml", "read_from_yaml", "write_to_csv",
     "get_date_now", "load_ckpt", "save_ckpt",
-    "ModelCheckpoint", "HParamsBase", "parse_device_ids"
+    "ModelCheckpoint", "ResumeFromCkpt", "HParamsBase", "parse_device_ids"
 ]
 #
 
@@ -324,8 +324,7 @@ class ModelCheckpoint:
         val_mode: Literal["epoch", "step"] = "epoch",
         #
         saving_optimizers: bool = False,  # state_dict
-        load_optimizers: bool = False,
-        load_message: bool = False,  # global_step, global_epoch...
+
         write_result_csv: bool = True,
     ) -> None:
         #
@@ -334,9 +333,23 @@ class ModelCheckpoint:
         self.val_every_n = val_every_n
         self.val_mode: Literal["epoch", "step"] = val_mode
         self.saving_optimizers = saving_optimizers
+        self.write_result_csv = write_result_csv
+
+    def __repr__(self) -> str:
+        attr_str = ", ".join([f"{k}={v!r}" for k, v in self.__dict__.items()])
+        return f"{self.__class__.__name__}({attr_str})"
+
+
+class ResumeFromCkpt:
+    def __init__(
+        self,
+        ckpt_path: str,   # e.g. `trainer.last_ckpt_path`, `*.ckpt`
+        load_optimizers: bool = False,
+        load_message: bool = False,  # global_step, global_epoch...
+    ) -> None:
+        self.ckpt_path = ckpt_path
         self.load_optimizers = load_optimizers
         self.load_message = load_message
-        self.write_result_csv = write_result_csv
 
     def __repr__(self) -> str:
         attr_str = ", ".join([f"{k}={v!r}" for k, v in self.__dict__.items()])

@@ -6,7 +6,7 @@ from ._types import *
 from ._utils import (
     en_parallel, de_parallel, get_dist_setting, select_device,
     logger, write_to_yaml, write_to_csv, read_from_yaml,
-    print_model_info, load_ckpt, save_ckpt, ModelCheckpoint
+    print_model_info, load_ckpt, save_ckpt, ModelCheckpoint, ResumeFromCkpt
 )
 
 
@@ -326,7 +326,7 @@ class Trainer:
         gradient_clip_norm: Optional[float] = None,
         sync_bn: bool = False,
         replace_sampler_ddp: bool = True,
-        resume_from_ckpt: Optional[str] = None,
+        resume_from_ckpt: Union[str, ResumeFromCkpt, None] = None,
         #
         tb_every_n_steps: int = 10,
         prog_bar_n_steps: int = 1,
@@ -492,9 +492,17 @@ class Trainer:
         #
         self.resume_from_ckpt = resume_from_ckpt
         if resume_from_ckpt is not None:
-            mc = self.model_checkpoint
-            self._load_ckpt(resume_from_ckpt, mc.load_optimizers, mc.load_message, False)
-            logger.info(f"Using ckpt: {resume_from_ckpt}")
+            rfc = resume_from_ckpt
+            if isinstance(rfc, str):
+                self._load_ckpt(rfc, False, False, False)
+                logger.info(f"Using ckpt: {rfc}")
+            elif isinstance(rfc, ResumeFromCkpt):
+                if rfc.ckpt_path is not None:
+                    self._load_ckpt(rfc.ckpt_path, rfc.load_optimizers, rfc.load_message, False)
+                    logger.info(f"Using ckpt: {rfc.ckpt_path}, resume_from_ckpt: {rfc}")
+            else:
+                raise ValueError(f"resume_from_ckpt: {rfc}")
+            
         lmodel.trainer_init(self)
         for s in lmodel._models:
             model: Module = getattr(lmodel, s)
