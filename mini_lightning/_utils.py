@@ -12,7 +12,7 @@ __all__ = [
     "test_time", "seed_everything", "time_synchronize",
     "print_model_info", "write_to_yaml", "read_from_yaml", "write_to_csv",
     "get_date_now", "load_ckpt", "save_ckpt",
-    "ModelCheckpoint", "ResumeFromCkpt", "HParamsBase", "parse_device_ids"
+    "ModelCheckpoint", "ResumeFromCkpt", "parse_device_ids"
 ]
 #
 
@@ -156,14 +156,15 @@ def freeze_layers(model: Module, layer_prefix_names: List[str], verbose: bool = 
         p.requires_grad_(requires_grad)
 
 
-def stat_array(x: ndarray) -> Tuple[Tuple[float, float, float, float], str]:
-    """statistics. return: (mean, std, max_, min_), stat_str"""
+def stat_array(x: ndarray) -> Tuple[Tuple[float, float, float, float, int], str]:
+    """statistics. return: (mean, std, min_, max_, _len), stat_str"""
     mean = x.mean().item()
     std = x.std().item()
-    max_ = x.max().item()
     min_ = x.min().item()
-    stat_str = f"{mean:.6f}±{std:.6f}, max={max_:.6f}, min={min_:.6f}"
-    return (mean, std, max_, min_), stat_str
+    max_ = x.max().item()
+    len_ = sum(x.shape)
+    stat_str = f"{mean:.6f}±{std:.6f}, min={min_:.6f}, max={max_:.6f}, len={len_}"
+    return (mean, std, min_, max_, len_), stat_str
 
 
 _T = TypeVar("_T")
@@ -354,21 +355,6 @@ class ResumeFromCkpt:
     def __repr__(self) -> str:
         attr_str = ", ".join([f"{k}={v!r}" for k, v in self.__dict__.items()])
         return f"{self.__class__.__name__}({attr_str})"
-
-
-class HParamsBase:
-    def __init__(self, device_ids: List[int], dataloader_hparams: Dict[str, Any],
-                 optim_name: str, optim_hparams: Dict[str, Any], trainer_hparams: Dict[str, Any],
-                 warmup: Optional[int] = None, lrs_hparams: Optional[Dict[str, Any]] = None) -> None:
-        self.device_ids = device_ids
-        self.dataloader_hparams = dataloader_hparams
-        self.optim_name = optim_name
-        self.optim_hparams = optim_hparams
-        self.trainer_hparams = trainer_hparams
-        if warmup is not None:
-            self.warmup = warmup
-        if lrs_hparams is not None:
-            self.lrs_hparams = lrs_hparams
 
 
 def parse_device_ids() -> List[int]:
