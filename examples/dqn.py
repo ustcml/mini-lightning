@@ -30,7 +30,7 @@ batch_size = 32
 max_epochs = 20
 
 
-class HParams(ml.HParamsBase):
+class HParams(HParamsBase):
     def __init__(self) -> None:
         self.memo_capacity = 1000
         self.dataset_len = 5000

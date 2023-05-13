@@ -23,7 +23,7 @@ batch_size = 256
 hidden_channels = 256
 
 
-class HParams(ml.HParamsBase):
+class HParams(HParamsBase):
     def __init__(self, in_channels: int, out_channels: int) -> None:
         self.model_hparams = {
             "in_channels": in_channels,

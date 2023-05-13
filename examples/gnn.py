@@ -22,7 +22,7 @@ batch_size = 1
 hidden_channels = 16
 
 
-class HParams(ml.HParamsBase):
+class HParams(HParamsBase):
     def __init__(self, in_channels: int, out_channels: int) -> None:
         self.model_name: Literal["gnn", "mlp"] = "gnn"
         self.model_hparams = {

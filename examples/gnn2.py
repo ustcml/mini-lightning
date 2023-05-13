@@ -19,7 +19,7 @@ hidden_channels = 128
 out_channels = 64
 
 
-class HParams(ml.HParamsBase):
+class HParams(HParamsBase):
     def __init__(self, in_channels: int) -> None:
         self.in_channels = in_channels
         self.hidden_channels = hidden_channels

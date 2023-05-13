@@ -22,7 +22,7 @@ n_accumulate_grad = 4
 model_name = "roberta-base"
 
 
-class HParams(ml.HParamsBase):
+class HParams(HParamsBase):
     def __init__(self, collate_fn: Callable[[List[Any]], Any]) -> None:
         self.model_name = model_name
         #

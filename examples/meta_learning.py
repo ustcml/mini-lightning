@@ -19,7 +19,7 @@ n_way, n_shot = 5, 4
 batch_size = n_way * n_shot * 2  # support set, query set
 
 
-class HParams(ml.HParamsBase):
+class HParams(HParamsBase):
     def __init__(self) -> None:
         self.n_way = n_way
         self.n_shot = n_shot

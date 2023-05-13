@@ -16,7 +16,7 @@ batch_size = 128
 n_accumulate_grad = {0: 1, 5: 2, 10: 4}
 
 
-class HParams(ml.HParamsBase):
+class HParams(HParamsBase):
     def __init__(self, device_ids: List[int]) -> None:
         self.model_name = "resnet50"
         self.num_classes = 10

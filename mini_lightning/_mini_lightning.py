@@ -10,7 +10,8 @@ from ._utils import (
 )
 
 
-# Note: global_epoch, batch_idx starts for 0. global_step starts from 1.
+# Note: global_epoch, batch_idx start from 0. 
+#   global_step starts from 1.
 __all__ = ["LModule", "LDataModule", "Trainer"]
 #
 
@@ -714,10 +715,7 @@ class Trainer:
         for k in res.keys():
             if not self.verbose and (k == "global_step" or k.startswith("lr") or k.startswith("grad_norm")):
                 continue
-            v = res[k]
-            if k == "global_step":
-                v = str(v)
-            prog_bar_res[k] = v
+            prog_bar_res[k] = res[k]
         return prog_bar_res
 
     def _reduce_mes(self, mes: Dict[str, float], device: Device) -> Dict[str, float]:
@@ -855,6 +853,7 @@ class Trainer:
                 #
                 if self.version is not None:
                     prog_bar_mes["v"] = self.version
+                prog_bar_mes["global_step"] = str(prog_bar_mes["global_step"])
                 prog_bar.set_postfix(prog_bar_mes, refresh=False)  # rank > 0 disable.
                 prog_bar.update(self.prog_bar_n_steps)
             # tensorboard

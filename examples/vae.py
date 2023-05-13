@@ -22,7 +22,7 @@ z_channels = 128
 alpha = 0.005
 
 
-class HParams(ml.HParamsBase):
+class HParams(HParamsBase):
     def __init__(self) -> None:
         self.z_channels = z_channels
         self.alpha = alpha

@@ -17,7 +17,7 @@ n_accumulate_grad = 4
 out_channels = 128  # channels of representation
 
 
-class HParams(ml.HParamsBase):
+class HParams(HParamsBase):
     def __init__(self) -> None:
         self.model_name = "resnet18"
         self.out_channels = out_channels
