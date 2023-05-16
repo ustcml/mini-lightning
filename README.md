@@ -43,9 +43,11 @@ python examples/cv.py
 # Using DP (not recommended, please use DDP)
 python examples/cv.py  # setting device_ids=[0, 1]
 
-### nlp.py
+### nlp_bert_seq_cls.py; nlp_bert_mlm.py; nlp_gpt.py
 pip install "transformers>=4.25" "datasets>=2.7"
-python examples/nlp.py
+python examples/nlp_bert_seq_cls.py
+python examples/nlp_bert_mlm.py
+python examples/nlp_gpt.py
 
 ### dqn.py
 pip install "gym>=0.26.2" "pygame>=2.1.2"
@@ -62,12 +64,12 @@ python examples/cl.py
 ### cl_ddp.py
 torchrun --nproc_per_node 2 examples/cl_ddp.py --device_ids 0 1
 
-### gnn.py gnn2.py
+### gnn_node.py; gnn_edge.py; gnn_graph.py
 # download torch_geometric
 #   Ref: https://pytorch-geometric.readthedocs.io/en/latest/notes/installation.html
-python examples/gnn.py
-python examples/gnn2.py
-python examples/gnn3.py
+python examples/gnn_node.py
+python examples/gnn_edge.py
+python examples/gnn_graph.py
 
 ### ae.py
 pip install "torchvision>=0.13" "scikit-learn>=1.2"
