@@ -45,9 +45,10 @@ python examples/cv.py  # setting device_ids=[0, 1]
 
 ### nlp_bert_seq_cls.py; nlp_bert_mlm.py; nlp_gpt.py
 pip install "transformers>=4.25" "datasets>=2.7"
-python examples/nlp_bert_seq_cls.py
 python examples/nlp_bert_mlm.py
-python examples/nlp_gpt.py
+python examples/nlp_bert_seq_cls.py
+python examples/nlp_gpt_lm.py
+python examples/nlp_gpt_seq_cls.py
 
 ### dqn.py
 pip install "gym>=0.26.2" "pygame>=2.1.2"
