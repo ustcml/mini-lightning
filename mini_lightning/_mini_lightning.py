@@ -470,12 +470,8 @@ class Trainer:
         if self.rank in {-1, 0}:
             runs_dir = os.path.abspath(runs_dir)
             self.version = self._get_version(runs_dir)
-            if platform.system().lower() == "windows":
-                time = dt.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")  # window not support `:`
-                runs_dir = os.path.join(runs_dir, f"v{self.version}_{time}")
-            else:  # "linux"
-                time = dt.datetime.now().strftime("%Y:%m:%d-%H:%M:%S")
-                runs_dir = os.path.join(runs_dir, f"v{self.version}-{time}")
+            time = dt.datetime.now().strftime("%Y%m%d-%H%M%S.%f")  # window not support `:`
+            runs_dir = os.path.join(runs_dir, f"v{self.version}-{time}")
             logger.info(f"runs_dir: {runs_dir}")
             #
             self.runs_dir = runs_dir
@@ -982,7 +978,8 @@ class Trainer:
         val_mes.update(train_mes)
         # save model and result
         # if core_metric=None, then only save the last model.
-        self._model_saving(core_metric)
+        if self.model_checkpoint.saving_ckpt:
+            self._model_saving(core_metric)
         val_mes["mode"] = "val"
         self._result_saving(val_mes)
         self._rec_mes_train.clear()
