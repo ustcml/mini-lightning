@@ -324,7 +324,8 @@ class ModelCheckpoint:
         val_every_n: int = 1,  # val_every_n_epoch or val_every_n_steps
         val_mode: Literal["epoch", "step"] = "epoch",
         #
-        saving_ckpt: bool = True, 
+        saving_best_model: bool = True, 
+        saving_last_model: bool = True,
         saving_optimizers: bool = False,  # state_dict
         write_result_csv: bool = True,
     ) -> None:
@@ -333,11 +334,13 @@ class ModelCheckpoint:
         self.higher_is_better = higher_is_better
         self.val_every_n = val_every_n
         self.val_mode: Literal["epoch", "step"] = val_mode
-        self.saving_ckpt = saving_ckpt
-        if not self.saving_ckpt:
+        # 
+        self.saving_best_model = saving_best_model
+        self.saving_last_model = saving_last_model
+        if not self.saving_best_model and not self.saving_last_model:
             if saving_optimizers:
+                saving_optimizers = False
                 logger.warning(f"Setting saving_optimizers: {saving_optimizers}")
-                self.saving_optimizers = False
         self.saving_optimizers = saving_optimizers
         self.write_result_csv = write_result_csv
 

@@ -144,7 +144,7 @@ class LModule:
         self._epoch_start("val_test")
 
     def test_epoch_start(self) -> None:
-        self._epoch_start("val_test")
+        self.validation_epoch_start()
 
     #
     def toggle_optimizer(self, opt_idx: int) -> None:
@@ -676,7 +676,7 @@ class Trainer:
         else:
             val_mode_val = self.global_step
         #
-        if core_metric is not None:
+        if mc.saving_best_model and core_metric is not None:
             assert mc.higher_is_better is not None
             tag = "+" if mc.higher_is_better else "-"
             metric_str = f"-{mc.core_metric_name}[{tag}]={core_metric:.6f}"
@@ -688,10 +688,11 @@ class Trainer:
                 self._save_ckpt(self.best_ckpt_path)
                 logger.info((f"Best model, saving model `{ckpt_fname}`"))
         #
-        self._remove_ckpt("last")
-        ckpt_fname = f"last-{mc.val_mode}={val_mode_val}{metric_str}.ckpt"
-        self.last_ckpt_path = os.path.join(self.ckpt_dir, ckpt_fname)
-        self._save_ckpt(self.last_ckpt_path)
+        if mc.saving_last_model:
+            self._remove_ckpt("last")
+            ckpt_fname = f"last-{mc.val_mode}={val_mode_val}{metric_str}.ckpt"
+            self.last_ckpt_path = os.path.join(self.ckpt_dir, ckpt_fname)
+            self._save_ckpt(self.last_ckpt_path)
 
     def _get_res_mes(self, mean_metrics: Dict[str, MeanMetric], new_mes: Dict[str, float],
                      mode: Literal["tb", "result", "prog_bar"]) -> Dict[str, float]:
@@ -978,8 +979,7 @@ class Trainer:
         val_mes.update(train_mes)
         # save model and result
         # if core_metric=None, then only save the last model.
-        if self.model_checkpoint.saving_ckpt:
-            self._model_saving(core_metric)
+        self._model_saving(core_metric)
         val_mes["mode"] = "val"
         self._result_saving(val_mes)
         self._rec_mes_train.clear()

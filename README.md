@@ -43,7 +43,7 @@ python examples/cv.py
 # Using DP (not recommended, please use DDP)
 python examples/cv.py  # setting device_ids=[0, 1]
 
-### nlp_bert_seq_cls.py; nlp_bert_mlm.py; nlp_gpt.py
+### nlp_bert_mlm.py; nlp_bert_seq_cls.py; nlp_gpt_lm.py; nlp_gpt_seq_cls.py
 pip install "transformers>=4.25" "datasets>=2.7"
 python examples/nlp_bert_mlm.py
 python examples/nlp_bert_seq_cls.py
