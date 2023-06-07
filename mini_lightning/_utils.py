@@ -106,6 +106,10 @@ def select_device(device_ids: List[int]) -> Device:
     device: e.g. []: "cpu", [0], [0, 1, 2]
     Note: Please select CUDA before Torch initializes CUDA, otherwise it will not work
     """
+    if torch.cuda.is_initialized():
+        logger.warning("CUDA has been initialized! Device selection fails!")
+        return torch.device("cuda:0")
+    # 
     log_s = "Using device: "
     if len(device_ids) == 0:
         os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
