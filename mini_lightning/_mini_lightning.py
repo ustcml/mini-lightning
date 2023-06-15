@@ -10,7 +10,7 @@ from ._utils import (
 )
 
 
-# Note: global_epoch, batch_idx start from 0. 
+# Note: global_epoch, batch_idx start from 0.
 #   global_step starts from 1.
 __all__ = ["LModule", "LDataModule", "Trainer"]
 #
@@ -58,7 +58,7 @@ class LModule:
         return self.trainer.device
 
     #
-    def log(self, k: str, v: Union[Tensor, float], *, prog_bar_mean=True) -> None:
+    def log(self, k: str, v: Union[Tensor, float], *, prog_bar_mean: bool = True) -> None:
         """
         prog_bar_mean: mean of values in epoch is showed in prog_bar. (e.g. `loss`, `acc`: True. `lr`: False)
             note: `lr`, `global_step` logs automatically, no manual log is required.
@@ -69,7 +69,7 @@ class LModule:
         self.trainer._new_mes[k] = v
         self.trainer._prog_bar_mean[k] = prog_bar_mean
 
-    def log_dict(self, _dict: Dict[str, Union[Tensor, float]], *, prog_bar_mean=True) -> None:
+    def log_dict(self, _dict: Dict[str, Union[Tensor, float]], *, prog_bar_mean: bool = True) -> None:
         for k, v in _dict.items():
             self.log(k, v, prog_bar_mean=prog_bar_mean)
 
@@ -86,17 +86,17 @@ class LModule:
             model.to(device)
             model = en_parallel(model, trainer.parallel_mode, trainer.sync_bn)
             setattr(self, s, model)
-        # 
+        #
         for o in self.optimizers:
             o.load_state_dict(o.state_dict())  # to device
-        # 
+        #
         for metric in self.metrics.values():
             metric.to(device)
 
     @classmethod
     def batch_to_device(cls, batch: Any, device: Device) -> Any:
         if callable(getattr(batch, "to", None)):
-            # Ref: https://github.com/Lightning-AI/lightning/blob/master/src/lightning_lite/utilities/apply_func.py
+            # Ref: https://github.com/Lightning-AI/lightning/blob/master/src/lightning/fabric/utilities/apply_func.py#L92
             #   same as pytorch-lightning
             kwargs = {}
             if isinstance(batch, Tensor) and device not in (Device("cpu"), "cpu"):
@@ -350,7 +350,7 @@ class Trainer:
                 DDP: total batch_size = batch_size * world_size. (different from DP)
             note: DP, DDP, sync_bn will modify lmodel.model (en_parallel). You need to de_parallel, de_sync_batchnorm manually if you want to get original model.
         n_accumulate_grad: Accumulates gradient every n batch (Use mean accumulation instead of sum)
-            Ref: https://pytorch-lightning.readthedocs.io/en/latest/_modules/pytorch_lightning/loops/optimization/optimizer_loop.html (Search: self.trainer.accumulate_grad_batches)
+            Ref: https://lightning.ai/docs/pytorch/stable/common/optimization.html#gradient-accumulation
             if n_accumulate_grad is Dict[int, int]: e.g. {5:2, 20:4} or {0:1, 5:2, 20:4}.
                 Indicates 1 for 0-4 epoch, 2 for 5-19, and 4 after 20 epoch.
                 This can accelerate the training speed in the initial stage, and get nice convergence performance in the end.
@@ -499,7 +499,7 @@ class Trainer:
                     logger.info(f"Using ckpt: {rfc.ckpt_path}, resume_from_ckpt: {rfc}")
             else:
                 raise ValueError(f"resume_from_ckpt: {rfc}")
-            
+
         lmodel.trainer_init(self)
         for s in lmodel._models:
             model: Module = getattr(lmodel, s)
@@ -583,7 +583,7 @@ class Trainer:
         if self.rank not in {-1, 0}:
             return
         mc = self.model_checkpoint
-        
+
         if mc.val_mode == "epoch":
             val_mode_val = self.global_epoch  # validation_mode_value
         else:
@@ -652,7 +652,7 @@ class Trainer:
         models_state_dict, optimizers_state_dict,  mes = load_ckpt(fpath, map_location)
         lmodel = self.lmodel
         if load_optimizers:
-            for optimizer, o_sd in zip(self.lmodel.optimizers,optimizers_state_dict):
+            for optimizer, o_sd in zip(self.lmodel.optimizers, optimizers_state_dict):
                 optimizer.load_state_dict(o_sd)
         if load_mes:
             self.global_step = mes["global_step"]
@@ -968,7 +968,7 @@ class Trainer:
         #
         if self.rank == 0:
             dist.barrier()
-        res_mes.update({"global_epoch": self.global_epoch, "global_step": self.global_step, 
+        res_mes.update({"global_epoch": self.global_epoch, "global_step": self.global_step,
                         "global_optimizer_step": self.global_optimizer_step})
         return core_metric, res_mes
 

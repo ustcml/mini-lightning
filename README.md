@@ -25,7 +25,7 @@ pip install mini-lightning -U
 # Or download the files from the repository to local,
 # and go to the folder where setup.py is located, and run the following command
 # (Recommended) You can enjoy the latest features and functions (including bug fixes)
-pip install .
+pip install -e .
 ```
 
 
@@ -105,3 +105,5 @@ torchrun --nnodes 2 --node_rank 1 --master_addr xxx.xxx.xxx.xxx --nproc_per_node
 ## TODO
 1. Automatic parameter adjustment
 2. Examples: Audio, Meta-learning, Diffusion, Auto-regressive, Reinforcement Learning
+3. Support multi-gpu test
+4. 输出log文件. 
