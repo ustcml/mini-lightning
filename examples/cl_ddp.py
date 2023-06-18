@@ -38,7 +38,7 @@ class HParams(HParamsBase):
             "n_accumulate_grad": n_accumulate_grad,
             "verbose": True
         }
-        warmup = 100  # 100 optim step
+        warmup = 100
         lrs_hparams = {
             "T_max": ...,
             "eta_min": 4e-5
@@ -71,13 +71,12 @@ class SimCLR(ml.LModule):
         }
         self.temperature = hparams.temperature
         #
-        super().__init__([optimizer], metrics, hparams)
+        super().__init__([optimizer], [lr_s], metrics, hparams)
         self.resnet = resnet
-        self.lr_s = lr_s
 
     def optimizer_step(self, opt_idx: int) -> None:
         super().optimizer_step(opt_idx)
-        self.lr_s.step()
+        self.lr_schedulers[opt_idx].step()
 
     def _calculate(
         self,

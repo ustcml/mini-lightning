@@ -3,6 +3,7 @@ import unittest as ut
 import torch
 import torch.nn as nn
 from torch import optim
+from torch.optim.lr_scheduler import LambdaLR, _LRScheduler
 #
 import mini_lightning as ml
 from torchvision.models import resnet18
@@ -52,16 +53,27 @@ class TestUtils(ut.TestCase):
     def test_ckpt(self) -> None:
         model = resnet18()
         optimizer = optim.SGD(model.parameters(), lr=0.1, momentum=0.9)
+
+        def lr_lambda(epoch: int) -> float:
+            # 返回scale
+            if epoch < 10:
+                return 1.
+            elif epoch < 20:
+                return 0.1
+            else:
+                return 0.01
+        #
+        lr_s: _LRScheduler = LambdaLR(optimizer, lr_lambda)
         for _ in range(10):
             x = torch.randn(16, 3, 224, 224)
             loss = model(x).mean()
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-        ml.save_ckpt("asset/tmp.ckpt", {"model": model}, [])
-        ml.save_ckpt("asset/tmp2.ckpt", {"model": model}, [optimizer])
+        ml.save_ckpt("asset/tmp.ckpt", {"model": model}, [], [])
+        ml.save_ckpt("asset/tmp2.ckpt", {"model": model}, [optimizer], [lr_s])
         #
-        models_state_dict, _, mes = ml.load_ckpt("asset/tmp.ckpt")
+        models_state_dict, _, _,  mes = ml.load_ckpt("asset/tmp.ckpt")
         model = models_state_dict["model"]
         print(mes)
 

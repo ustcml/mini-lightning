@@ -57,17 +57,16 @@ class MyLModule(ml.LModule):
         }
         lr_s: LRScheduler = lrs.CosineAnnealingLR(optimizer, **hparams.lrs_hparams)
         lr_s = ml.warmup_decorator(lr_s, hparams.warmup)
-        super().__init__([optimizer], metrics, hparams)
+        super().__init__([optimizer], [lr_s], metrics, hparams)
         self.model = model
         lm_head = model.lm_head
         model.lm_head = nn.Identity()
         self.lm_head = lm_head
-        self.lr_s = lr_s
         self.loss_fn = nn.CrossEntropyLoss()
 
     def optimizer_step(self, opt_idx: int) -> None:
         super().optimizer_step(opt_idx)
-        self.lr_s.step()
+        self.lr_schedulers[opt_idx].step()
 
     def _calculate_loss_prob_pred(self, batch: Dict[str, Tensor]) -> Tuple[Tensor, Tensor, Tensor]:
         labels = batch["labels"][:, 1:]

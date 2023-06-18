@@ -3,6 +3,7 @@
 # Date:
 
 from pre import *
+from transformers.models.roberta.configuration_roberta import RobertaConfig
 from transformers.models.roberta.modeling_roberta import RobertaForSequenceClassification
 from transformers.models.roberta.tokenization_roberta_fast import RobertaTokenizerFast
 from transformers.data.data_collator import DataCollatorWithPadding
@@ -28,7 +29,7 @@ class HParams(HParamsBase):
         #
         dataloader_hparams = {"batch_size": batch_size, "num_workers": 4, "collate_fn": collate_fn}
         optim_name = "AdamW"
-        optim_hparams = {"lr": 1e-4, "weight_decay": 1}
+        optim_hparams = {"lr": 1e-4, "weight_decay": 0.1}
         trainer_hparams = {
             "max_epochs": max_epochs,
             "model_checkpoint": ml.ModelCheckpoint("auc", True),
@@ -46,7 +47,11 @@ class HParams(HParamsBase):
 
 class MyLModule(ml.LModule):
     def __init__(self, hparams: HParams) -> None:
-        model: Module = RobertaForSequenceClassification.from_pretrained(model_id)
+        config = RobertaConfig.from_pretrained(model_id)
+        # config.hidden_dropout_prob = 0
+        # config.attention_probs_dropout_prob = 0
+        logger.info(config)
+        model: Module = RobertaForSequenceClassification.from_pretrained(model_id, config=config)
         ml.freeze_layers(model, ["roberta.embeddings."] +
                          [f"roberta.encoder.layer.{i}." for i in range(2)], verbose=False)
         optimizer = getattr(optim, hparams.optim_name)(model.parameters(), **hparams.optim_hparams)
@@ -60,14 +65,13 @@ class MyLModule(ml.LModule):
         }
         lr_s: LRScheduler = lrs.CosineAnnealingLR(optimizer, **hparams.lrs_hparams)
         lr_s = ml.warmup_decorator(lr_s, hparams.warmup)
-        super().__init__([optimizer], metrics, hparams)
+        super().__init__([optimizer], [lr_s], metrics, hparams)
         self.model = model
-        self.lr_s = lr_s
         self.loss_fn = nn.CrossEntropyLoss()
 
     def optimizer_step(self, opt_idx: int) -> None:
         super().optimizer_step(opt_idx)
-        self.lr_s.step()
+        self.lr_schedulers[opt_idx].step()
 
     def _calculate_loss_prob_pred(self, batch: Dict[str, Tensor]) -> Tuple[Tensor, Tensor, Tensor]:
         labels = batch["labels"]

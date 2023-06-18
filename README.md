@@ -25,7 +25,7 @@ pip install mini-lightning -U
 # Or download the files from the repository to local,
 # and go to the folder where setup.py is located, and run the following command
 # (Recommended) You can enjoy the latest features and functions (including bug fixes)
-pip install -e .
+pip install -e .  # -e: editable mode
 ```
 
 

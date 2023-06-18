@@ -33,7 +33,7 @@ class HParams:
             "amp": True,
             "verbose": True,
         }
-        self.warmup = 100  # 100 optim step
+        self.warmup = 100
         self.lrs_hparams = {
             "T_max": ...,
             "eta_min": 4e-5
@@ -108,15 +108,14 @@ class AutoEncoder(ml.LModule):
             "loss": MeanMetric(),
         }
         #
-        super().__init__([optimizer], metrics, hparams)
+        super().__init__([optimizer], [lr_s], metrics, hparams)
         self.encoder = encoder
         self.decoder = decoder
-        self.lr_s = lr_s
         self.loss_fn = nn.MSELoss(reduction="none")
 
     def optimizer_step(self, opt_idx: int) -> None:
         super().optimizer_step(opt_idx)
-        self.lr_s.step()
+        self.lr_schedulers[opt_idx].step()
 
     def _calculate(
         self,

@@ -132,16 +132,15 @@ class ProtoNet(ml.LModule):
             "acc":  Accuracy("multiclass", num_classes=proto_dim),
         }
         #
-        super().__init__([optimizer], metrics, hparams)
+        super().__init__([optimizer], [lr_s], metrics, hparams)
         self.model = model
-        self.lr_s = lr_s
         self.loss_fn = nn.CrossEntropyLoss()
         self.acc_func: Callable[[Tensor, Tensor], Tensor] = partial(
             accuracy, task="multiclass", num_classes=proto_dim)
 
     def optimizer_step(self, opt_idx: int) -> None:
         super().optimizer_step(opt_idx)
-        self.lr_s.step()
+        self.lr_schedulers[opt_idx].step()
 
     @staticmethod
     def _split_support_query(x: Tensor) -> Tuple[Tensor, Tensor]:

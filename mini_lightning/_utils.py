@@ -12,7 +12,7 @@ __all__ = [
     "test_time", "seed_everything", "time_synchronize",
     "print_model_info", "write_to_yaml", "read_from_yaml", "write_to_csv",
     "get_date_now", "load_ckpt", "save_ckpt",
-    "ModelCheckpoint", "ResumeFromCkpt", "parse_device_ids"
+    "ModelCheckpoint", "ResumeFromCkpt", "parse_device_ids",
 ]
 #
 
@@ -25,22 +25,24 @@ def get_dist_setting() -> Tuple[int, int, int]:
     return rank, local_rank, world_size
 
 
-def _get_logger() -> logging.Logger:
+def _get_logger(verbose_format: bool = False) -> logging.Logger:
     level = logging.INFO
     name = "mini-lightning"
     #
     logger: Logger = logging.getLogger(name)
     logger.setLevel(level)
     handler: Handler = logging.StreamHandler()
-    handler.setFormatter(logging.Formatter(f"[%(levelname)s: {name}] %(message)s"))
+    if verbose_format:
+        _format = f"[%(levelname)s: {logger.name}] %(message)s [%(filename)s:%(lineno)d - %(asctime)s]"
+    else:
+        _format = f"[%(levelname)s: {logger.name}] %(message)s"
+    handler.setFormatter(logging.Formatter(_format))
     handler.setLevel(level)
     logger.addHandler(handler)
     return logger
 
 
-#
 logger = _get_logger()
-#
 
 
 def en_parallel(model: Module, parallel_mode: Literal["DP", "DDP", None], sync_bn: bool = False) -> Module:
@@ -109,7 +111,7 @@ def select_device(device_ids: List[int]) -> Device:
     if torch.cuda.is_initialized():
         logger.warning("CUDA has been initialized! Device selection fails!")
         return torch.device("cuda:0")
-    # 
+    #
     log_s = "Using device: "
     if len(device_ids) == 0:
         os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
@@ -294,11 +296,13 @@ def save_ckpt(
     #
     models: Dict[str, Module],
     optimizers: List[Optimizer],
+    lr_schedulers: List[LRScheduler],
     **kwargs
 ) -> None:
     ckpt: Dict[str, Any] = {
         "models": {k: m.state_dict() for k, m in models.items()},
         "optimizers": [o.state_dict() for o in optimizers],
+        "lr_schedulers": [lr_s.state_dict() for lr_s in lr_schedulers],
     }
     #
     kwargs["date"] = get_date_now()[1]
@@ -311,11 +315,12 @@ StateDict = Dict[str, Any]
 
 
 def load_ckpt(fpath: str, map_location: Optional[Device] = None) -> \
-        Tuple[Dict[str, StateDict], List[StateDict], Dict[str, Any]]:
-    ckpt = torch.load(fpath, map_location=map_location)
-    models_state_dict = ckpt["models"]
-    optimizers_state_dict = ckpt["optimizers"]
-    return models_state_dict, optimizers_state_dict, ckpt["mes"]
+        Tuple[Dict[str, StateDict], List[StateDict], List[StateDict], Dict[str, Any]]:
+    ckpt: Dict[str, Any] = torch.load(fpath, map_location=map_location)
+    models_sd = ckpt["models"]
+    optimizers_sd = ckpt.get("optimizers", [])
+    lr_s_sd = ckpt.get("lr_schedulers", [])
+    return models_sd, optimizers_sd, lr_s_sd, ckpt["mes"]
 
 
 class ModelCheckpoint:
@@ -328,9 +333,11 @@ class ModelCheckpoint:
         val_every_n: int = 1,  # val_every_n_epoch or val_every_n_steps
         val_mode: Literal["epoch", "step"] = "epoch",
         #
-        saving_best_model: bool = True, 
+        saving_best_model: bool = True,
         saving_last_model: bool = True,
+        # False: for saving memory
         saving_optimizers: bool = False,  # state_dict
+        saving_lr_schedulers: bool = True,  # state_dict
         write_result_csv: bool = True,
     ) -> None:
         #
@@ -338,14 +345,18 @@ class ModelCheckpoint:
         self.higher_is_better = higher_is_better
         self.val_every_n = val_every_n
         self.val_mode: Literal["epoch", "step"] = val_mode
-        # 
+        #
         self.saving_best_model = saving_best_model
         self.saving_last_model = saving_last_model
         if not self.saving_best_model and not self.saving_last_model:
             if saving_optimizers:
                 saving_optimizers = False
                 logger.warning(f"Setting saving_optimizers: {saving_optimizers}")
+            if saving_lr_schedulers:
+                saving_lr_schedulers = False
+                logger.warning(f"Setting saving_lr_schedulers: {saving_lr_schedulers}")
         self.saving_optimizers = saving_optimizers
+        self.saving_lr_schedulers = saving_lr_schedulers
         self.write_result_csv = write_result_csv
 
     def __repr__(self) -> str:
@@ -358,10 +369,12 @@ class ResumeFromCkpt:
         self,
         ckpt_path: str,   # e.g. `trainer.last_ckpt_path`, `*.ckpt`
         load_optimizers: bool = False,
+        load_lr_schedulers: bool = False,
         load_message: bool = False,  # global_step, global_epoch...
     ) -> None:
         self.ckpt_path = ckpt_path
         self.load_optimizers = load_optimizers
+        self.load_lr_schedulers = load_lr_schedulers
         self.load_message = load_message
 
     def __repr__(self) -> str:

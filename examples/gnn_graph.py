@@ -93,14 +93,13 @@ class MyLModule(ml.LModule):
             "acc":  Accuracy("binary"),
         }
         #
-        super().__init__([optimizer], metrics, hparams)
+        super().__init__([optimizer], [lr_s], metrics, hparams)
         self.model = model
-        self.lr_s = lr_s
         self.loss_fn = nn.BCEWithLogitsLoss()
 
     def optimizer_step(self, opt_idx: int) -> None:
         super().optimizer_step(opt_idx)
-        self.lr_s.step()
+        self.lr_schedulers[opt_idx].step()
 
     def _calculate_loss_pred_label(
         self,

@@ -155,11 +155,10 @@ class AutoEncoder(ml.LModule):
             "loss": MeanMetric(),
         }
         #
-        super().__init__([optimizer], metrics, hparams)
+        super().__init__([optimizer], [lr_s], metrics, hparams)
         self.mse = nn.MSELoss()
         self.encoder = encoder
         self.decoder = decoder
-        self.lr_s = lr_s
         self.example_z = torch.randn(64, z_channels)
 
     def forward(self, z: Tensor) -> Tensor:
@@ -178,7 +177,7 @@ class AutoEncoder(ml.LModule):
 
     def optimizer_step(self, opt_idx: int) -> None:
         super().optimizer_step(opt_idx)
-        self.lr_s.step()
+        self.lr_schedulers[opt_idx].step()
 
     def _calculate(
         self,

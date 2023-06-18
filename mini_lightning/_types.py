@@ -2,7 +2,8 @@ import os
 import re
 import math
 import datetime as dt
-import platform 
+from inspect import ismethod
+import platform
 import logging
 from logging import Logger, Handler
 import random
@@ -35,5 +36,5 @@ from torch.cuda.amp.grad_scaler import GradScaler
 from torch.amp.autocast_mode import autocast
 # Ref: https://torchmetrics.readthedocs.io/en/stable/pages/overview.html. (torchmetrics support ddp)
 from torchmetrics import Metric, MeanMetric
-# 
+#
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator

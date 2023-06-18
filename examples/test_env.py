@@ -47,21 +47,11 @@ class XORDataset(Dataset):
 
 
 class MyLModule(ml.LModule):
-    def __init__(self, model: Module, optimizers: List[Optimizer],
-                 ckpt_path: Optional[str] = None) -> None:
+    def __init__(self, model: Module, optimizers: List[Optimizer], lr_schedulers: List[LRScheduler]) -> None:
         metrics = {"loss": MeanMetric(), "acc": Accuracy("binary")}
-        super().__init__(optimizers, metrics)
+        super().__init__(optimizers, lr_schedulers, metrics)
         self.model = model
         self.loss_fn = nn.BCEWithLogitsLoss()
-        #
-        self.ckpt_path = ckpt_path
-
-    def trainer_init(self, trainer: "ml.Trainer") -> None:
-        #
-        if len(trainer.lmodel.optimizers) > 0:
-            lr_s = MultiStepLR(optimizer, [10, 50], 0.1, last_epoch=trainer.global_epoch)
-            self.lr_s = ml.warmup_decorator(lr_s, 5)
-        super().trainer_init(trainer)
 
     def _calculate_loss_pred(self, batch: Tuple[Tensor, Tensor]) -> Tuple[Tensor, Tensor]:
         x_batch, y_batch = batch
@@ -86,7 +76,7 @@ class MyLModule(ml.LModule):
     #
 
     def training_epoch_end(self) -> None:
-        self.lr_s.step()
+        self.lr_schedulers[0].step()
 
 
 if __name__ == "__main__":
@@ -99,46 +89,54 @@ if __name__ == "__main__":
     model = MLP_L2(2, 4, 1)
     optimizer = optim.SGD(model.parameters(), 0.1, 0.9)
     ldm = ml.LDataModule(train_dataset, val_dataset, test_dataset, 64)
-    lmodel = MyLModule(model, [optimizer])
+    lr_s = MultiStepLR(optimizer, [10, 50], 0.1)
+    lr_s = ml.warmup_decorator(lr_s, 5)
+    lmodel = MyLModule(model, [optimizer], [lr_s])
     trainer = ml.Trainer(lmodel, [], 40, RUNS_DIR, ml.ModelCheckpoint(
         "acc", True, 100, "step", saving_optimizers=True), gradient_clip_norm=10, verbose=True)
     trainer.test(ldm.val_dataloader, True, True)
     trainer.fit(ldm.train_dataloader, ldm.val_dataloader)
     trainer.test(ldm.test_dataloader, True, True)
     ckpt_path = trainer.last_ckpt_path
-    del model, optimizer, ldm, lmodel, trainer
+    del model, optimizer, ldm, lmodel, trainer, lr_s
+    #
     # train from ckpt (model and optimizer)
     time.sleep(1)
     model = MLP_L2(2, 4, 1)
     optimizer = optim.SGD(model.parameters(), 0.1, 0.9)
     ldm = ml.LDataModule(train_dataset, val_dataset, test_dataset, 64)
-    lmodel = MyLModule(model, [optimizer], ckpt_path)
+    lr_s = MultiStepLR(optimizer, [10, 50], 0.1)
+    lr_s = ml.warmup_decorator(lr_s, 5)
+    lmodel = MyLModule(model, [optimizer], [lr_s])
     trainer = ml.Trainer(lmodel, [0], 100, RUNS_DIR, ml.ModelCheckpoint(
-        "loss", False, 10), gradient_clip_norm=10, verbose=True, 
-        resume_from_ckpt=ml.ResumeFromCkpt(ckpt_path, True, True))
+        "loss", False, 10), gradient_clip_norm=10, verbose=True,
+        resume_from_ckpt=ml.ResumeFromCkpt(ckpt_path, True, True, True))
     trainer.test(ldm.val_dataloader, True, True)
     trainer.fit(ldm.train_dataloader, ldm.val_dataloader)
     trainer.test(ldm.test_dataloader, True, True)
     ckpt_path = trainer.last_ckpt_path
-    del model, optimizer, ldm, lmodel, trainer
+    del model, optimizer, ldm, lmodel, trainer, lr_s
+    #
     # train from ckpt (only model)
     time.sleep(1)
     model = MLP_L2(2, 4, 1)
     optimizer = optim.SGD(model.parameters(), 0.1, 0.9)
     ldm = ml.LDataModule(train_dataset, val_dataset, test_dataset, 64)
-    lmodel = MyLModule(model, [optimizer])
+    lr_s = MultiStepLR(optimizer, [10, 50], 0.1)
+    lr_s = ml.warmup_decorator(lr_s, 5)
+    lmodel = MyLModule(model, [optimizer], [lr_s])
     trainer = ml.Trainer(lmodel, [0], 20, RUNS_DIR, ml.ModelCheckpoint("loss", False, 10),
                          gradient_clip_norm=10, verbose=True, resume_from_ckpt=ckpt_path)
     trainer.test(ldm.val_dataloader, True, True)
     trainer.fit(ldm.train_dataloader, ldm.val_dataloader)
     trainer.test(ldm.test_dataloader, True, True)
     ckpt_path = trainer.last_ckpt_path
-    del model, optimizer, ldm, lmodel, trainer
-    ###
+    del model, optimizer, ldm, lmodel, trainer, lr_s
+    #
     # test
     time.sleep(1)
     model = MLP_L2(2, 4, 1)
     ldm = ml.LDataModule(train_dataset, val_dataset, test_dataset, 64)
-    lmodel = MyLModule(model, [])
+    lmodel = MyLModule(model, [], [])
     trainer = ml.Trainer(lmodel, [], None, RUNS_DIR, ml.ModelCheckpoint("loss", False), resume_from_ckpt=ckpt_path)
     trainer.test(ldm.test_dataloader, True, True)
