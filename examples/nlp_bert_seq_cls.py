@@ -2,13 +2,7 @@
 # Email: huangjintao@mail.ustc.edu.cn
 # Date:
 
-from pre import *
-from transformers.models.roberta.configuration_roberta import RobertaConfig
-from transformers.models.roberta.modeling_roberta import RobertaForSequenceClassification
-from transformers.models.roberta.tokenization_roberta_fast import RobertaTokenizerFast
-from transformers.data.data_collator import DataCollatorWithPadding
-from transformers.tokenization_utils_base import PreTrainedTokenizerBase
-from datasets.load import load_dataset
+from pre_nlp import *
 
 #
 RUNS_DIR = os.path.join(RUNS_DIR, "nlp_bert_seq_cls")
@@ -47,11 +41,11 @@ class HParams(HParamsBase):
 
 class MyLModule(ml.LModule):
     def __init__(self, hparams: HParams) -> None:
-        config = RobertaConfig.from_pretrained(model_id)
+        config: PretrainedConfig = RobertaConfig.from_pretrained(model_id)
         # config.hidden_dropout_prob = 0
         # config.attention_probs_dropout_prob = 0
         logger.info(config)
-        model: Module = RobertaForSequenceClassification.from_pretrained(model_id, config=config)
+        model: PreTrainedModel = RobertaForSequenceClassification.from_pretrained(model_id, config=config)
         ml.freeze_layers(model, ["roberta.embeddings."] +
                          [f"roberta.encoder.layer.{i}." for i in range(2)], verbose=False)
         optimizer = getattr(optim, hparams.optim_name)(model.parameters(), **hparams.optim_hparams)

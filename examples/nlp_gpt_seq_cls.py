@@ -2,12 +2,7 @@
 # Email: huangjintao@mail.ustc.edu.cn
 # Date:
 
-from pre import *
-from transformers.models.gpt2.modeling_gpt2 import GPT2ForSequenceClassification
-from transformers.models.gpt2.tokenization_gpt2_fast import GPT2TokenizerFast
-from transformers.data.data_collator import DataCollatorWithPadding
-from transformers.tokenization_utils_base import PreTrainedTokenizerBase
-from datasets.load import load_dataset
+from pre_nlp import *
 
 #
 RUNS_DIR = os.path.join(RUNS_DIR, "nlp_gpt_seq_cls")
@@ -46,9 +41,9 @@ class HParams(HParamsBase):
 
 class MyLModule(ml.LModule):
     def __init__(self, hparams: HParams) -> None:
-        config = GPT2ForSequenceClassification.config_class.from_pretrained(model_id)
+        config: PretrainedConfig = GPT2Config.from_pretrained(model_id)
         config.pad_token_id = config.eos_token_id  # 50256
-        model: Module = GPT2ForSequenceClassification.from_pretrained(model_id, config=config)
+        model: PreTrainedModel = GPT2ForSequenceClassification.from_pretrained(model_id, config=config)
         ml.freeze_layers(model, ["transformer.wte.", "transformer.wpe.", "transformer.drop."] +
                          [f"transformer.h.{i}." for i in range(2)], verbose=False)
         optimizer = getattr(optim, hparams.optim_name)(model.parameters(), **hparams.optim_hparams)

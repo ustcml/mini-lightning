@@ -1040,6 +1040,7 @@ class Trainer:
         #
         self.lmodel.training_epoch_start()
         train_mes = {}
+        assert self.max_epochs is not None
         for _ in range(self.global_epoch + 1, self.max_epochs):
             self.global_epoch += 1
             train_mes = self._train_epoch(train_dataloader, val_dataloader)

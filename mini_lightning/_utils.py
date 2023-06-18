@@ -15,6 +15,7 @@ __all__ = [
     "ModelCheckpoint", "ResumeFromCkpt", "parse_device_ids",
 ]
 #
+_T = TypeVar("_T")
 
 
 def get_dist_setting() -> Tuple[int, int, int]:
@@ -126,7 +127,7 @@ def select_device(device_ids: List[int]) -> Device:
     return torch.device(device)
 
 
-def _remove_keys(state_dict: Dict[str, Any], prefix_keys: List[str]) -> Dict[str, Any]:
+def _remove_keys(state_dict: Dict[str, _T], prefix_keys: List[str]) -> Dict[str, _T]:
     """Delete keys(not inplace) with a prefix. Application: load_state_dict"""
     res = {}
     for k, v in state_dict.items():
@@ -140,7 +141,7 @@ def _remove_keys(state_dict: Dict[str, Any], prefix_keys: List[str]) -> Dict[str
     return res
 
 
-def _key_add_suffix(_dict: Dict[str, Any], suffix: str) -> Dict[str, Any]:
+def _key_add_suffix(_dict: Dict[str, _T], suffix: str) -> Dict[str, _T]:
     """not inplace"""
     res = {}
     for k, v in _dict.items():

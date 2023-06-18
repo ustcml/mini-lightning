@@ -1,13 +1,7 @@
 # Author: Jintao Huang
 # Email: huangjintao@mail.ustc.edu.cn
 # Date:
-
-from pre import *
-from transformers.models.roberta.modeling_roberta import RobertaForMaskedLM
-from transformers.models.roberta.tokenization_roberta_fast import RobertaTokenizerFast
-from transformers.data.data_collator import DataCollatorForLanguageModeling
-from transformers.tokenization_utils_base import PreTrainedTokenizerBase
-from datasets.load import load_dataset
+from pre_nlp import *
 
 #
 RUNS_DIR = os.path.join(RUNS_DIR, "nlp_bert_mlm")
@@ -46,7 +40,9 @@ class HParams(HParamsBase):
 
 class MyLModule(ml.LModule):
     def __init__(self, hparams: HParams) -> None:
-        model: Module = RobertaForMaskedLM.from_pretrained(model_id)
+        config: PretrainedConfig = RobertaConfig.from_pretrained(model_id)
+        logger.info(config)
+        model: PreTrainedModel = RobertaForMaskedLM.from_pretrained(model_id, config=config)
         ml.freeze_layers(model, ["roberta.embeddings."] +
                          [f"roberta.encoder.layer.{i}." for i in range(2)], verbose=False)
         optimizer = getattr(optim, hparams.optim_name)(model.parameters(), **hparams.optim_hparams)
@@ -59,7 +55,7 @@ class MyLModule(ml.LModule):
         lr_s = ml.warmup_decorator(lr_s, hparams.warmup)
         super().__init__([optimizer], [lr_s], metrics, hparams)
         self.model = model
-        decoder =  self.model.lm_head.decoder
+        decoder = self.model.lm_head.decoder
         self.model.lm_head.decoder = nn.Identity()
         self.decoder = decoder
         self.loss_fn = nn.CrossEntropyLoss()
