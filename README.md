@@ -53,6 +53,7 @@ python examples/nlp_gpt_seq_cls.py
 python examples/nlp_gpt_zh_sft_adapter.py
 python examples/nlp_gpt_zh_sft_lora.py
 # llm (model parallelism)
+#   Ref: https://modelscope.cn/models/baichuan-inc/baichuan-7B/summary 
 python examples/nlp_baichuan_sft_lora.py
 
 ### dqn

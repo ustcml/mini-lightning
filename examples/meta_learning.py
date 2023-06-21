@@ -211,15 +211,6 @@ class ProtoNet(ml.LModule):
         self.metrics["acc"].update(y_pred, labels)
 
 
-def test_proto_net(
-    model: Module,
-    dataset: ImageDataset,
-    k_shot: List[int] = [],
-):
-    """todo"""
-    pass
-
-
 if __name__ == "__main__":
     # Calculating mean std
     train_dataset = CIFAR100(root=DATASETS_PATH, train=True, download=True)

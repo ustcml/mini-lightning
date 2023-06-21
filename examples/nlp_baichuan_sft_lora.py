@@ -1,4 +1,5 @@
-# This is my work in Alibaba. Please indicate source for use. 
+# This is my work in Alibaba. Please indicate source for use.
+#   Ref: https://modelscope.cn/models/baichuan-inc/baichuan-7B/summary 
 # Author: Jintao Huang
 # Email: huangjintao@mail.ustc.edu.cn
 # Date:

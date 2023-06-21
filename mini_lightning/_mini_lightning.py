@@ -1009,7 +1009,7 @@ class Trainer:
               model_type: Literal["last", "best"]) -> None:
         mc = self.model_checkpoint
         if model_type == "best" and mc.saving_hf_mode is True:
-            logger.warning("[not support] model_type: {model_type}, mc.saving_hf_mode: {mc.saving_hf_mode}")
+            logger.warning(f"[Not support] model_type: {model_type}, mc.saving_hf_mode: {mc.saving_hf_mode}")
             return
         #
         if model_type == "best":
