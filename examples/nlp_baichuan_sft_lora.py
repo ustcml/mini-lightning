@@ -1,19 +1,21 @@
+# This is my work in Alibaba. Please indicate source for use. 
 # Author: Jintao Huang
 # Email: huangjintao@mail.ustc.edu.cn
 # Date:
-
 from pre_nlp import *
 #
-RUNS_DIR = os.path.join(RUNS_DIR, "nlp_gpt_zh_sft_lora")
+RUNS_DIR = os.path.join(RUNS_DIR, "nlp_baichuan_sft_lora")
 os.makedirs(RUNS_DIR, exist_ok=True)
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
 #
-device_ids = [0]
-max_epochs = 10
-batch_size = 16
-n_accumulate_grad = 4
-model_id = "IDEA-CCNL/Wenzhong-GPT2-110M"
+device_ids = [0, 1, 2, 3, 4, 5]
+ml.select_device(device_ids)
+max_epochs = 1
+batch_size = 4
+n_accumulate_grad = 8
+model_id = "baichuan-inc/baichuan-7B"
+
 
 class HParams(HParamsBase):
     def __init__(self, collate_fn: Callable[[List[Any]], Any]) -> None:
@@ -23,52 +25,54 @@ class HParams(HParamsBase):
 {instruction}
 ### AI助手
 """
-        self.max_length = 512
-        self.dropout_p = 0
-        self.lora_dropout_p = self.dropout_p
-        self.lora_r = 4
+        self.ckpt_path = None
+        self.max_length = 896
+        self.lora_dropout_p = 0
+        self.lora_r = 8
         self.lora_alpha = 32
-        self.lora_target_modules = ["c_attn"]
-        self.replace_gelu = True  # same function, faster.
+        self.lora_target_modules = ["W_pack"]
         self.verbose_freeze = True
-        self.test_split_p = 0.02
+        self.test_split_p = 0.01
         self.split_seed = 42
         #
-        dataloader_hparams = {"batch_size": batch_size, "num_workers": 4, "collate_fn": collate_fn}
+        dataloader_hparams = {"batch_size": batch_size, "num_workers": 1, "collate_fn": collate_fn}
         optim_name = "AdamW"
-        optim_hparams = {"lr": 4e-5, "weight_decay": 1}
+        optim_hparams = {"lr": 2e-4, "weight_decay": 1}
         trainer_hparams = {
             "max_epochs": max_epochs,
-            "model_checkpoint": ml.ModelCheckpoint("acc", True, 500, "step", saving_hf_mode=True),
-            "gradient_clip_norm": 5,
+            "model_checkpoint": ml.ModelCheckpoint("acc", True, 200, "step", saving_hf_mode=True),
+            "gradient_clip_norm": 0.5,
             "amp": True,
-            "n_accumulate_grad": n_accumulate_grad
+            "n_accumulate_grad": n_accumulate_grad,
+            "prog_bar_n_steps": 10
         }
-        warmup = 30
+        warmup = 100
         lrs_hparams = {
             "T_max": ...,
-            "eta_min": 1e-5
+            "eta_min": 2e-5
         }
         super().__init__(device_ids, dataloader_hparams, optim_name, optim_hparams, trainer_hparams, warmup, lrs_hparams)
 
 
 class MyLModule(ml.LModule):
     def __init__(self, hparams: HParams) -> None:
-        config = GPT2Config.from_pretrained(model_id)
-        config.attn_pdrop = hparams.dropout_p
-        config.embd_pdrop = hparams.dropout_p
-        config.resid_pdrop = hparams.dropout_p
-        config.summary_first_dropout = hparams.dropout_p
-        if hparams.replace_gelu:
-          if config.activation_function in {"gelu_fast", "gelu_new"}:
-              config.activation_function = "gelu_pytorch_tanh"
+        config = AutoConfig.from_pretrained(model_id, trust_remote_code=True)
         logger.info(config)
-        model = GPT2LMHeadModel.from_pretrained(model_id, config=config)
+        device_map = {"model.embed_tokens": "cuda:0"}
+        device_map.update({f"model.layers.{i}": f"cuda:{i//6}" for i in range(32)})
+        device_map.update({"model.norm": "cuda:5", "lm_head": "cuda:5"})
+        logger.info(f"device_map: {device_map}")
+        model = AutoModelForCausalLM.from_pretrained(model_id, config=config, trust_remote_code=True, 
+                                                     device_map=device_map, torch_dtype=torch.float16)
         ml.freeze_layers(model, [""], verbose=False)  # all freeze
-        config = LoraConfig(base_model_name_or_path=model_id, lora_dropout=hparams.lora_dropout_p, 
-                            lora_alpha=hparams.lora_alpha, r=hparams.lora_r, target_modules=hparams.lora_target_modules, 
-                            inference_mode=False) 
-        model = PeftModelForCausalLM(model, config)
+        if hparams.ckpt_path is None:
+            lora_config = LoraConfig(base_model_name_or_path=model_id, lora_dropout=hparams.lora_dropout_p, 
+                                     lora_alpha=hparams.lora_alpha, r=hparams.lora_r, 
+                                     target_modules=hparams.lora_target_modules, inference_mode=False) 
+            logger.info(lora_config)
+            model = PeftModelForCausalLM(model, lora_config)
+        else:
+            model = PeftModelForCausalLM.from_pretrained(model, hparams.ckpt_path, is_trainable=True)
         if hparams.verbose_freeze:
             ml.activate_layers(model, None)
         optimizer = getattr(optim, hparams.optim_name)(model.parameters(), **hparams.optim_hparams)
@@ -81,9 +85,6 @@ class MyLModule(ml.LModule):
         lr_s = ml.warmup_decorator(lr_s, hparams.warmup)
         super().__init__([optimizer], [lr_s], metrics, hparams)
         self.model = model
-        lm_head = model.model.lm_head
-        model.model.lm_head = nn.Identity()
-        self.lm_head = lm_head
         self.loss_fn = nn.CrossEntropyLoss()
 
     def optimizer_step(self, opt_idx: int) -> None:
@@ -95,11 +96,15 @@ class MyLModule(ml.LModule):
         labels = labels[:, 1:]
         labels_mask = labels != -100
         y = self.model(batch["input_ids"], attention_mask=batch["attention_mask"])
-        logits = y.logits[:, :-1][labels_mask]  # save memory
-        logits = self.lm_head(logits)
-        labels = labels[labels_mask]
-        loss = self.loss_fn(logits, labels.view(-1))
+        logits = y.logits[:, :-1]
+        logits = logits[labels_mask].contiguous().view(-1, logits.shape[-1])
+        labels = labels[labels_mask].to(logits.device)
+        loss = self.loss_fn(logits, labels.contiguous().view(-1))
         y_pred = logits.argmax(dim=1)
+        #
+        loss = loss.to(self.device)  # self.device: master_device
+        y_pred = y_pred.to(self.device)
+        labels = labels.to(self.device)
         return loss, y_pred, labels
 
     def training_step(self, batch: Dict[str, Tensor], opt_idx: int) -> Tensor:
@@ -114,10 +119,12 @@ class MyLModule(ml.LModule):
         self.metrics["loss"].update(loss)
         self.metrics["acc"].update(y_pred, labels)
 
+
 if __name__ == "__main__":
     ml.seed_everything(42, gpu_dtm=False)
-    dataset = load_dataset("c-s-ale/alpaca-gpt4-data-zh")
-    tokenizer = GPT2TokenizerFast.from_pretrained(model_id)
+    dataset_zh = load_dataset("c-s-ale/alpaca-gpt4-data-zh")
+    dataset_en = load_dataset("vicgalle/alpaca-gpt4")
+    tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.deprecation_warnings["Asking-to-pad-a-fast-tokenizer"] = True
     _data_collator = DataCollatorWithPadding(tokenizer)
@@ -135,6 +142,7 @@ if __name__ == "__main__":
         instruction = example["instruction"]
         _input: str = example["input"]
         if _input is not None and _input != "":
+            # instruction = instruction + "\n"
             if _input.startswith("输入："):
                 instruction = instruction + _input[3:]
             else:
@@ -145,22 +153,27 @@ if __name__ == "__main__":
                                              add_special_tokens=False)["input_ids"]
         tgt_input_ids: List[int] = tokenizer(output, return_attention_mask=False, 
                                              add_special_tokens=False)["input_ids"]
+        src_input_ids.append(tokenizer.bos_token_id)
         tgt_input_ids.append(tokenizer.eos_token_id)
         #
         input_ids = src_input_ids + tgt_input_ids
         labels = [-100] * len(src_input_ids) + tgt_input_ids
         return {"input_ids": input_ids[:hparams.max_length], "labels": labels[:hparams.max_length]}
 
+    # 
+    dataset_en = dataset_en.remove_columns(["text"])
+    dataset = concatenate_datasets([dataset_zh["train"], dataset_en["train"]])
+    #
+    # dataset = dataset.select(range(1000))
     dataset = dataset.map(tokenize_function)
     dataset = dataset.remove_columns(["instruction", "input", "output"])
     # 
-    dataset = dataset["train"].train_test_split(hparams.test_split_p, seed=hparams.split_seed)
+    dataset = dataset.train_test_split(hparams.test_split_p, seed=hparams.split_seed)
     hparams.lrs_hparams["T_max"] = ml.get_T_max(
         len(dataset["train"]), batch_size, max_epochs, n_accumulate_grad)
     ldm = ml.LDataModule(
         dataset["train"], dataset["test"], None, **hparams.dataloader_hparams)
     #
-
     lmodel = MyLModule(hparams)
     trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams.trainer_hparams)
     trainer.fit(ldm.train_dataloader, ldm.val_dataloader)

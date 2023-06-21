@@ -364,7 +364,6 @@ class Trainer:
             Ref: https://pytorch.org/docs/stable/notes/amp_examples.html
             Effects: Speed up training and reduce memory consumption. Slightly (or not) decrease performance.
             note: Recommended for use in large models. Small models do not speed up training.
-            note: some environments may not support AMP
         gradient_clip_norm: gradient clipping (norm) to prevents gradient explosion and log `grad_norm` before clipping if verbose=True. It's usually set to 5, 10, 20.
             note: inf and nan check is added if gradient_clip_norm is not None. This can improve the stability of training.
                 If inf or nan is found, this update will be skipped. (If amp=True, inf check is handled by amp)
@@ -656,7 +655,7 @@ class Trainer:
         # fpath: `*.ckpt`
         map_location = self.device
         models_sd, optimizers_sd_list,  lr_s_sd_list, mes = load_ckpt(fpath, map_location)
-        assert models_sd is not None
+        assert models_sd is not None  # please use model.from_pretrained
         lmodel = self.lmodel
         if load_optimizers:
             for optimizer, o_sd in zip(lmodel.optimizers, optimizers_sd_list):
@@ -1010,7 +1009,7 @@ class Trainer:
               model_type: Literal["last", "best"]) -> None:
         mc = self.model_checkpoint
         if model_type == "best" and mc.saving_hf_mode is True:
-            logger.warning(f"[not support] model_type: {model_type}, mc.saving_hf_mode: {mc.saving_hf_mode}")
+            logger.warning("[not support] model_type: {model_type}, mc.saving_hf_mode: {mc.saving_hf_mode}")
             return
         #
         if model_type == "best":

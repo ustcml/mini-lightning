@@ -8,7 +8,7 @@ from ._types import *
 __all__ = [
     "get_dist_setting", "logger",
     "en_parallel", "de_parallel", "de_sync_batchnorm", "select_device",
-    "_remove_keys", "_key_add_suffix", "freeze_layers", "stat_array",
+    "_remove_keys", "_key_add_suffix", "freeze_layers", "activate_layers", "stat_array",
     "test_time", "seed_everything", "time_synchronize",
     "print_model_info", "write_to_yaml", "read_from_yaml", "write_to_csv",
     "get_date_now", "load_ckpt", "save_ckpt",
@@ -149,29 +149,41 @@ def _key_add_suffix(_dict: Dict[str, _T], suffix: str) -> Dict[str, _T]:
     return res
 
 
-def freeze_layers(model: Module, layer_prefix_names: Optional[List[str]] = None, verbose: bool = True) -> None:
-    """
-    layer_prefix_names: 
-        None: show freeze layers. 
-    """
+def freeze_layers(model: Module, layer_prefix_names: List[str], verbose: bool = True) -> None:
     # e.g. ml.freeze_layers(model, ["roberta.embeddings."] + [f"roberta.encoder.layer.{i}." for i in range(2)], True)
-    if layer_prefix_names is None:
+    layer_prefix_names = set(layer_prefix_names)
+    for n, p in model.named_parameters():
+        requires_grad = True
+        for lpn in layer_prefix_names:
+            if n.startswith(lpn):
+                requires_grad = False
+                break
+        p.requires_grad_(requires_grad)
+        if verbose:
+            logger.info(f"Setting {n}.requires_grad: {requires_grad}")
+
+
+def activate_layers(model: Module, layer_suffix_names: Optional[List[str]] = None, verbose: bool = True) -> None:
+    """
+    layer_suffix_names 
+        None: show layers state.
+    """
+    if layer_suffix_names is None:
         assert verbose is True
     else:
-        layer_prefix_names = set(layer_prefix_names)
+        layer_suffix_names = set(layer_suffix_names)
     for n, p in model.named_parameters():
-        if layer_prefix_names is not None:
-            requires_grad = True
-            for lpn in layer_prefix_names:
-                if n.startswith(lpn):
-                    requires_grad = False
+        if layer_suffix_names is not None:
+            requires_grad = False
+            for lpn in layer_suffix_names:
+                if n.endswith(lpn):
+                    requires_grad = True
                     break
             p.requires_grad_(requires_grad)
         else:
             requires_grad = p.requires_grad
         if verbose:
             logger.info(f"Setting {n}.requires_grad: {requires_grad}")
-
 
 
 def stat_array(x: ndarray) -> Tuple[Tuple[float, float, float, float, int], str]:

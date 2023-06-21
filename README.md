@@ -8,7 +8,7 @@
 
 ## Introduction
 1. [Mini-Lightning](https://github.com/ustcml/mini-lightning/) is a **lightweight** machine learning training library, which is a mini version of [Pytorch-Lightning](https://www.pytorchlightning.ai/) with only **1k lines of code**. It has the advantages of **faster, more concise and more flexible**.
-2. **Existing features**: support for DDP(multi-node and multi-gpu), Sync-BN, DP, MP(model parallelism), AMP, gradient accumulation, warmup and lr_scheduler, grad clip, tensorboard, model and result saving, beautiful console log, torchmetrics, etc.
+2. **Existing features**: support for DDP(multi-node and multi-gpu), Sync-BN, DP, MP(model parallelism), AMP, gradient accumulation, warmup and lr_scheduler, grad clip, tensorboard, huggingface, peft, torchmetrics, model and result saving, beautiful console log, etc.
 3. Only the **minimal interfaces** are exposed, keeping the features of **simplicity, easy to read, use and extend**.
 4. **examples** can be found in `examples/`
 5. If you have any problems or bug finding, please **raise issue**, Thank you.
@@ -37,58 +37,59 @@ pip install -e .  # -e: editable mode
 ### test environment
 python examples/test_env.py
 
-### cv.py
+### cv
 pip install "torchvision>=0.13"
 python examples/cv.py
-# Using DP (not recommended, please use DDP)
+# cv+dp (not recommended, please use DDP)
 python examples/cv.py  # setting device_ids=[0, 1]
 
-### nlp_bert_mlm.py; nlp_bert_seq_cls.py; nlp_gpt_lm.py; nlp_gpt_seq_cls.py
+### nlp: bert gpt
 pip install "transformers>=4.25" "datasets>=2.7" "peft>=0.3"
 python examples/nlp_bert_mlm.py
 python examples/nlp_bert_seq_cls.py
 python examples/nlp_gpt_lm.py
 python examples/nlp_gpt_seq_cls.py
+# sft
 python examples/nlp_gpt_zh_sft_adapter.py
 python examples/nlp_gpt_zh_sft_lora.py
+# llm (model parallelism)
+python examples/nlp_baichuan_sft_lora.py
 
-### dqn.py
+### dqn
 pip install "gym>=0.26.2" "pygame>=2.1.2"
 python examples/dqn.py
 
-### gan.py
+### gan
 pip install "torchvision>=0.13"
 python examples/gan.py
 
-### cl.py  (contrastive_learning)
+### contrastive learning
 pip install "torchvision>=0.13" "scikit-learn>=1.2"
 python examples/cl.py
-
-### cl_ddp.py
+# cl+ddp
 torchrun --nproc_per_node 2 examples/cl_ddp.py --device_ids 0 1
 
-### gnn_node.py; gnn_edge.py; gnn_graph.py
+### gnn
 # download torch_geometric
 #   Ref: https://pytorch-geometric.readthedocs.io/en/latest/notes/installation.html
 python examples/gnn_node.py
 python examples/gnn_edge.py
 python examples/gnn_graph.py
 
-### ae.py
+### ae
 pip install "torchvision>=0.13" "scikit-learn>=1.2"
 python examples/ae.py
 
-### vae.py
+### vae
 pip install "torchvision>=0.13"
 python examples/vae.py
 
-### meta_learning.py
+### meta learning
 pip install "torchvision>=0.13"
 python examples/meta_learning.py
 
 
 ########## ddp
-### cv_ddp.py; cv_ddp_spawn.py
 # torchrun (Recommended)
 #   Ref: https://pytorch.org/docs/stable/elastic/run.html
 # spawn
