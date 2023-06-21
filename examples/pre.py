@@ -48,6 +48,7 @@ from torch.utils.data import (
     Dataset, IterableDataset, TensorDataset,
     Sampler, DataLoader, random_split,
 )
+from torch.nn.utils.rnn import pad_sequence
 from torch.multiprocessing.spawn import spawn
 from torch.autograd import Function
 import torch.distributed as dist

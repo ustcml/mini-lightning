@@ -3,7 +3,7 @@
 # Date:
 
 from ._types import *
-__all__ = ["get_T_max", "warmup_decorator", "cosine_annealing_lr", "_lr_scheduler_rerun"]
+__all__ = ["get_T_max", "warmup_decorator", "_lr_scheduler_rerun"]
 
 
 def get_T_max(dataset_len: int, batch_size: int, max_epochs: int,
@@ -71,38 +71,3 @@ def warmup_decorator(lr_s: LRScheduler, warmup: int) -> LRScheduler:
     lr_s.get_lr = get_lr.__get__(lr_s)  # bind self
     _lr_scheduler_rerun(lr_s)
     return lr_s
-
-
-#
-def _get_offset_func(fa: float, fb: float, ga: float, gb: float) -> Callable[[float], float]:
-    # (a, fa) -> (a, ga); (b, fb) -> (b, gb)
-    # Generate a linear function of curve translation and scaling. gx=s*fx+t
-    if fa == fb:
-        raise ValueError("fa == fb")
-    s = (gb-ga) / (fb-fa)
-    t = ga - fa * s
-
-    def func(x: float) -> float:
-        return s * x + t
-    return func
-
-
-def cosine_annealing_lr(epoch: int, T_max: int, eta_min: float, initial_lrs: List[float]) -> List[float]:
-    """
-    epoch=0: lr=initial_lr
-    epoch=T_max: lr=eta_min
-    T of sine curve = 2 * T_max
-    """
-    # Avoid floating point errors
-    if epoch % (2 * T_max) == 0:
-        return initial_lrs
-    if (epoch + T_max) % (2 * T_max) == 0:
-        return [eta_min] * len(initial_lrs)
-    res = []
-    # x axis
-    x = math.cos(math.pi * epoch / T_max)  # (2 * pi * x) / (2 * T_max)
-    # y axis
-    for initial_lr in initial_lrs:
-        func = _get_offset_func(-1, 1, eta_min, initial_lr)
-        res.append(func(x))
-    return res

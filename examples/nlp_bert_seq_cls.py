@@ -41,11 +41,11 @@ class HParams(HParamsBase):
 
 class MyLModule(ml.LModule):
     def __init__(self, hparams: HParams) -> None:
-        config: PretrainedConfig = RobertaConfig.from_pretrained(model_id)
+        config = RobertaConfig.from_pretrained(model_id)
         # config.hidden_dropout_prob = 0
         # config.attention_probs_dropout_prob = 0
         logger.info(config)
-        model: PreTrainedModel = RobertaForSequenceClassification.from_pretrained(model_id, config=config)
+        model = RobertaForSequenceClassification.from_pretrained(model_id, config=config)
         ml.freeze_layers(model, ["roberta.embeddings."] +
                          [f"roberta.encoder.layer.{i}." for i in range(2)], verbose=False)
         optimizer = getattr(optim, hparams.optim_name)(model.parameters(), **hparams.optim_hparams)
@@ -97,7 +97,7 @@ class MyLModule(ml.LModule):
 if __name__ == "__main__":
     ml.seed_everything(42, gpu_dtm=False)
     dataset = load_dataset("glue", "mrpc")
-    tokenizer: PreTrainedTokenizerBase = RobertaTokenizerFast.from_pretrained(model_id)
+    tokenizer = RobertaTokenizerFast.from_pretrained(model_id)
     tokenizer.deprecation_warnings["Asking-to-pad-a-fast-tokenizer"] = True
 
     def tokenize_function(example):

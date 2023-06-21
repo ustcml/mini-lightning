@@ -12,7 +12,9 @@ import time
 from bisect import bisect_right
 from copy import deepcopy
 from collections import defaultdict
-from typing import List, Any, Dict, Optional, Tuple, Callable, Union, Sequence, Mapping, Literal, Set,  TypeVar
+from typing import (
+    List, Any, Dict, Optional, Tuple, Callable, Union, Sequence, Mapping, Literal, Set,  TypeVar
+)
 from argparse import ArgumentParser, Namespace
 #
 import yaml

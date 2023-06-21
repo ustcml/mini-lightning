@@ -149,18 +149,29 @@ def _key_add_suffix(_dict: Dict[str, _T], suffix: str) -> Dict[str, _T]:
     return res
 
 
-def freeze_layers(model: Module, layer_prefix_names: List[str], verbose: bool = True) -> None:
+def freeze_layers(model: Module, layer_prefix_names: Optional[List[str]] = None, verbose: bool = True) -> None:
+    """
+    layer_prefix_names: 
+        None: show freeze layers. 
+    """
     # e.g. ml.freeze_layers(model, ["roberta.embeddings."] + [f"roberta.encoder.layer.{i}." for i in range(2)], True)
-    lpns = set(layer_prefix_names)
+    if layer_prefix_names is None:
+        assert verbose is True
+    else:
+        layer_prefix_names = set(layer_prefix_names)
     for n, p in model.named_parameters():
-        requires_grad = True
-        for lpn in lpns:
-            if n.startswith(lpn):
-                requires_grad = False
-                break
+        if layer_prefix_names is not None:
+            requires_grad = True
+            for lpn in layer_prefix_names:
+                if n.startswith(lpn):
+                    requires_grad = False
+                    break
+            p.requires_grad_(requires_grad)
+        else:
+            requires_grad = p.requires_grad
         if verbose:
             logger.info(f"Setting {n}.requires_grad: {requires_grad}")
-        p.requires_grad_(requires_grad)
+
 
 
 def stat_array(x: ndarray) -> Tuple[Tuple[float, float, float, float, int], str]:
@@ -298,12 +309,32 @@ def save_ckpt(
     models: Dict[str, Module],
     optimizers: List[Optimizer],
     lr_schedulers: List[LRScheduler],
+    hf_mode: bool,
     **kwargs
 ) -> None:
+    if hf_mode:
+        _dir_path, _fname = os.path.split(fpath)
+        if _fname.startswith("best"):
+            save_dir = os.path.join(_dir_path, "best")
+        else:
+            save_dir = os.path.join(_dir_path, "last")
+        #
+        os.makedirs(save_dir, exist_ok=True)
+        for m in models.values():
+            if hasattr(m, "save_pretrained"):
+                m.save_pretrained(save_dir)
+        models_sd = None
+    else:
+        models_sd  =  {k: m.state_dict() for k, m in models.items()}
+
+    lr_schedulers_sd = []
+    for lr_s in lr_schedulers:
+        lr_schedulers_sd.append({k: v for k, v in lr_s.state_dict().items() if not ismethod(v)})
+
     ckpt: Dict[str, Any] = {
-        "models": {k: m.state_dict() for k, m in models.items()},
+        "models": models_sd,
         "optimizers": [o.state_dict() for o in optimizers],
-        "lr_schedulers": [lr_s.state_dict() for lr_s in lr_schedulers],
+        "lr_schedulers": lr_schedulers_sd,
     }
     #
     kwargs["date"] = get_date_now()[1]
@@ -331,11 +362,12 @@ class ModelCheckpoint:
         core_metric_name: Optional[str] = None,  # e.g. "acc".
         higher_is_better: Optional[bool] = None,  # e.g. True
         # note: the last epoch/step will always be validated
-        val_every_n: int = 1,  # val_every_n_epoch or val_every_n_steps
+        val_every_n: int = 1,  # val_every_n_epoch or val_every_n_steps. (include saving best model)
         val_mode: Literal["epoch", "step"] = "epoch",
-        #
         saving_best_model: bool = True,
-        saving_last_model: bool = True,
+        # 
+        saving_last_model_every_n: int = 1, 
+        saving_hf_mode: bool  = False,  
         # False: for saving memory
         saving_optimizers: bool = False,  # state_dict
         saving_lr_schedulers: bool = True,  # state_dict
@@ -348,14 +380,15 @@ class ModelCheckpoint:
         self.val_mode: Literal["epoch", "step"] = val_mode
         #
         self.saving_best_model = saving_best_model
-        self.saving_last_model = saving_last_model
-        if not self.saving_best_model and not self.saving_last_model:
+        self.saving_last_model_every_n = saving_last_model_every_n
+        if not self.saving_best_model and not self.saving_last_model_every_n:
             if saving_optimizers:
                 saving_optimizers = False
                 logger.warning(f"Setting saving_optimizers: {saving_optimizers}")
             if saving_lr_schedulers:
                 saving_lr_schedulers = False
                 logger.warning(f"Setting saving_lr_schedulers: {saving_lr_schedulers}")
+        self.saving_hf_mode = saving_hf_mode
         self.saving_optimizers = saving_optimizers
         self.saving_lr_schedulers = saving_lr_schedulers
         self.write_result_csv = write_result_csv

@@ -8,7 +8,7 @@
 
 ## Introduction
 1. [Mini-Lightning](https://github.com/ustcml/mini-lightning/) is a **lightweight** machine learning training library, which is a mini version of [Pytorch-Lightning](https://www.pytorchlightning.ai/) with only **1k lines of code**. It has the advantages of **faster, more concise and more flexible**.
-2. **Existing features**: support for DDP(multi-node and multi-gpu), Sync-BN, DP, AMP, gradient accumulation, warmup and lr_scheduler, grad clip, tensorboard, model and result saving, beautiful console log, torchmetrics, etc.
+2. **Existing features**: support for DDP(multi-node and multi-gpu), Sync-BN, DP, MP(model parallelism), AMP, gradient accumulation, warmup and lr_scheduler, grad clip, tensorboard, model and result saving, beautiful console log, torchmetrics, etc.
 3. Only the **minimal interfaces** are exposed, keeping the features of **simplicity, easy to read, use and extend**.
 4. **examples** can be found in `examples/`
 5. If you have any problems or bug finding, please **raise issue**, Thank you.
@@ -44,11 +44,13 @@ python examples/cv.py
 python examples/cv.py  # setting device_ids=[0, 1]
 
 ### nlp_bert_mlm.py; nlp_bert_seq_cls.py; nlp_gpt_lm.py; nlp_gpt_seq_cls.py
-pip install "transformers>=4.25" "datasets>=2.7"
+pip install "transformers>=4.25" "datasets>=2.7" "peft>=0.3"
 python examples/nlp_bert_mlm.py
 python examples/nlp_bert_seq_cls.py
 python examples/nlp_gpt_lm.py
 python examples/nlp_gpt_seq_cls.py
+python examples/nlp_gpt_zh_sft_adapter.py
+python examples/nlp_gpt_zh_sft_lora.py
 
 ### dqn.py
 pip install "gym>=0.26.2" "pygame>=2.1.2"
@@ -106,4 +108,4 @@ torchrun --nnodes 2 --node_rank 1 --master_addr xxx.xxx.xxx.xxx --nproc_per_node
 1. Automatic parameter adjustment
 2. Examples: Audio, Meta-learning, Diffusion, Auto-regressive, Reinforcement Learning
 3. Support multi-gpu test
-4. 输出log文件. 
+4. Output .log file

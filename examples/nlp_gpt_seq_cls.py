@@ -41,9 +41,9 @@ class HParams(HParamsBase):
 
 class MyLModule(ml.LModule):
     def __init__(self, hparams: HParams) -> None:
-        config: PretrainedConfig = GPT2Config.from_pretrained(model_id)
+        config = GPT2Config.from_pretrained(model_id)
         config.pad_token_id = config.eos_token_id  # 50256
-        model: PreTrainedModel = GPT2ForSequenceClassification.from_pretrained(model_id, config=config)
+        model = GPT2ForSequenceClassification.from_pretrained(model_id, config=config)
         ml.freeze_layers(model, ["transformer.wte.", "transformer.wpe.", "transformer.drop."] +
                          [f"transformer.h.{i}." for i in range(2)], verbose=False)
         optimizer = getattr(optim, hparams.optim_name)(model.parameters(), **hparams.optim_hparams)
@@ -68,7 +68,7 @@ class MyLModule(ml.LModule):
 
     def _calculate_loss_prob_pred(self, batch: Dict[str, Tensor]) -> Tuple[Tensor, Tensor, Tensor]:
         labels = batch["labels"]
-        y = self.model(batch["input_ids"], None, batch["attention_mask"])
+        y = self.model(batch["input_ids"], attention_mask=batch["attention_mask"])
         logits = y.logits
         loss = self.loss_fn(logits, labels)
         y_prob = torch.softmax(logits, 1)[:, 1]
@@ -97,7 +97,7 @@ class MyLModule(ml.LModule):
 if __name__ == "__main__":
     ml.seed_everything(42, gpu_dtm=False)
     dataset = load_dataset("glue", "mrpc")  # for examples
-    tokenizer: PreTrainedTokenizerBase = GPT2TokenizerFast.from_pretrained(model_id)
+    tokenizer = GPT2TokenizerFast.from_pretrained(model_id)
     tokenizer.pad_token = tokenizer.eos_token  # 50256
     tokenizer.deprecation_warnings["Asking-to-pad-a-fast-tokenizer"] = True
 
@@ -105,7 +105,7 @@ if __name__ == "__main__":
         # example: Dict[str, List[Any]]. key: sentence1, sentence2, label, idx
         return tokenizer(example["sentence1"], example["sentence2"], truncation=True)
 
-    dataset = dataset.map(tokenize_function, batched=True)  # add
+    dataset = dataset.map(tokenize_function, batched=True)
     dataset = dataset.remove_columns(["sentence1", "sentence2", "idx"])
     dataset = dataset.rename_column("label", "labels")
     collate_fn = DataCollatorWithPadding(tokenizer=tokenizer, return_tensors="pt")

@@ -140,11 +140,44 @@ class Agent:
 #
 
 
-def get_rand_p(global_step: int, T_max: int, eta_min: float, eta_max: float) -> float:
-    rand_p = ml.cosine_annealing_lr(global_step, T_max, eta_min, [eta_max])[0]
-    return rand_p
-
 #
+def _get_offset_func(fa: float, fb: float, ga: float, gb: float) -> Callable[[float], float]:
+    # (a, fa) -> (a, ga); (b, fb) -> (b, gb)
+    # Generate a linear function of curve translation and scaling. gx=s*fx+t
+    if fa == fb:
+        raise ValueError("fa == fb")
+    s = (gb-ga) / (fb-fa)
+    t = ga - fa * s
+
+    def func(x: float) -> float:
+        return s * x + t
+    return func
+
+
+def cosine_annealing_lr(epoch: int, T_max: int, eta_min: float, initial_lrs: List[float]) -> List[float]:
+    """
+    epoch=0: lr=initial_lr
+    epoch=T_max: lr=eta_min
+    T of sine curve = 2 * T_max
+    """
+    # Avoid floating point errors
+    if epoch % (2 * T_max) == 0:
+        return initial_lrs
+    if (epoch + T_max) % (2 * T_max) == 0:
+        return [eta_min] * len(initial_lrs)
+    res = []
+    # x axis
+    x = math.cos(math.pi * epoch / T_max)  # (2 * pi * x) / (2 * T_max)
+    # y axis
+    for initial_lr in initial_lrs:
+        func = _get_offset_func(-1, 1, eta_min, initial_lr)
+        res.append(func(x))
+    return res
+
+
+def get_rand_p(global_step: int, T_max: int, eta_min: float, eta_max: float) -> float:
+    rand_p = cosine_annealing_lr(global_step, T_max, eta_min, [eta_max])[0]
+    return rand_p
 
 
 class MyLModule(ml.LModule):

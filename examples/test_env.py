@@ -93,7 +93,8 @@ if __name__ == "__main__":
     lr_s = ml.warmup_decorator(lr_s, 5)
     lmodel = MyLModule(model, [optimizer], [lr_s])
     trainer = ml.Trainer(lmodel, [], 40, RUNS_DIR, ml.ModelCheckpoint(
-        "acc", True, 100, "step", saving_optimizers=True), gradient_clip_norm=10, verbose=True)
+        "acc", True, 100, "step", saving_optimizers=True), 
+        gradient_clip_norm=10, verbose=True, n_accumulate_grad=1)
     trainer.test(ldm.val_dataloader, True, True)
     trainer.fit(ldm.train_dataloader, ldm.val_dataloader)
     trainer.test(ldm.test_dataloader, True, True)
@@ -138,5 +139,6 @@ if __name__ == "__main__":
     model = MLP_L2(2, 4, 1)
     ldm = ml.LDataModule(train_dataset, val_dataset, test_dataset, 64)
     lmodel = MyLModule(model, [], [])
-    trainer = ml.Trainer(lmodel, [], None, RUNS_DIR, ml.ModelCheckpoint("loss", False), resume_from_ckpt=ckpt_path)
+    trainer = ml.Trainer(lmodel, [], None, RUNS_DIR, ml.ModelCheckpoint(
+        "loss", False), resume_from_ckpt=ckpt_path)
     trainer.test(ldm.test_dataloader, True, True)

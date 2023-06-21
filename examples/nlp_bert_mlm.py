@@ -40,9 +40,9 @@ class HParams(HParamsBase):
 
 class MyLModule(ml.LModule):
     def __init__(self, hparams: HParams) -> None:
-        config: PretrainedConfig = RobertaConfig.from_pretrained(model_id)
+        config = RobertaConfig.from_pretrained(model_id)
         logger.info(config)
-        model: PreTrainedModel = RobertaForMaskedLM.from_pretrained(model_id, config=config)
+        model = RobertaForMaskedLM.from_pretrained(model_id, config=config)
         ml.freeze_layers(model, ["roberta.embeddings."] +
                          [f"roberta.encoder.layer.{i}." for i in range(2)], verbose=False)
         optimizer = getattr(optim, hparams.optim_name)(model.parameters(), **hparams.optim_hparams)
@@ -91,14 +91,14 @@ class MyLModule(ml.LModule):
 if __name__ == "__main__":
     ml.seed_everything(42, gpu_dtm=False)
     dataset = load_dataset("glue", "mrpc")  # for examples
-    tokenizer: PreTrainedTokenizerBase = RobertaTokenizerFast.from_pretrained(model_id)
+    tokenizer = RobertaTokenizerFast.from_pretrained(model_id)
     tokenizer.deprecation_warnings["Asking-to-pad-a-fast-tokenizer"] = True
 
     def tokenize_function(example):
         # example: Dict[str, List[Any]]. key: sentence1, sentence2, label, idx
         return tokenizer(example["sentence1"], example["sentence2"], truncation=True)
 
-    dataset = dataset.map(tokenize_function, batched=True)  # add
+    dataset = dataset.map(tokenize_function, batched=True)
     dataset = dataset.remove_columns(["sentence1", "sentence2", "idx", "label"])
     collate_fn = DataCollatorForLanguageModeling(tokenizer, True, 0.15, return_tensors="pt")
     #

@@ -329,7 +329,8 @@ class Trainer:
         replace_sampler_ddp: bool = True,
         resume_from_ckpt: Union[str, ResumeFromCkpt, None] = None,
         #
-        tb_every_n_steps: int = 10,
+        use_dp: bool = False,  # This parameter is valid only when len(device_ids) is >1
+        tb_every_n_steps: int = 5,
         prog_bar_n_steps: int = 1,
         deterministic:  Optional[bool] = None,
         benchmark: Optional[bool] = None,
@@ -411,10 +412,9 @@ class Trainer:
             os.makedirs(self.ckpt_dir, exist_ok=True)
             os.makedirs(self.tb_dir, exist_ok=True)
             #
+            self.save_hparams(lmodel.hparams)
             logger.info(f"runs_dir: {runs_dir}")
             self.tb_logger = SummaryWriter(self.tb_dir)
-            hparams = lmodel.hparams
-            self.save_hparams(hparams)
         #
         logger.info(f"Using local_rank: {self.local_rank}, rank: {self.rank}, world_size: {self.world_size}")
         #
@@ -435,7 +435,7 @@ class Trainer:
         device = select_device(device_ids)
         if self.rank == -1:
             self.device = device
-            parallel_mode = "DP" if len(device_ids) > 1 else None
+            parallel_mode = "DP" if len(device_ids) > 1 and use_dp else None
         else:
             parallel_mode = "DDP"
             self.device = Device(self.local_rank)  # cover
@@ -446,6 +446,7 @@ class Trainer:
                 backend = "nccl" if dist.is_nccl_available() else "gloo"
                 logger.info(f"Using backend: {backend}")
                 dist.init_process_group(backend=backend, rank=self.rank, world_size=self.world_size)
+        self.use_dp = use_dp
         self.parallel_mode: Literal["DP", "DDP", None] = parallel_mode
         self.sync_bn = sync_bn
         self.amp = amp
@@ -471,7 +472,9 @@ class Trainer:
         self.best_metric: Optional[float] = None
         self.best_ckpt_path: Optional[str] = None
         self.last_ckpt_path: Optional[str] = None
-        self.global_step = 0
+        self.global_step = 0  # optim_step
+        self._last_optimize = False   # for last optimize before validation
+        self._after_optimize = False
         self.global_epoch = -1
         # for log
         self._new_mes: Dict[str, float] = {}
@@ -484,8 +487,8 @@ class Trainer:
         # for train epoch
         self._rec_mes_train: Dict[str, float] = {}
         self._mean_metrics_train: Dict[str, MeanMetric] = {}
-        # for last optimize before validation
-        self._last_optimize = False
+        #
+        self._saveing_n: int = 0  # nums of saving last models (epoch/step mode)
         #
         self.model_checkpoint = model_checkpoint if model_checkpoint is not None else ModelCheckpoint()
         self.resume_from_ckpt = resume_from_ckpt
@@ -646,13 +649,14 @@ class Trainer:
         model_list = {s: de_parallel(getattr(lmodel, s)) for s in lmodel._models}
         optimizers = lmodel.optimizers if mc.saving_optimizers else []
         lr_schedulers = lmodel.lr_schedulers if mc.saving_lr_schedulers else []
-        save_ckpt(fpath, model_list, optimizers, lr_schedulers, **kwargs)
+        save_ckpt(fpath, model_list, optimizers, lr_schedulers, mc.saving_hf_mode, **kwargs)
 
     def _load_ckpt(self, fpath: str, load_optimizers: bool, load_lr_schedulers: bool,
                    load_mes: bool, strict: bool) -> None:
         # fpath: `*.ckpt`
         map_location = self.device
         models_sd, optimizers_sd_list,  lr_s_sd_list, mes = load_ckpt(fpath, map_location)
+        assert models_sd is not None
         lmodel = self.lmodel
         if load_optimizers:
             for optimizer, o_sd in zip(lmodel.optimizers, optimizers_sd_list):
@@ -696,7 +700,8 @@ class Trainer:
                 self._save_ckpt(self.best_ckpt_path)
                 logger.info((f"Best model, saving model `{ckpt_fname}`"))
         #
-        if mc.saving_last_model:
+        self._saveing_n += 1
+        if mc.saving_last_model_every_n and self._saveing_n % mc.saving_last_model_every_n == 0:
             self._remove_ckpt("last")
             ckpt_fname = f"last-{mc.val_mode}={val_mode_val}{metric_str}.ckpt"
             self.last_ckpt_path = os.path.join(self.ckpt_dir, ckpt_fname)
@@ -758,9 +763,12 @@ class Trainer:
         return dataloader
 
     def _optimize_step(self) -> None:
+        self._last_optimize = False
+        self._after_optimize = True
+        self.global_step += 1
+        #
         lmodel = self.lmodel
         scaler = self.scaler
-        self.global_step += 1
         lmodel.log(f"global_step", self.global_step, prog_bar_mean=False)
         for opt_idx, opt in enumerate(lmodel.optimizers):
             if self.gradient_clip_norm is not None:
@@ -827,11 +835,12 @@ class Trainer:
         batch_idx = -1  # avoid unbound
         self._prog_bar_mean.clear()
         for batch_idx, batch in enumerate(dataloader):
+            self._after_optimize = False
+            self._last_optimize = True
             self._last_val = True  # need last val
             self._new_mes.clear()
             #
             batch = lmodel.batch_to_device(batch, device)
-            self._last_optimize = True
             for opt_idx in range(len(lmodel.optimizers)):
                 if len(lmodel.optimizers) > 1:
                     lmodel.toggle_optimizer(opt_idx)
@@ -844,7 +853,6 @@ class Trainer:
                     lmodel.untoggle_optimizer(opt_idx)
             # optimize
             if (batch_idx + 1) % n_accumulate_grad == 0:
-                self._last_optimize = False
                 self._optimize_step()
             #
             self._metrics_update(_mean_metrics, self._new_mes, self._prog_bar_mean, device, True)
@@ -862,13 +870,13 @@ class Trainer:
                 prog_bar.set_postfix(prog_bar_mes, refresh=False)  # rank > 0 disable.
                 prog_bar.update(self.prog_bar_n_steps)
             # tensorboard
-            if self.global_step and self.global_step % self.tb_every_n_steps == 0:
+            if self.global_step % self.tb_every_n_steps == 0 and self._after_optimize:
                 tb_mes = self._get_res_mes(_mean_metrics, _rec_mes, "tb")
                 if self.rank >= 0:
                     tb_mes = self._reduce_mes(tb_mes, device)
                 self._tb_logger_add_scalars(tb_mes, self.global_step)
             # val
-            if mc.val_mode == "step" and self.global_step and self.global_step % mc.val_every_n == 0:
+            if mc.val_mode == "step" and self.global_step % mc.val_every_n == 0 and self._after_optimize:
                 res_mes = self._get_res_mes(_mean_metrics, _rec_mes, "result")
                 prog_bar.refresh()
                 if not prog_bar.disable:
@@ -959,7 +967,9 @@ class Trainer:
             step = self.global_epoch
         else:
             step = self.global_step
-        self._tb_logger_add_scalars(res_mes, step)
+        tb_mes = res_mes.copy()
+        tb_mes.pop("global_epoch")
+        self._tb_logger_add_scalars(tb_mes, step)
         #
         core_metric = None
         if len(metrics) > 0:
@@ -998,6 +1008,10 @@ class Trainer:
 
     def _test(self, dataloader: Optional[DataLoader],
               model_type: Literal["last", "best"]) -> None:
+        mc = self.model_checkpoint
+        if model_type == "best" and mc.saving_hf_mode is True:
+            logger.warning(f"[not support] model_type: {model_type}, mc.saving_hf_mode: {mc.saving_hf_mode}")
+            return
         #
         if model_type == "best":
             assert self.best_ckpt_path is not None
@@ -1054,14 +1068,14 @@ class Trainer:
         if test_best:
             # If last first, last will be overridden in tensorboard. So best first.
             if self.best_ckpt_path is None:
-                logger.warning("Ignore test best: self.best_ckpt_path is None")
+                logger.warning("[Ignore test best] self.best_ckpt_path is None")
                 test_best = False
             else:
                 self._test(dataloader, "best")
         #
         if test_last:  # just current model
             if self._best_ckpt_is_last() and test_best:
-                logger.info("Ignore test last: the best ckpt and the last ckpt is the same")
+                logger.info("[Ignore test last] the best ckpt and the last ckpt is the same")
             else:
                 self._test(dataloader, "last")
         cuda.empty_cache()
