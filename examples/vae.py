@@ -212,7 +212,7 @@ class AutoEncoder(ml.LModule):
         # no grad; eval
         fake_img = self(self.example_z)
         fpath = os.path.join(self.images_dir, f"epoch{self.global_epoch}.png")
-        save_images(fake_img, 8, fpath, norm=True, value_range=(-1, 1))
+        save_image(fake_img, fpath, nrow=8, padding=2, normalize=True, value_range=(-1, 1), pad_value=1)
         return super().validation_epoch_end()
 
 

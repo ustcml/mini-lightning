@@ -17,6 +17,9 @@ class HParams(HParamsBase):
     def __init__(self) -> None:
         self.model_name = "resnet50"
         self.num_classes = 10
+        self.use_dp = False
+        if len(device_ids) > 1:
+            self.use_dp = True
         #
         dataloader_hparams = {"batch_size": batch_size, "num_workers": 4}
         optim_hparams = {"lr": 1e-4, "weight_decay": 1e-1}
@@ -28,6 +31,7 @@ class HParams(HParamsBase):
             "gradient_clip_norm": 10,
             "amp": True,
             "n_accumulate_grad": n_accumulate_grad,
+            "use_dp": self.use_dp,
             "verbose": True
         }
         warmup = 100  # The impact range of warmup is 100 optimization steps.

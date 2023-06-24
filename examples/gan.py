@@ -101,7 +101,7 @@ class GAN(ml.LModule):
         G, D = Generator(**hparams.G_hparams), Discriminator(**hparams.D_hparams)
         opt_G = getattr(optim, hparams.opt_G_name)(G.parameters(), **hparams.opt_G_hparams)
         opt_D = getattr(optim, hparams.opt_D_name)(D.parameters(), **hparams.opt_D_hparams)
-        super().__init__([opt_G, opt_D], {}, hparams)
+        super().__init__([opt_G, opt_D], [], {}, hparams)
         self.G = G
         self.D = D
         self.loss_fn = nn.BCEWithLogitsLoss()
@@ -147,7 +147,7 @@ class GAN(ml.LModule):
         # no grad; eval
         fake_img = self(self.example_z)
         fpath = os.path.join(self.images_dir, f"epoch{self.global_epoch}.png")
-        save_images(fake_img, 8, fpath, norm=True, value_range=(-1, 1))
+        save_image(fake_img, fpath, nrow=8, padding=2, normalize=True, value_range=(-1, 1), pad_value=1)
         return super().validation_epoch_end()  # {}
 
 
