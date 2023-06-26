@@ -116,7 +116,7 @@ class MyLModule(ml.LModule):
 
 if __name__ == "__main__":
     ml.seed_everything(42, gpu_dtm=False)
-    dataset = load_dataset("c-s-ale/alpaca-gpt4-data-zh")
+    dataset = load_dataset("c-s-ale/alpaca-gpt4-data-zh")["train"]
     tokenizer = GPT2TokenizerFast.from_pretrained(model_id)
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.deprecation_warnings["Asking-to-pad-a-fast-tokenizer"] = True
@@ -154,7 +154,7 @@ if __name__ == "__main__":
     dataset = dataset.map(tokenize_function)
     dataset = dataset.remove_columns(["instruction", "input", "output"])
     # 
-    dataset = dataset["train"].train_test_split(hparams.test_split_p, seed=hparams.split_seed)
+    dataset = dataset.train_test_split(hparams.test_split_p, seed=hparams.split_seed)
     hparams.lrs_hparams["T_max"] = ml.get_T_max(
         len(dataset["train"]), batch_size, max_epochs, n_accumulate_grad)
     ldm = ml.LDataModule(

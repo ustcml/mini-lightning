@@ -20,11 +20,12 @@ model_id = "THUDM/chatglm2-6b"
 class HParams(HParamsBase):
     def __init__(self, collate_fn: Callable[[List[Any]], Any]) -> None:
         self.model_id = model_id
-        self.prompt = """以下是用户和AI助手之间的对话, AI助手为用户提供了有帮助的、详细的、友好的回答。
-### 用户
-{instruction}
-### AI助手
-"""
+        # Ref: https://huggingface.co/THUDM/chatglm2-6b/blob/main/modeling_chatglm.py#L915
+        self.prompt = """[Round 1]
+
+问：{instruction}
+
+答："""
         self.ckpt_path = None
         self.max_length = 1024
         self.lora_dropout_p = 0
@@ -119,8 +120,8 @@ class MyLModule(ml.LModule):
 
 if __name__ == "__main__":
     ml.seed_everything(42, gpu_dtm=False)
-    dataset_zh = load_dataset("c-s-ale/alpaca-gpt4-data-zh")
-    dataset_en = load_dataset("vicgalle/alpaca-gpt4")
+    dataset_zh = load_dataset("c-s-ale/alpaca-gpt4-data-zh")["train"]
+    dataset_en = load_dataset("vicgalle/alpaca-gpt4")["train"]
     tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
     logger.info(tokenizer.special_tokens)
     tokenizer.deprecation_warnings["Asking-to-pad-a-fast-tokenizer"] = True
@@ -160,7 +161,7 @@ if __name__ == "__main__":
 
     # 
     dataset_en = dataset_en.remove_columns(["text"])
-    dataset = concatenate_datasets([dataset_zh["train"], dataset_en["train"]])
+    dataset = concatenate_datasets([dataset_zh, dataset_en])
     #
     # dataset = dataset.select(range(1000))
     dataset = dataset.map(tokenize_function)

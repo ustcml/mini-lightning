@@ -345,51 +345,51 @@ class Trainer:
                 DDP uses multiple processes and DP uses multiple threads. DDP is faster than DP.
                 In addition, DDP supports sync-BN.
         #
-        device_ids: if len(device_ids) > 1, use DP. (by setting the `CUDA_VISIBLE_DEVICES` environment variable to select device)
-            e.g. []: stands for "cpu "; [0]; [0, 1, 2]
+        device_ids: if len(device_ids) > 1, use DP(if use_dp=True)/MP. 
+            e.g. []: stands for "cpu"; [0]; [0, 1, 2]
             note: DP: batch_size is split to each GPU. Make sure: batch_size % n_gpus == 0.
                 DDP: total batch_size = batch_size * world_size. (different from DP)
             note: DP, DDP, sync_bn will modify lmodel.model (en_parallel). You need to de_parallel, de_sync_batchnorm manually if you want to get original model.
-        n_accumulate_grad: Accumulates gradient every n batch (Use mean accumulation instead of sum)
+        n_accumulate_grad: Accumulates gradient every n batch. `batch_idx %`
             Ref: https://lightning.ai/docs/pytorch/stable/common/optimization.html#gradient-accumulation
             if n_accumulate_grad is Dict[int, int]: e.g. {5:2, 20:4} or {0:1, 5:2, 20:4}.
                 Indicates 1 for 0-4 epoch, 2 for 5-19, and 4 after 20 epoch.
                 This can accelerate the training speed in the initial stage, and get nice convergence performance in the end.
                 (like bigger batch_size if you don't use bn); with big batch_size, you can increase the learning rate appropriately.
-            note: It will changes the frequency of optimizer_step() calls.
-                So adjust the parameters of the lr_scheduler called in optimizer_step() (e.g. warmup, T_max, etc.). you can use ml.get_T_max() to get T_max
-            note: the unupdated grad of the last batch will be updated before validation. 
-                Same behavior as PyTorch Lightning. `batch_idx %`
+            note: the unupdated grad of the last batch will be updated before validation. Same behavior as PyTorch Lightning. 
         amp: Whether to use mixed precision training.
             Ref: https://pytorch.org/docs/stable/notes/amp_examples.html
             Effects: Speed up training and reduce memory consumption. Slightly (or not) decrease performance.
-            note: Recommended for use in large models. Small models do not speed up training.
-        gradient_clip_norm: gradient clipping (norm) to prevents gradient explosion and log `grad_norm` before clipping if verbose=True. It's usually set to 5, 10, 20.
+            note: Recommended for use in large models(e.g. GPT, BERT). Small models do not speed up training. 
+        gradient_clip_norm: gradient clipping (norm) to prevents gradient explosion and log `grad_norm` before clipping if verbose=True. 
+            It's usually set to 5, 10, 20.
             note: inf and nan check is added if gradient_clip_norm is not None. This can improve the stability of training.
                 If inf or nan is found, this update will be skipped. (If amp=True, inf check is handled by amp)
         sync_bn: (valid only in DDP mode)
             This generally improves training accuracy and stability, but slightly slows down training speed.
-        replace_sampler_ddp: (valid only in DDP mode) whether to use DistributedSampler (train_dataloader only) in DDP mode.
+        replace_sampler_ddp: (valid only in DDP mode) whether to use DistributedSampler in DDP mode.
             replace_sampler_ddp=False: each gpu will use the complete dataset.
             replace_sampler_ddp=True: It will slice the dataset into world_size chunks and distribute them to each gpu.
             note: Replace train_dataloader only. Because DDP uses a single gpu for val/test.
-        resume_from_ckpt: only load model_state_dict. `*.ckpt`
+        resume_from_ckpt: e.g. `*.ckpt`
             If you want to resume from ckpt. please see examples in `examples/test_env.py`
         *
-        tb_every_n_steps: Frequency of writing information to the tensorboard(sampling per n steps, not mean; all gpus). `global_step % `
+        tb_every_n_steps: Frequency of writing information to the tensorboard. `global_step % `
         prog_bar_n_steps: updating Frequency of progress bar. `batch_idx % `. (rank=0)
             note: torchmetrics is recommended for metrics calculation.
                 if you use `self.log` in training, errors will occur when the length of the last batch is not equal to batch_size.
-                    and it will just log rank=0 if in ddp mode.
-                please don't use `self.log` in validation
-            note: train: scalar of inf, nan will be skipped, val/test: scalar of inf, nan will be recorded.
+                    and it will just log rank=0 in ddp mode. (for faster)
+                please don't use `self.log` in validation. (please use metrics["xxx"].update, for more precision)
+            note: train: scalar of inf, nan will be skipped; val/test: scalar of inf, nan will be recorded.
         deterministic:
             deterministic=None: not modify
-        benchmark: same as Pytorch Lightning behavior.
+        benchmark: 
             benchmark=True, can speed up training. (Pytorch defaults to False)
                 Ref: https://pytorch.org/docs/stable/backends.html#torch.backends.cudnn.torch.backends.cudnn.benchmark
-            benchmark=None: if cudnn.deterministic=False, benchmark=True. else benchmark=False.
-        verbose: records global_step, lr, (grad_norm if gradient_clip_norm=True) automatically. (tensorboard will always record)
+            benchmark=None: if cudnn.deterministic=False, benchmark=True. else benchmark=False. 
+                same as Pytorch Lightning behavior.
+        verbose: records global_step, lr, (grad_norm if gradient_clip_norm=True) automatically. 
+            (Only the prog bar is affected, tensorboard will always record)
             verbose=True: log in prog_bar.
             verbose=False: not log in prog_bar, making the prog_bar cleaner
         """
@@ -730,12 +730,12 @@ class Trainer:
                      mode: Literal["tb", "result", "prog_bar"]) -> Dict[str, float]:
         """not inplace"""
         res = rec_mes.copy()
+        res.update(self._metrics_compute(mean_metrics))
         if mode == "tb":
             res["global_epoch"] = self.global_epoch
             res.pop("global_step", None)
             return res
         #
-        res.update(self._metrics_compute(mean_metrics))
         if mode == "result":
             res["global_epoch"] = self.global_epoch
             return res
