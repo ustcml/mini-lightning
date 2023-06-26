@@ -486,6 +486,7 @@ class Trainer:
         # for train epoch
         self._rec_mes_train: Dict[str, float] = {}
         self._mean_metrics_train: Dict[str, MeanMetric] = {}
+        self._tb_mean_metrics_train: Dict[str, MeanMetric] = {}
         #
         self._saveing_n: int = 0  # nums of saving last models (epoch/step mode)
         #
@@ -498,7 +499,8 @@ class Trainer:
                 logger.info(f"Using ckpt: {rfc}")
             elif isinstance(rfc, ResumeFromCkpt):
                 if rfc.ckpt_path is not None:
-                    self._load_ckpt(rfc.ckpt_path, rfc.load_optimizers, rfc.load_lr_schedulers, rfc.load_message, False)
+                    self._load_ckpt(rfc.ckpt_path, rfc.load_optimizers, rfc.load_lr_schedulers, 
+                                    rfc.load_message, False)
                     logger.info(f"Using ckpt: {rfc.ckpt_path}, resume_from_ckpt: {rfc}")
             else:
                 raise ValueError(f"resume_from_ckpt: {rfc}")
@@ -506,7 +508,7 @@ class Trainer:
         lmodel.trainer_init(self)
         for s in lmodel._models:
             model: Module = getattr(lmodel, s)
-            print_model_info(s, model, None)
+            print_model_info(model, s, None)
 
     @staticmethod
     def _get_version(runs_dir: str) -> int:
@@ -648,15 +650,33 @@ class Trainer:
         model_list = {s: de_parallel(getattr(lmodel, s)) for s in lmodel._models}
         optimizers = lmodel.optimizers if mc.saving_optimizers else []
         lr_schedulers = lmodel.lr_schedulers if mc.saving_lr_schedulers else []
-        save_ckpt(fpath, model_list, optimizers, lr_schedulers, mc.saving_hf_mode, **kwargs)
+        # 
+        if mc.saving_hf_mode: 
+            models_sd = {}
+            _dir_path, _fname = os.path.split(fpath)
+            if _fname.startswith("best"):
+                save_dir = os.path.join(_dir_path, "best")
+            else:
+                save_dir = os.path.join(_dir_path, "last")
+            #
+            os.makedirs(save_dir, exist_ok=True)
+            for m in model_list.values():
+                if hasattr(m, "save_pretrained"):
+                    m.save_pretrained(save_dir)
+        else:
+            models_sd  =  {k: m.state_dict() for k, m in model_list.items()}
+        save_ckpt(fpath, models_sd, optimizers, lr_schedulers, **kwargs)
 
     def _load_ckpt(self, fpath: str, load_optimizers: bool, load_lr_schedulers: bool,
                    load_mes: bool, strict: bool) -> None:
         # fpath: `*.ckpt`
-        map_location = self.device
-        models_sd, optimizers_sd_list,  lr_s_sd_list, mes = load_ckpt(fpath, map_location)
-        assert models_sd is not None  # please use model.from_pretrained
         lmodel = self.lmodel
+        map_location = self.device
+        models_sd, optimizers_sd_list, lr_s_sd_list, mes = load_ckpt(fpath, map_location)
+        if len(models_sd) == 0:
+            # if mc.saving_hf_mode is True: please use model.from_pretrained
+            logger.warning(f"[{fpath} load failed] len(models_sd) == 0")
+            return
         if load_optimizers:
             for optimizer, o_sd in zip(lmodel.optimizers, optimizers_sd_list):
                 optimizer.load_state_dict(o_sd)
@@ -829,6 +849,7 @@ class Trainer:
         #
         _rec_mes = self._rec_mes_train
         _mean_metrics = self._mean_metrics_train
+        _tb_mean_metrics = self._tb_mean_metrics_train
         prog_bar = tqdm(total=total,
                         desc=f"Epoch {self.global_epoch}", dynamic_ncols=True, disable=self.rank > 0, leave=_leave)  # mininterval=0.01
         batch_idx = -1  # avoid unbound
@@ -855,6 +876,7 @@ class Trainer:
                 self._optimize_step()
             #
             self._metrics_update(_mean_metrics, self._new_mes, self._prog_bar_mean, device, True)
+            self._metrics_update(_tb_mean_metrics, self._new_mes, self._prog_bar_mean, device, True)
             _rec_mes.update(self._new_mes)
             # prog_bar
             if (batch_idx + 1) % self.prog_bar_n_steps == 0:
@@ -870,7 +892,8 @@ class Trainer:
                 prog_bar.update(self.prog_bar_n_steps)
             # tensorboard
             if self.global_step % self.tb_every_n_steps == 0 and self._after_optimize:
-                tb_mes = self._get_res_mes(_mean_metrics, _rec_mes, "tb")
+                tb_mes = self._get_res_mes(_tb_mean_metrics, _rec_mes, "tb")
+                _tb_mean_metrics.clear()
                 if self.rank >= 0:
                     tb_mes = self._reduce_mes(tb_mes, device)
                 self._tb_logger_add_scalars(tb_mes, self.global_step)
@@ -1007,10 +1030,6 @@ class Trainer:
 
     def _test(self, dataloader: Optional[DataLoader],
               model_type: Literal["last", "best"]) -> None:
-        mc = self.model_checkpoint
-        if model_type == "best" and mc.saving_hf_mode is True:
-            logger.warning(f"[Not support] model_type: {model_type}, mc.saving_hf_mode: {mc.saving_hf_mode}")
-            return
         #
         if model_type == "best":
             assert self.best_ckpt_path is not None

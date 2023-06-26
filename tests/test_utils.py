@@ -5,6 +5,7 @@ import torch.nn as nn
 from torch import optim
 from torch.optim.lr_scheduler import LambdaLR, _LRScheduler
 #
+import os
 import mini_lightning as ml
 from torchvision.models import resnet18
 
@@ -46,9 +47,9 @@ class TestUtils(ut.TestCase):
         import torch
         model = resnet50()
         input = torch.randn(1, 3, 224, 224)
-        ml.print_model_info("resnet", model, (input, ))
-        ml.print_model_info("resnet", model)
-        ml.print_model_info("resnet", model, (input, ))
+        ml.print_model_info(model, None, (input, ))
+        ml.print_model_info(model, "resnet", )
+        ml.print_model_info(model, "resnet", (input, ))
 
     def test_ckpt(self) -> None:
         model = resnet18()
@@ -70,8 +71,9 @@ class TestUtils(ut.TestCase):
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-        ml.save_ckpt("asset/tmp.ckpt", {"model": model}, [], [], False)
-        ml.save_ckpt("asset/tmp2.ckpt", {"model": model}, [optimizer], [lr_s], False)
+        os.makedirs("asset", exist_ok=True)
+        ml.save_ckpt("asset/tmp.ckpt", {"model": model.state_dict()}, [], [])
+        ml.save_ckpt("asset/tmp2.ckpt", {"model": model.state_dict()}, [optimizer], [lr_s])
         #
         models_state_dict, _, _,  mes = ml.load_ckpt("asset/tmp.ckpt")
         model = models_state_dict["model"]

@@ -1,10 +1,10 @@
-# Ref: https://modelscope.cn/models/baichuan-inc/baichuan-7B/summary
+# Ref: https://huggingface.co/THUDM/chatglm2-6b
 # Author: Jintao Huang
 # Email: huangjintao@mail.ustc.edu.cn
 # Date:
 from pre_nlp import *
 #
-RUNS_DIR = os.path.join(RUNS_DIR, "nlp_baichuan_sft_lora")
+RUNS_DIR = os.path.join(RUNS_DIR, "nlp_chatglm2_sft_lora")
 os.makedirs(RUNS_DIR, exist_ok=True)
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
@@ -14,7 +14,7 @@ ml.select_device(device_ids)
 max_epochs = 1
 batch_size = 2
 n_accumulate_grad = 16
-model_id = "baichuan-inc/baichuan-7B"
+model_id = "THUDM/chatglm2-6b"
 
 
 class HParams(HParamsBase):
@@ -26,11 +26,11 @@ class HParams(HParamsBase):
 ### AI助手
 """
         self.ckpt_path = None
-        self.max_length = 896
+        self.max_length = 1024
         self.lora_dropout_p = 0
         self.lora_r = 8
         self.lora_alpha = 32
-        self.lora_target_modules = ["W_pack"]
+        self.lora_target_modules = ["query_key_value"]
         self.verbose_freeze = True
         self.test_split_p = 0.01
         self.split_seed = 42
@@ -58,8 +58,8 @@ class MyLModule(ml.LModule):
     def __init__(self, hparams: HParams) -> None:
         config = AutoConfig.from_pretrained(model_id, trust_remote_code=True)
         logger.info(config)
-        model = AutoModelForCausalLM.from_pretrained(model_id, config=config, trust_remote_code=True, 
-                                                     device_map="auto", torch_dtype=torch.float16)
+        model = AutoModel.from_pretrained(model_id, config=config, trust_remote_code=True, 
+                                          device_map="auto", torch_dtype=torch.float16)
         ml.freeze_layers(model, [""], verbose=False)  # all freeze
         if hparams.ckpt_path is None:
             lora_config = LoraConfig(base_model_name_or_path=model_id, lora_dropout=hparams.lora_dropout_p, 
@@ -73,7 +73,7 @@ class MyLModule(ml.LModule):
             ml.activate_layers(model, None)
         logger.info(model)
         optimizer = getattr(optim, hparams.optim_name)(model.parameters(), **hparams.optim_hparams)
-        self.vocab_size = model.config.vocab_size
+        self.vocab_size = tokenizer.vocab_size
         metrics: Dict[str, Metric] = {
             "loss": MeanMetric(),
             "acc":  Accuracy("multiclass", num_classes=self.vocab_size),
@@ -92,7 +92,8 @@ class MyLModule(ml.LModule):
         labels = batch["labels"]
         labels = labels[:, 1:]
         labels_mask = labels != -100
-        y = self.model(batch["input_ids"], attention_mask=batch["attention_mask"])
+        y = self.model(batch["input_ids"], attention_mask=batch["attention_mask"], 
+                       use_cache=False, output_attentions=False, output_hidden_states=False)
         logits = y.logits[:, :-1]
         logits = logits[labels_mask].contiguous().view(-1, logits.shape[-1])
         labels = labels[labels_mask].to(logits.device)
@@ -116,22 +117,23 @@ class MyLModule(ml.LModule):
         self.metrics["loss"].update(loss)
         self.metrics["acc"].update(y_pred, labels)
 
-
 if __name__ == "__main__":
     ml.seed_everything(42, gpu_dtm=False)
     dataset_zh = load_dataset("c-s-ale/alpaca-gpt4-data-zh")
     dataset_en = load_dataset("vicgalle/alpaca-gpt4")
     tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
-    tokenizer.pad_token = tokenizer.eos_token
+    logger.info(tokenizer.special_tokens)
     tokenizer.deprecation_warnings["Asking-to-pad-a-fast-tokenizer"] = True
-    _data_collator = DataCollatorWithPadding(tokenizer)
     def data_collate_fn(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
         input_ids = [torch.tensor(b["input_ids"]) for b in batch]
         labels = [torch.tensor(b["labels"]) for b in batch]
+        attention_mask = [torch.ones(len(input_ids[i]), dtype=torch.int64) for i in range(len(input_ids))]
+        #
+        input_ids = pad_sequence(input_ids, batch_first=True, padding_value=tokenizer.pad_token_id)
+        attention_mask = pad_sequence(attention_mask, batch_first=True, padding_value=0)
         labels = pad_sequence(labels, batch_first=True, padding_value=-100)
-        res = _data_collator({"input_ids": input_ids})
-        res["labels"] = labels
-        return res
+        return  {"input_ids": input_ids, "attention_mask": attention_mask, "labels": labels}
+
     hparams = HParams(data_collate_fn)
     #
     def tokenize_function(example: Dict[str, str]) -> Dict[str, Any]:
@@ -147,11 +149,10 @@ if __name__ == "__main__":
         output = example["output"]
         src_text = hparams.prompt.format(instruction=instruction, add_special_tokens=False)
         src_input_ids: List[int] = tokenizer(src_text, return_attention_mask=False, 
-                                             add_special_tokens=False)["input_ids"]
+                                             add_special_tokens=True)["input_ids"]
         tgt_input_ids: List[int] = tokenizer(output, return_attention_mask=False, 
                                              add_special_tokens=False)["input_ids"]
-        src_input_ids.append(tokenizer.bos_token_id)
-        tgt_input_ids.append(tokenizer.eos_token_id)
+        tgt_input_ids.append(tokenizer.pad_token_id)
         #
         input_ids = src_input_ids + tgt_input_ids
         labels = [-100] * len(src_input_ids) + tgt_input_ids

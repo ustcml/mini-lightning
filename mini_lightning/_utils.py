@@ -255,7 +255,10 @@ def time_synchronize() -> float:
     return time.perf_counter()  # second
 
 
-def print_model_info(name: str, model: Module, inputs: Optional[Tuple[Any, ...]] = None) -> None:
+def print_model_info(model: Module, name: Optional[str] = None, inputs: Optional[Tuple[Any, ...]] = None) -> None:
+    if name is None:
+        name = model.__class__.__name__
+    #
     n_layers = len(list(model.modules()))
     n_params = sum(p.numel() for p in model.parameters())
     n_grads = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -318,27 +321,11 @@ def get_date_now(fmt: str = "%Y-%m-%d %H:%M:%S.%f") -> Tuple[Dict[str, int], str
 def save_ckpt(
     fpath: str,
     #
-    models: Dict[str, Module],
+    models_sd: Dict[str, Dict[str, Tensor]],
     optimizers: List[Optimizer],
     lr_schedulers: List[LRScheduler],
-    hf_mode: bool,
     **kwargs
 ) -> None:
-    if hf_mode:
-        _dir_path, _fname = os.path.split(fpath)
-        if _fname.startswith("best"):
-            save_dir = os.path.join(_dir_path, "best")
-        else:
-            save_dir = os.path.join(_dir_path, "last")
-        #
-        os.makedirs(save_dir, exist_ok=True)
-        for m in models.values():
-            if hasattr(m, "save_pretrained"):
-                m.save_pretrained(save_dir)
-        models_sd = None
-    else:
-        models_sd  =  {k: m.state_dict() for k, m in models.items()}
-
     lr_schedulers_sd = []
     for lr_s in lr_schedulers:
         lr_schedulers_sd.append({k: v for k, v in lr_s.state_dict().items() if not ismethod(v)})

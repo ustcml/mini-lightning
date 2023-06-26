@@ -3,7 +3,7 @@ from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from transformers.modeling_utils import PreTrainedModel
 from transformers.configuration_utils import PretrainedConfig
 from transformers.models.auto.configuration_auto import AutoConfig
-from transformers.models.auto.modeling_auto import AutoModelForCausalLM
+from transformers.models.auto.modeling_auto import AutoModel, AutoModelForCausalLM
 from transformers.models.auto.tokenization_auto import AutoTokenizer
 # 
 from transformers.models.roberta.configuration_roberta import RobertaConfig

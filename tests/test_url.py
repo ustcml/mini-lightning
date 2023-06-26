@@ -5,7 +5,7 @@ import requests
 import time
 
 if __name__ == "__main__":
-    folder = "/home/jintao/Desktop/0_coding/0_python/1_ml_alg/mini-lightning/mini_lightning"
+    folder = "./mini_lightning"
     for fname in os.listdir(folder):
         path = os.path.join(folder, fname)
         if os.path.isdir(path):
