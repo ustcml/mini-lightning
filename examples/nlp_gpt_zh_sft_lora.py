@@ -164,3 +164,11 @@ if __name__ == "__main__":
     lmodel = MyLModule(hparams)
     trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams.trainer_hparams)
     trainer.fit(ldm.train_dataloader, ldm.val_dataloader)
+    trainer.test(ldm.val_dataloader, False, True)
+    # test best
+    from peft import set_peft_model_state_dict
+    from peft.utils import WEIGHTS_NAME
+    fpath = os.path.join(os.path.dirname(trainer.best_ckpt_path), "best", WEIGHTS_NAME)
+    adapters_weights = torch.load(fpath, map_location="cuda")
+    set_peft_model_state_dict(lmodel.model, adapters_weights)
+    trainer.test(ldm.val_dataloader, False, True)

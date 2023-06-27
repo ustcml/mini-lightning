@@ -1,4 +1,4 @@
-# Ref: https://huggingface.co/THUDM/chatglm2-6b
+# Ref: https://modelscope.cn/models/ZhipuAI/chatglm2-6b/summary
 # Author: Jintao Huang
 # Email: huangjintao@mail.ustc.edu.cn
 # Date:

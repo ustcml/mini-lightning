@@ -287,7 +287,7 @@ def print_model_info(model: Module, name: Optional[str] = None, inputs: Optional
 
 def write_to_yaml(obj: Any, fpath: str, encoding: str = "utf-8", mode: str = "w") -> None:
     with open(fpath, mode, encoding=encoding) as f:
-        yaml.dump(obj, f)
+        yaml.dump(obj, f, allow_unicode=True)
 
 
 def read_from_yaml(fpath: str, encoding: str = "utf-8", loader=None) -> Any:
