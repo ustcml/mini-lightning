@@ -857,7 +857,7 @@ class Trainer:
             for opt_idx in range(len(lmodel.optimizers)):
                 if len(lmodel.optimizers) > 1:
                     lmodel.toggle_optimizer(opt_idx)
-                with autocast(device_type=self.device.type, enabled=self.amp):
+                with autocast(device_type=self.device.type, dtype=None, enabled=self.amp):
                     loss = lmodel.training_step(batch, opt_idx)
                 #
                 loss.div_(n_accumulate_grad)
