@@ -326,14 +326,10 @@ def save_ckpt(
     lr_schedulers: List[LRScheduler],
     **kwargs
 ) -> None:
-    lr_schedulers_sd = []
-    for lr_s in lr_schedulers:
-        lr_schedulers_sd.append({k: v for k, v in lr_s.state_dict().items() if not ismethod(v)})
-
     ckpt: Dict[str, Any] = {
         "models": models_sd,
         "optimizers": [o.state_dict() for o in optimizers],
-        "lr_schedulers": lr_schedulers_sd,
+        "lr_schedulers": [lr_s.state_dict() for lr_s in lr_schedulers]
     }
     #
     kwargs["date"] = get_date_now()[1]

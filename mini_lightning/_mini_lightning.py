@@ -71,10 +71,6 @@ class LModule:
     def log_dict(self, _dict: Dict[str, Union[Tensor, float]], *, prog_bar_mean: bool = True) -> None:
         for k, v in _dict.items():
             self.log(k, v, prog_bar_mean=prog_bar_mean)
-
-    def __call__(self, *args, **kwargs) -> Any:
-        return self.forward(*args, **kwargs)
-
     #
     def trainer_init(self, trainer: "Trainer") -> None:
         self.trainer = trainer
@@ -179,9 +175,6 @@ class LModule:
                         p.requires_grad = optimizer_requires_grad[p]
         #
         self._optimizer_requires_grad = {}
-
-    def forward(self, *args, **kwargs) -> Any:
-        raise NotImplementedError
 
     def training_step(self, batch: Any, opt_idx: int) -> Tensor:
         """return loss"""
