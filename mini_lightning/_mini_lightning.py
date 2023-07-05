@@ -13,7 +13,7 @@ from ._utils import (
 
 # Note: global_epoch, batch_idx start from 0.
 #   global_step starts from 1.
-__all__ = ["LModule", "LDataModule", "Trainer"]
+__all__ = ['LModule', 'LDataModule', 'Trainer']
 #
 
 
@@ -36,7 +36,7 @@ class LModule:
         self.lr_schedulers = lr_schedulers
         self.metrics = metrics
         self.hparams = hparams
-        self.trainer: Optional["Trainer"] = None
+        self.trainer: Optional['Trainer'] = None
 
     @property
     def global_step(self) -> int:
@@ -72,13 +72,14 @@ class LModule:
         for k, v in _dict.items():
             self.log(k, v, prog_bar_mean=prog_bar_mean)
     #
-    def trainer_init(self, trainer: "Trainer") -> None:
+
+    def trainer_init(self, trainer: 'Trainer') -> None:
         self.trainer = trainer
         device = trainer.device
         #
         for s in self._models:
             model: Module = getattr(self, s)
-            if next(model.parameters()).device.type == "cpu":
+            if next(model.parameters()).device.type == 'cpu':
                 model.to(device)
             model = en_parallel(model, trainer.parallel_mode, trainer.sync_bn)
             setattr(self, s, model)
@@ -91,12 +92,12 @@ class LModule:
 
     @classmethod
     def batch_to_device(cls, batch: Any, device: Device) -> Any:
-        if callable(getattr(batch, "to", None)):
+        if callable(getattr(batch, 'to', None)):
             # Ref: https://github.com/Lightning-AI/lightning/blob/master/src/lightning/fabric/utilities/apply_func.py#L92
             #   same as pytorch-lightning
             kwargs = {}
-            if isinstance(batch, Tensor) and device not in (Device("cpu"), "cpu"):
-                kwargs["non_blocking"] = True
+            if isinstance(batch, Tensor) and device not in (Device('cpu'), 'cpu'):
+                kwargs['non_blocking'] = True
             return batch.to(device=device, **kwargs)
         #
         if isinstance(batch, Mapping):
@@ -110,7 +111,7 @@ class LModule:
         elif isinstance(batch, (int, float)):
             res = batch
         else:
-            raise TypeError(f"batch: {batch}, {type(batch)}")
+            raise TypeError(f'batch: {batch}, {type(batch)}')
         return res
 
     def optimizer_step(self, opt_idx: int) -> None:
@@ -123,21 +124,21 @@ class LModule:
             trainer.scaler.step(self.optimizers[opt_idx])
 
     #
-    def _epoch_start(self, stage: Literal["train", "val_test"]) -> None:
+    def _epoch_start(self, stage: Literal['train', 'val_test']) -> None:
         for s in self._models:
             model: Module = getattr(self, s)
-            if stage == "train":
+            if stage == 'train':
                 model.train()
-            else:  # "val", "test"
+            else:  # 'val', 'test'
                 model.eval()
         for metric in self.metrics.values():
             metric.reset()
 
     def training_epoch_start(self) -> None:
-        self._epoch_start("train")
+        self._epoch_start('train')
 
     def validation_epoch_start(self) -> None:
-        self._epoch_start("val_test")
+        self._epoch_start('val_test')
 
     def test_epoch_start(self) -> None:
         self.validation_epoch_start()
@@ -151,14 +152,14 @@ class LModule:
         # for recover
         for o in self.optimizers:
             for pg in o.param_groups:
-                for p in pg["params"]:
+                for p in pg['params']:
                     if p in optimizer_requires_grad:
                         continue
                     optimizer_requires_grad[p] = p.requires_grad
                     p.requires_grad = False
         #
         for pg in self.optimizers[opt_idx].param_groups:
-            for p in pg["params"]:
+            for p in pg['params']:
                 p.requires_grad = optimizer_requires_grad[p]
         #
         self._optimizer_requires_grad = optimizer_requires_grad
@@ -170,7 +171,7 @@ class LModule:
             if i == opt_idx:
                 continue
             for pg in o.param_groups:
-                for p in pg["params"]:
+                for p in pg['params']:
                     if p in optimizer_requires_grad:
                         p.requires_grad = optimizer_requires_grad[p]
         #
@@ -188,7 +189,7 @@ class LModule:
         return self.validation_step(batch)
     #
 
-    def _val_test_epoch_end(self, k_prefix: Literal["val", "test"]) -> Dict[str, float]:
+    def _val_test_epoch_end(self, k_prefix: Literal['val', 'test']) -> Dict[str, float]:
         mes: Dict[str, float] = {}
         for k, metric in self.metrics.items():
             if metric._update_count == 0:
@@ -196,30 +197,30 @@ class LModule:
             v = metric.compute()
             if isinstance(v, dict):
                 for _k, _v in v.items():
-                    mes[f"{k}_{_k}"] = _v
+                    mes[f'{k}_{_k}'] = _v
                 continue
             #
             if isinstance(v, (tuple, list)):
                 v = torch.tensor(v)
             assert isinstance(v, Tensor)
             if v.ndim > 0:
-                mes[k] = v.mean().item()  # "macro" mean
+                mes[k] = v.mean().item()  # 'macro' mean
                 for i in range(len(v)):
-                    mes[f"{k}_{i}"] = v[i].item()
+                    mes[f'{k}_{i}'] = v[i].item()
             else:
                 mes[k] = v.item()
         #
-        mes = {f"{k_prefix}_{k}": v for k, v in mes.items()}
+        mes = {f'{k_prefix}_{k}': v for k, v in mes.items()}
         return mes
 
     def training_epoch_end(self) -> None:
         return
 
     def validation_epoch_end(self) -> Dict[str, float]:
-        return self._val_test_epoch_end("val")
+        return self._val_test_epoch_end('val')
 
     def test_epoch_end(self) -> Dict[str, float]:
-        return self._val_test_epoch_end("test")
+        return self._val_test_epoch_end('test')
 
     @staticmethod
     def _parameters_empty(model: Module) -> bool:
@@ -298,7 +299,7 @@ class LDataModule:
                                                sampler=sampler_train, batch_sampler=batch_sampler_train)
         #
         rank = get_dist_setting()[0]
-        for dataset, loader_name in zip([val_dataset, test_dataset], ["val_dataloader", "test_dataloader"]):
+        for dataset, loader_name in zip([val_dataset, test_dataset], ['val_dataloader', 'test_dataloader']):
             if rank in {-1, 0} and dataset is not None:
                 loader = DataLoader(dataset, batch_size, shuffle=False,
                                     num_workers=num_workers, pin_memory=pin_memory,
@@ -339,7 +340,7 @@ class Trainer:
                 In addition, DDP supports sync-BN.
         #
         device_ids: if len(device_ids) > 1, use DP(if use_dp=True)/MP. 
-            e.g. []: stands for "cpu"; [0]; [0, 1, 2]
+            e.g. []: stands for 'cpu'; [0]; [0, 1, 2]
             note: DP: batch_size is split to each GPU. Make sure: batch_size % n_gpus == 0.
                 DDP: total batch_size = batch_size * world_size. (different from DP)
             note: DP, DDP, sync_bn will modify lmodel.model (en_parallel). You need to de_parallel, de_sync_batchnorm manually if you want to get original model.
@@ -372,7 +373,7 @@ class Trainer:
             note: torchmetrics is recommended for metrics calculation.
                 if you use `self.log` in training, errors will occur when the length of the last batch is not equal to batch_size.
                     and it will just log rank=0 in ddp mode. (for faster)
-                please don't use `self.log` in validation. (please use metrics["xxx"].update, for more precision)
+                please don't use `self.log` in validation. (please use metrics['xxx'].update, for more precision)
             note: train: scalar of inf, nan will be skipped; val/test: scalar of inf, nan will be recorded.
         deterministic:
             deterministic=None: not modify
@@ -391,24 +392,24 @@ class Trainer:
         if self.rank in {-1, 0}:
             runs_dir = os.path.abspath(runs_dir)
             self.version = self._get_version(runs_dir)
-            time = dt.datetime.now().strftime("%Y%m%d-%H%M%S.%f")  # window not support `:`
-            runs_dir = os.path.join(runs_dir, f"v{self.version}-{time}")
+            time = dt.datetime.now().strftime('%Y%m%d-%H%M%S.%f')  # window not support `:`
+            runs_dir = os.path.join(runs_dir, f'v{self.version}-{time}')
             #
             self.runs_dir = runs_dir
-            self.ckpt_dir = os.path.join(runs_dir, "checkpoints")
-            self.tb_dir = os.path.join(runs_dir, "runs")  # tensorboard
-            self.hparams_path = os.path.join(runs_dir, "hparams.yaml")
-            self.result_yaml_path = os.path.join(runs_dir, "result.yaml")
-            self.result_csv_path = os.path.join(runs_dir, "result.csv")
-            self.log_path = os.path.join(runs_dir, "output.log")
+            self.ckpt_dir = os.path.join(runs_dir, 'checkpoints')
+            self.tb_dir = os.path.join(runs_dir, 'runs')  # tensorboard
+            self.hparams_path = os.path.join(runs_dir, 'hparams.yaml')
+            self.result_yaml_path = os.path.join(runs_dir, 'result.yaml')
+            self.result_csv_path = os.path.join(runs_dir, 'result.csv')
+            self.log_path = os.path.join(runs_dir, 'output.log')
             os.makedirs(self.ckpt_dir, exist_ok=True)
             os.makedirs(self.tb_dir, exist_ok=True)
             #
             self.save_hparams(lmodel.hparams)
-            logger.info(f"runs_dir: {runs_dir}")
+            logger.info(f'runs_dir: {runs_dir}')
             self.tb_logger = SummaryWriter(self.tb_dir)
         #
-        logger.info(f"Using local_rank: {self.local_rank}, rank: {self.rank}, world_size: {self.world_size}")
+        logger.info(f'Using local_rank: {self.local_rank}, rank: {self.rank}, world_size: {self.world_size}')
         #
         self.lmodel = lmodel
         self.device_ids = device_ids
@@ -421,28 +422,28 @@ class Trainer:
         else:
             benchmark = True if benchmark is None else benchmark
         torch.backends.cudnn.benchmark = benchmark
-        logger.info(f"Setting deterministic: {deterministic}")
-        logger.info(f"Setting benchmark: {benchmark}")
+        logger.info(f'Setting deterministic: {deterministic}')
+        logger.info(f'Setting benchmark: {benchmark}')
         #
         device = select_device(device_ids)
         if self.rank == -1:
             self.device = device
-            parallel_mode = "DP" if len(device_ids) > 1 and use_dp else None
+            parallel_mode = 'DP' if len(device_ids) > 1 and use_dp else None
         else:
-            parallel_mode = "DDP"
+            parallel_mode = 'DDP'
             self.device = Device(self.local_rank)  # cover
             cuda.set_device(self.local_rank)  # set current cuda
             assert dist.is_available()
             if not dist.is_initialized():
                 # nccl is not available in windows
-                backend = "nccl" if dist.is_nccl_available() else "gloo"
-                logger.info(f"Using backend: {backend}")
+                backend = 'nccl' if dist.is_nccl_available() else 'gloo'
+                logger.info(f'Using backend: {backend}')
                 dist.init_process_group(backend=backend, rank=self.rank, world_size=self.world_size)
         self.use_dp = use_dp
-        self.parallel_mode: Literal["DP", "DDP", None] = parallel_mode
+        self.parallel_mode: Literal['DP', 'DDP', None] = parallel_mode
         self.sync_bn = sync_bn
         self.amp = amp
-        logger.info(f"Using amp: {amp}")
+        logger.info(f'Using amp: {amp}')
         #
         self.max_epochs = max_epochs
         self.n_accumulate_grad = n_accumulate_grad
@@ -489,14 +490,14 @@ class Trainer:
             rfc = resume_from_ckpt
             if isinstance(rfc, str):
                 self._load_ckpt(rfc, False, False, False, False)
-                logger.info(f"Using ckpt: {rfc}")
+                logger.info(f'Using ckpt: {rfc}')
             elif isinstance(rfc, ResumeFromCkpt):
                 if rfc.ckpt_path is not None:
-                    self._load_ckpt(rfc.ckpt_path, rfc.load_optimizers, rfc.load_lr_schedulers, 
+                    self._load_ckpt(rfc.ckpt_path, rfc.load_optimizers, rfc.load_lr_schedulers,
                                     rfc.load_message, False)
-                    logger.info(f"Using ckpt: {rfc.ckpt_path}, resume_from_ckpt: {rfc}")
+                    logger.info(f'Using ckpt: {rfc.ckpt_path}, resume_from_ckpt: {rfc}')
             else:
-                raise ValueError(f"resume_from_ckpt: {rfc}")
+                raise ValueError(f'resume_from_ckpt: {rfc}')
 
         lmodel.trainer_init(self)
         for s in lmodel._models:
@@ -504,14 +505,14 @@ class Trainer:
             print_model_info(model, s, None)
 
     @staticmethod
-    def _get_version(runs_dir: str) -> int:
-        if os.path.isdir(runs_dir):
-            fnames = os.listdir(runs_dir)
+    def _get_version(work_dir: str) -> int:
+        if os.path.isdir(work_dir):
+            fnames = os.listdir(work_dir)
         else:
             fnames = []
         v_list = [-1]
         for fname in fnames:
-            m = re.match(r"v(\d+)", fname)
+            m = re.match(r'v(\d+)', fname)
             if m is None:
                 continue
             v = m.group(1)
@@ -542,7 +543,7 @@ class Trainer:
         elif not isinstance(hparams, dict):
             hparams = hparams.__dict__
         saved_hparams = self._check_hparams(hparams)
-        logger.info(f"Saving hparams: {saved_hparams}")
+        logger.info(f'Saving hparams: {saved_hparams}')
         write_to_yaml(saved_hparams, self.hparams_path)
 
     @staticmethod
@@ -572,9 +573,9 @@ class Trainer:
             self.tb_logger.add_scalar(k, v, global_step=step)
 
     def _remove_ckpt(self, mode: str) -> None:
-        if mode == "best" and self.best_ckpt_path is not None:
+        if mode == 'best' and self.best_ckpt_path is not None:
             os.remove(self.best_ckpt_path)
-        elif mode == "last" and self.last_ckpt_path is not None:
+        elif mode == 'last' and self.last_ckpt_path is not None:
             os.remove(self.last_ckpt_path)
 
     def _result_saving(self, mes: Dict[str, float]) -> None:
@@ -582,13 +583,13 @@ class Trainer:
             return
         mc = self.model_checkpoint
 
-        if mc.val_mode == "epoch":
+        if mc.val_mode == 'epoch':
             val_mode_val = self.global_epoch  # validation_mode_value
         else:
             val_mode_val = self.global_step
         #
-        mode = mes["mode"]
-        write_to_yaml({f"{mode}[{mc.val_mode}={val_mode_val}]": mes}, self.result_yaml_path, mode="a")
+        mode = mes['mode']
+        write_to_yaml({f'{mode}[{mc.val_mode}={val_mode_val}]': mes}, self.result_yaml_path, mode='a')
         if mc.write_result_csv:
             self.write_csv_from_yaml()
 
@@ -601,21 +602,21 @@ class Trainer:
                 keys.add(k2)
         #
         mc = self.model_checkpoint
-        keys.remove("mode")
-        if mc.val_mode == "epoch":
-            keys.remove("global_epoch")
-            keys = ["mode", "global_epoch"] + sorted(keys)
+        keys.remove('mode')
+        if mc.val_mode == 'epoch':
+            keys.remove('global_epoch')
+            keys = ['mode', 'global_epoch'] + sorted(keys)
         else:
-            keys.remove("global_step")
-            keys = ["mode", "global_step"] + sorted(keys)
+            keys.remove('global_step')
+            keys = ['mode', 'global_step'] + sorted(keys)
         #
         res = [keys]
         for d in data.values():
             r = []
             for k in keys:
-                r.append(d[k] if k in d else "")
+                r.append(d[k] if k in d else '')
             res.append(r)
-        write_to_csv(res, self.result_csv_path, mode="w")
+        write_to_csv(res, self.result_csv_path, mode='w')
 
     @staticmethod
     def _is_better_than(metric: float, old_metric: Optional[float], higher_is_better: bool) -> bool:
@@ -632,32 +633,32 @@ class Trainer:
         lmodel = self.lmodel
         mc = self.model_checkpoint
         kwargs: Dict[str, Any] = {
-            "global_step": self.global_step,
-            "global_epoch": self.global_epoch,
-            "core_metric": {
-                "name": mc.core_metric_name,
-                "higher_is_better": mc.higher_is_better,
-                "best_value": self.best_metric
+            'global_step': self.global_step,
+            'global_epoch': self.global_epoch,
+            'core_metric': {
+                'name': mc.core_metric_name,
+                'higher_is_better': mc.higher_is_better,
+                'best_value': self.best_metric
             }
         }
         model_list = {s: de_parallel(getattr(lmodel, s)) for s in lmodel._models}
         optimizers = lmodel.optimizers if mc.saving_optimizers else []
         lr_schedulers = lmodel.lr_schedulers if mc.saving_lr_schedulers else []
-        # 
-        if mc.saving_hf_mode: 
+        #
+        if mc.saving_hf_mode:
             models_sd = {}
             _dir_path, _fname = os.path.split(fpath)
-            if _fname.startswith("best"):
-                save_dir = os.path.join(_dir_path, "best")
+            if _fname.startswith('best'):
+                save_dir = os.path.join(_dir_path, 'best')
             else:
-                save_dir = os.path.join(_dir_path, "last")
+                save_dir = os.path.join(_dir_path, 'last')
             #
             os.makedirs(save_dir, exist_ok=True)
             for m in model_list.values():
-                if hasattr(m, "save_pretrained"):
+                if hasattr(m, 'save_pretrained'):
                     m.save_pretrained(save_dir)
         else:
-            models_sd  =  {k: m.state_dict() for k, m in model_list.items()}
+            models_sd = {k: m.state_dict() for k, m in model_list.items()}
         save_ckpt(fpath, models_sd, optimizers, lr_schedulers, **kwargs)
 
     def _load_ckpt(self, fpath: str, load_optimizers: bool, load_lr_schedulers: bool,
@@ -668,7 +669,7 @@ class Trainer:
         models_sd, optimizers_sd_list, lr_s_sd_list, mes = load_ckpt(fpath, map_location)
         if len(models_sd) == 0:
             # if mc.saving_hf_mode is True: please use model.from_pretrained
-            logger.warning(f"[{fpath} load failed] len(models_sd) == 0")
+            logger.warning(f'[{fpath} load failed] len(models_sd) == 0')
             return
         if load_optimizers:
             for optimizer, o_sd in zip(lmodel.optimizers, optimizers_sd_list):
@@ -680,8 +681,8 @@ class Trainer:
                 _lr_scheduler_rerun(lr_s)
         #
         if load_mes:
-            self.global_step = mes["global_step"]
-            self.global_epoch = mes["global_epoch"]
+            self.global_step = mes['global_step']
+            self.global_epoch = mes['global_epoch']
         #
         for k, state_dict in models_sd.items():
             model: Module = getattr(lmodel, k)
@@ -693,49 +694,49 @@ class Trainer:
         if self.rank not in {-1, 0}:
             return
         #
-        metric_str = ""
+        metric_str = ''
         mc = self.model_checkpoint
-        if mc.val_mode == "epoch":
+        if mc.val_mode == 'epoch':
             val_mode_val = self.global_epoch
         else:
             val_mode_val = self.global_step
         #
         if mc.saving_best_model and core_metric is not None:
             assert mc.higher_is_better is not None
-            tag = "+" if mc.higher_is_better else "-"
-            metric_str = f"-{mc.core_metric_name}[{tag}]={core_metric:.6f}"
+            tag = '+' if mc.higher_is_better else '-'
+            metric_str = f'-{mc.core_metric_name}[{tag}]={core_metric:.6f}'
             if self._is_better_than(core_metric, self.best_metric, mc.higher_is_better):
-                self._remove_ckpt("best")
+                self._remove_ckpt('best')
                 self.best_metric = core_metric
-                ckpt_fname = f"best-{mc.val_mode}={val_mode_val}{metric_str}.ckpt"
+                ckpt_fname = f'best-{mc.val_mode}={val_mode_val}{metric_str}.ckpt'
                 self.best_ckpt_path = os.path.join(self.ckpt_dir, ckpt_fname)
                 self._save_ckpt(self.best_ckpt_path)
-                logger.info((f"Best model, saving model `{ckpt_fname}`"))
+                logger.info((f'Best model, saving model `{ckpt_fname}`'))
         #
         self._saveing_n += 1
         if mc.saving_last_model_every_n and self._saveing_n % mc.saving_last_model_every_n == 0:
-            self._remove_ckpt("last")
-            ckpt_fname = f"last-{mc.val_mode}={val_mode_val}{metric_str}.ckpt"
+            self._remove_ckpt('last')
+            ckpt_fname = f'last-{mc.val_mode}={val_mode_val}{metric_str}.ckpt'
             self.last_ckpt_path = os.path.join(self.ckpt_dir, ckpt_fname)
             self._save_ckpt(self.last_ckpt_path)
 
     def _get_res_mes(self, mean_metrics: Dict[str, MeanMetric], rec_mes: Dict[str, float],
-                     mode: Literal["tb", "result", "prog_bar"]) -> Dict[str, float]:
+                     mode: Literal['tb', 'result', 'prog_bar']) -> Dict[str, float]:
         """not inplace"""
         res = rec_mes.copy()
         res.update(self._metrics_compute(mean_metrics))
-        if mode == "tb":
-            res["global_epoch"] = self.global_epoch
-            res.pop("global_step", None)
+        if mode == 'tb':
+            res['global_epoch'] = self.global_epoch
+            res.pop('global_step', None)
             return res
         #
-        if mode == "result":
-            res["global_epoch"] = self.global_epoch
+        if mode == 'result':
+            res['global_epoch'] = self.global_epoch
             return res
         # prog_bar
         prog_bar_res = {}
         for k in res.keys():
-            if not self.verbose and (k == "global_step" or k.startswith("lr") or k.startswith("grad_norm")):
+            if not self.verbose and (k == 'global_step' or k.startswith('lr') or k.startswith('grad_norm')):
                 continue
             prog_bar_res[k] = res[k]
         return prog_bar_res
@@ -755,11 +756,11 @@ class Trainer:
 
     @staticmethod
     def _get_epoch_end_string(mes: Dict[str, float]) -> str:
-        res = "Epoch End: "
+        res = 'Epoch End: '
         for i, (k, v) in enumerate(mes.items()):
             if i != 0:
-                res += ", "
-            res += f"{k}={v:.6f}"
+                res += ', '
+            res += f'{k}={v:.6f}'
         return res
 
     @staticmethod
@@ -768,7 +769,7 @@ class Trainer:
         if isinstance(dataloader.sampler, SequentialSampler):
             shuffle = False
         sampler = DistributedSampler(dataloader.dataset, shuffle=shuffle)
-        logger.info(f"Using DistributedSampler: shuffle={shuffle}")
+        logger.info(f'Using DistributedSampler: shuffle={shuffle}')
         dataloader = DataLoader(dataloader.dataset, dataloader.batch_size, sampler=sampler,
                                 num_workers=dataloader.num_workers, pin_memory=dataloader.pin_memory,
                                 drop_last=dataloader.drop_last, collate_fn=dataloader.collate_fn)
@@ -781,12 +782,12 @@ class Trainer:
         #
         lmodel = self.lmodel
         scaler = self.scaler
-        lmodel.log(f"global_step", self.global_step, prog_bar_mean=False)
+        lmodel.log(f'global_step', self.global_step, prog_bar_mean=False)
         for opt_idx, opt in enumerate(lmodel.optimizers):
             if self.gradient_clip_norm is not None:
                 scaler.unscale_(opt)
                 grad_norm = clip_grad_norm_(  # scalar
-                    (p for pg in opt.param_groups for p in pg["params"]),
+                    (p for pg in opt.param_groups for p in pg['params']),
                     max_norm=self.gradient_clip_norm, error_if_nonfinite=False
                 )
                 #
@@ -794,12 +795,12 @@ class Trainer:
                     self._found_inf = grad_norm.isinf().item()
                 self._found_nan = grad_norm.isnan().item()
                 #
-                gn_tag = f"grad_norm" if len(lmodel.optimizers) == 1 else f"grad_norm_opt{opt_idx}"
+                gn_tag = f'grad_norm' if len(lmodel.optimizers) == 1 else f'grad_norm_opt{opt_idx}'
                 lmodel.log(gn_tag, grad_norm, prog_bar_mean=True)
         # log lr
         for opt_idx, opt in enumerate(lmodel.optimizers):
-            for i, lr in enumerate([group["lr"] for group in opt.param_groups]):
-                lr_tag = f"lr{i}" if len(lmodel.optimizers) == 1 else f"lr{i}_opt{opt_idx}"
+            for i, lr in enumerate([group['lr'] for group in opt.param_groups]):
+                lr_tag = f'lr{i}' if len(lmodel.optimizers) == 1 else f'lr{i}_opt{opt_idx}'
                 lmodel.log(lr_tag, lr, prog_bar_mean=False)
             #
             lmodel.optimizer_step(opt_idx)
@@ -824,18 +825,18 @@ class Trainer:
             idx = nag_list[bisect_right(nag_list, self.global_epoch) - 1]
             n_accumulate_grad: int = self.n_accumulate_grad[idx]
             if idx == self.global_epoch:
-                logger.info(f"Current n_accumulate_grad: {n_accumulate_grad}")
+                logger.info(f'Current n_accumulate_grad: {n_accumulate_grad}')
         elif isinstance(self.n_accumulate_grad, int):
             n_accumulate_grad = self.n_accumulate_grad
         else:
-            raise TypeError(f"self.n_accumulate_grad: {self.n_accumulate_grad}, type: {type(self.n_accumulate_grad)}")
+            raise TypeError(f'self.n_accumulate_grad: {self.n_accumulate_grad}, type: {type(self.n_accumulate_grad)}')
         #
         try:
             total = len(dataloader)
         except (TypeError, AttributeError):
             total = None
         _leave = False
-        if mc.val_mode == "epoch" and (self.global_epoch + 1) % mc.val_every_n == 0:  # need val after this epoch
+        if mc.val_mode == 'epoch' and (self.global_epoch + 1) % mc.val_every_n == 0:  # need val after this epoch
             _leave = True
         elif self.global_epoch + 1 == self.max_epochs:
             _leave = True
@@ -844,7 +845,7 @@ class Trainer:
         _mean_metrics = self._mean_metrics_train
         _tb_mean_metrics = self._tb_mean_metrics_train
         prog_bar = tqdm(total=total,
-                        desc=f"Epoch {self.global_epoch}", dynamic_ncols=True, disable=self.rank > 0, leave=_leave)  # mininterval=0.01
+                        desc=f'Epoch {self.global_epoch}', dynamic_ncols=True, disable=self.rank > 0, leave=_leave)  # mininterval=0.01
         batch_idx = -1  # avoid unbound
         self._prog_bar_mean.clear()
         for batch_idx, batch in enumerate(dataloader):
@@ -873,41 +874,41 @@ class Trainer:
             _rec_mes.update(self._new_mes)
             # prog_bar
             if (batch_idx + 1) % self.prog_bar_n_steps == 0:
-                prog_bar_mes = self._get_res_mes(_mean_metrics, _rec_mes, "prog_bar")
+                prog_bar_mes = self._get_res_mes(_mean_metrics, _rec_mes, 'prog_bar')
                 if self.rank >= 0:
                     prog_bar_mes = self._reduce_mes(prog_bar_mes, device)
                     #
                 if self.rank in {-1, 0}:
-                    if "global_step" in prog_bar_mes:
-                        prog_bar_mes["global_step"] = str(int(prog_bar_mes["global_step"]))
-                    prog_bar_mes["v"] = self.version
+                    if 'global_step' in prog_bar_mes:
+                        prog_bar_mes['global_step'] = str(int(prog_bar_mes['global_step']))
+                    prog_bar_mes['v'] = self.version
                 prog_bar.set_postfix(prog_bar_mes, refresh=False)  # rank > 0 disable.
                 prog_bar.update(self.prog_bar_n_steps)
             # tensorboard
             if self.global_step % self.tb_every_n_steps == 0 and self._after_optimize:
-                tb_mes = self._get_res_mes(_tb_mean_metrics, _rec_mes, "tb")
+                tb_mes = self._get_res_mes(_tb_mean_metrics, _rec_mes, 'tb')
                 _tb_mean_metrics.clear()
                 if self.rank >= 0:
                     tb_mes = self._reduce_mes(tb_mes, device)
                 self._tb_logger_add_scalars(tb_mes, self.global_step)
             # val
-            if mc.val_mode == "step" and self.global_step % mc.val_every_n == 0 and self._after_optimize:
-                res_mes = self._get_res_mes(_mean_metrics, _rec_mes, "result")
+            if mc.val_mode == 'step' and self.global_step % mc.val_every_n == 0 and self._after_optimize:
+                res_mes = self._get_res_mes(_mean_metrics, _rec_mes, 'result')
                 prog_bar.refresh()
                 if not prog_bar.disable:
-                    prog_bar.fp.write("\n")
+                    prog_bar.fp.write('\n')
                 self._val_and_save_after_train(val_dataloader, res_mes)
         #
         if (batch_idx + 1 - prog_bar.n) > 0:
             prog_bar.update(batch_idx + 1 - prog_bar.n)
         prog_bar.close()
-        res_mes = self._get_res_mes(_mean_metrics, _rec_mes, "result")
+        res_mes = self._get_res_mes(_mean_metrics, _rec_mes, 'result')
         #
         self.lmodel.training_epoch_end()
         return res_mes
 
     def _val_test(
-        self, dataloader: Optional[DataLoader], stage: Literal["val", "test"], desc: str
+        self, dataloader: Optional[DataLoader], stage: Literal['val', 'test'], desc: str
     ) -> Tuple[Optional[float], Dict[str, float]]:
         # val: if core_metric returns None, then only save the last model.
         # test: core_metric always is None
@@ -933,16 +934,16 @@ class Trainer:
             m._to_sync = False
             m.sync_on_compute = False
         #
-        if stage == "val":
+        if stage == 'val':
             val_test_epoch_start = lmodel.validation_epoch_start
             val_test_step = lmodel.validation_step
             val_test_epoch_end = lmodel.validation_epoch_end
-        elif stage == "test":
+        elif stage == 'test':
             val_test_epoch_start = lmodel.test_epoch_start
             val_test_step = lmodel.test_step
             val_test_epoch_end = lmodel.test_epoch_end
         else:
-            raise ValueError(f"stage: {stage}")
+            raise ValueError(f'stage: {stage}')
         #
         val_test_epoch_start()
         #
@@ -966,31 +967,31 @@ class Trainer:
                 _rec_mes.update(self._new_mes)
                 # prog_bar
                 if (batch_idx + 1) % self.prog_bar_n_steps == 0:
-                    prog_bar_mes = self._get_res_mes(_mean_metrics, _rec_mes, "prog_bar")
+                    prog_bar_mes = self._get_res_mes(_mean_metrics, _rec_mes, 'prog_bar')
                     prog_bar.set_postfix(prog_bar_mes, refresh=False)
                     prog_bar.update(self.prog_bar_n_steps)
             if (batch_idx + 1 - prog_bar.n) > 0:
                 prog_bar.update(batch_idx + 1 - prog_bar.n)
             prog_bar.close()
         #
-        res_mes = self._get_res_mes(_mean_metrics, _rec_mes, "result")
+        res_mes = self._get_res_mes(_mean_metrics, _rec_mes, 'result')
         #
         with torch.no_grad():
             metrics = val_test_epoch_end()
         res_mes.update(metrics)
-        if mc.val_mode == "epoch":
+        if mc.val_mode == 'epoch':
             step = self.global_epoch
         else:
             step = self.global_step
         tb_mes = res_mes.copy()
-        tb_mes.pop("global_epoch")
+        tb_mes.pop('global_epoch')
         self._tb_logger_add_scalars(tb_mes, step)
         #
         core_metric = None
         if len(metrics) > 0:
             logger.info(self._get_epoch_end_string(metrics))
-            if stage == "val":
-                core_metric_name = "val_" + mc.core_metric_name
+            if stage == 'val':
+                core_metric_name = 'val_' + mc.core_metric_name
                 core_metric = metrics[core_metric_name]
         # recover
         for s, model in model_r.items():
@@ -1001,18 +1002,18 @@ class Trainer:
         #
         if self.rank == 0:
             dist.barrier()
-        res_mes.update({"global_epoch": self.global_epoch, "global_step": self.global_step})
+        res_mes.update({'global_epoch': self.global_epoch, 'global_step': self.global_step})
         return core_metric, res_mes
 
     def _val_and_save_after_train(self, val_dataloader: Optional[DataLoader], train_mes: Dict[str, float]) -> None:
         if self._last_optimize:
             self._optimize_step()
-        core_metric, val_mes = self._val_test(val_dataloader, "val", "  Val: ")
+        core_metric, val_mes = self._val_test(val_dataloader, 'val', '  Val: ')
         val_mes.update(train_mes)
         # save model and result
         # if core_metric=None, then only save the last model.
         self._model_saving(core_metric)
-        val_mes["mode"] = "val"
+        val_mes['mode'] = 'val'
         self._result_saving(val_mes)
         self._rec_mes_train.clear()
         self._mean_metrics_train.clear()
@@ -1022,21 +1023,21 @@ class Trainer:
         self.lmodel.training_epoch_start()
 
     def _test(self, dataloader: Optional[DataLoader],
-              model_type: Literal["last", "best"]) -> None:
+              model_type: Literal['last', 'best']) -> None:
         #
-        if model_type == "best":
+        if model_type == 'best':
             assert self.best_ckpt_path is not None
             self._load_ckpt(self.best_ckpt_path, False, False, True, True)
-            title = f"Test Best(Epoch={self.global_epoch})"
+            title = f'Test Best(Epoch={self.global_epoch})'
         else:
-            title = f"Test Last(Epoch={self.global_epoch})"
-        desc = title + ": "
+            title = f'Test Last(Epoch={self.global_epoch})'
+        desc = title + ': '
         #
-        _, res_mes = self._val_test(dataloader, "test", desc)
-        res_mes["mode"] = f"test_{model_type}"
+        _, res_mes = self._val_test(dataloader, 'test', desc)
+        res_mes['mode'] = f'test_{model_type}'
         self._result_saving(res_mes)
         #
-        if model_type == "best":
+        if model_type == 'best':
             assert self.last_ckpt_path is not None
             self._load_ckpt(self.last_ckpt_path, False, False, True, True)
 
@@ -1045,11 +1046,11 @@ class Trainer:
             return False
 
         best_ckpt_fname = os.path.basename(self.best_ckpt_path)
-        m = re.match(r"best-(epoch|step)=(\d+)", best_ckpt_fname)
+        m = re.match(r'best-(epoch|step)=(\d+)', best_ckpt_fname)
         assert m is not None
         best_n = m.group(2)
         last_ckpt_fname = os.path.basename(self.last_ckpt_path)
-        m = re.match(r"last-(epoch|step)=(\d+)", last_ckpt_fname)
+        m = re.match(r'last-(epoch|step)=(\d+)', last_ckpt_fname)
         assert m is not None
         last_n = m.group(2)
         return best_n == last_n
@@ -1069,7 +1070,7 @@ class Trainer:
         for _ in range(self.global_epoch + 1, self.max_epochs):
             self.global_epoch += 1
             train_mes = self._train_epoch(train_dataloader, val_dataloader)
-            if mc.val_mode == "epoch" and (self.global_epoch + 1) % mc.val_every_n == 0:
+            if mc.val_mode == 'epoch' and (self.global_epoch + 1) % mc.val_every_n == 0:
                 self._val_and_save_after_train(val_dataloader, train_mes)
         if self._last_val:
             self._val_and_save_after_train(val_dataloader, train_mes)
@@ -1079,14 +1080,14 @@ class Trainer:
         if test_best:
             # If last first, last will be overridden in tensorboard. So best first.
             if self.best_ckpt_path is None:
-                logger.warning("[Ignore test best] self.best_ckpt_path is None")
+                logger.warning('[Ignore test best] self.best_ckpt_path is None')
                 test_best = False
             else:
-                self._test(dataloader, "best")
+                self._test(dataloader, 'best')
         #
         if test_last:  # just current model
             if self._best_ckpt_is_last() and test_best:
-                logger.info("[Ignore test last] the best ckpt and the last ckpt is the same")
+                logger.info('[Ignore test last] the best ckpt and the last ckpt is the same')
             else:
-                self._test(dataloader, "last")
+                self._test(dataloader, 'last')
         cuda.empty_cache()

@@ -4,39 +4,38 @@
 
 
 from ._types import *
-
 __all__ = [
-    "get_dist_setting", "logger",
-    "en_parallel", "de_parallel", "de_sync_batchnorm", "select_device",
-    "_remove_keys", "_key_add_suffix", "freeze_layers", "activate_layers", "stat_array",
-    "test_time", "seed_everything", "time_synchronize",
-    "print_model_info", "write_to_yaml", "read_from_yaml", "write_to_csv",
-    "get_date_now", "load_ckpt", "save_ckpt",
-    "ModelCheckpoint", "ResumeFromCkpt", "parse_device_ids",
+    'get_dist_setting', 'logger',
+    'en_parallel', 'de_parallel', 'de_sync_batchnorm', 'select_device',
+    '_remove_keys', '_key_add_suffix', 'freeze_layers', 'activate_layers', 'stat_array',
+    'test_time', 'seed_everything', 'time_synchronize',
+    'print_model_info', 'write_to_yaml', 'read_from_yaml', 'write_to_csv',
+    'get_date_now', 'load_ckpt', 'save_ckpt',
+    'ModelCheckpoint', 'ResumeFromCkpt', 'parse_device_ids',
 ]
 #
-_T = TypeVar("_T")
+_T = TypeVar('_T')
 
 
 def get_dist_setting() -> Tuple[int, int, int]:
     """return rank, local_rank, world_size"""
-    rank = int(os.getenv("RANK", -1))
-    local_rank = int(os.getenv("LOCAL_RANK", -1))
-    world_size = int(os.getenv("WORLD_SIZE", 1))
+    rank = int(os.getenv('RANK', -1))
+    local_rank = int(os.getenv('LOCAL_RANK', -1))
+    world_size = int(os.getenv('WORLD_SIZE', 1))
     return rank, local_rank, world_size
 
 
 def _get_logger(verbose_format: bool = False) -> logging.Logger:
     level = logging.INFO
-    name = "mini-lightning"
+    name = 'mini-lightning'
     #
     logger: Logger = logging.getLogger(name)
     logger.setLevel(level)
     handler: Handler = logging.StreamHandler()
     if verbose_format:
-        _format = f"[%(levelname)s: {logger.name}] %(message)s [%(filename)s:%(lineno)d - %(asctime)s]"
+        _format = f'[%(levelname)s: {logger.name}] %(message)s [%(filename)s:%(lineno)d - %(asctime)s]'
     else:
-        _format = f"[%(levelname)s: {logger.name}] %(message)s"
+        _format = f'[%(levelname)s: {logger.name}] %(message)s'
     handler.setFormatter(logging.Formatter(_format))
     handler.setLevel(level)
     logger.addHandler(handler)
@@ -46,27 +45,27 @@ def _get_logger(verbose_format: bool = False) -> logging.Logger:
 logger = _get_logger()
 
 
-def en_parallel(model: Module, parallel_mode: Literal["DP", "DDP", None], sync_bn: bool = False) -> Module:
+def en_parallel(model: Module, parallel_mode: Literal['DP', 'DDP', None], sync_bn: bool = False) -> Module:
     if parallel_mode is None:
         assert sync_bn is False
         return model
 
-    if parallel_mode == "DP":
+    if parallel_mode == 'DP':
         if not isinstance(model, DP):
             assert not isinstance(model, DDP)
             model = DP(model)  # use all device_ids
-        logger.info("Using DP")
-    elif parallel_mode == "DDP":
+        logger.info('Using DP')
+    elif parallel_mode == 'DDP':
         if not isinstance(model, DDP):  # use LOCAL_RANK
             assert not isinstance(model, DP)
             model = DDP(model)
-        logger.info("Using DDP")
-        logger.info(f"Using SyncBatchNorm: {sync_bn}")
+        logger.info('Using DDP')
+        logger.info(f'Using SyncBatchNorm: {sync_bn}')
     else:
-        raise ValueError(f"parallel_mode: {parallel_mode}")
+        raise ValueError(f'parallel_mode: {parallel_mode}')
 
     if sync_bn:
-        assert parallel_mode == "DDP"
+        assert parallel_mode == 'DDP'
         model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
     return model
 
@@ -77,10 +76,10 @@ def de_parallel(model: Module) -> Module:
     return model
 
 
-def de_sync_batchnorm(module: Module, bn_type: Literal["1d", "2d", "3d"]) -> Module:
+def de_sync_batchnorm(module: Module, bn_type: Literal['1d', '2d', '3d']) -> Module:
     """inplace. same as nn.SyncBatchNorm.convert_sync_batchnorm. """
     if isinstance(module, nn.SyncBatchNorm):
-        mapper = {"1d": nn.BatchNorm1d, "2d": nn.BatchNorm2d, "3d": nn.BatchNorm3d}
+        mapper = {'1d': nn.BatchNorm1d, '2d': nn.BatchNorm2d, '3d': nn.BatchNorm3d}
         BatchNorm = mapper[bn_type]
         res = BatchNorm(
             module.num_features,
@@ -105,24 +104,24 @@ def de_sync_batchnorm(module: Module, bn_type: Literal["1d", "2d", "3d"]) -> Mod
 
 
 def select_device(device_ids: List[int]) -> Device:
-    """
-    device: e.g. []: "cpu", [0], [0, 1, 2]
-    Note: Please select CUDA before Torch initializes CUDA, otherwise it will not work
+    """Call this function before cuda is initialized.
+    device: e.g. []: 'cpu', [0], [0, 1, 2]
+    Return: master device
     """
     if torch.cuda.is_initialized():
-        logger.warning("CUDA has been initialized! Device selection fails!")
-        return torch.device("cuda:0")
+        logger.warning('CUDA has been initialized! Device selection fails!')
+        return torch.device('cuda:0')
     #
-    log_s = "Using device: "
-    if len(device_ids) == 0:
-        os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-        device: str = "cpu"
+    log_s = 'Using device: '
+    if len(device_ids) == 0:  # cpu
+        os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+        device: str = 'cpu'
         log_s += device
     else:
-        os.environ["CUDA_VISIBLE_DEVICES"] = ",".join([str(d) for d in device_ids])
+        os.environ['CUDA_VISIBLE_DEVICES'] = ','.join([str(d) for d in device_ids])
         assert torch.cuda.is_available() and torch.cuda.device_count() >= len(device_ids)
-        log_s += f"cuda:{','.join([str(d) for d in device_ids])}"  # e.g. "cuda:1,7,8"
-        device = "cuda:0"
+        log_s += f'cuda:{",".join([str(d) for d in device_ids])}'  # e.g. 'cuda:1,7,8'
+        device = 'cuda:0'
     logger.info(log_s)
     return torch.device(device)
 
@@ -150,7 +149,7 @@ def _key_add_suffix(_dict: Dict[str, _T], suffix: str) -> Dict[str, _T]:
 
 
 def freeze_layers(model: Module, layer_prefix_names: List[str], verbose: bool = True) -> None:
-    # e.g. ml.freeze_layers(model, ["roberta.embeddings."] + [f"roberta.encoder.layer.{i}." for i in range(2)], True)
+    # e.g. ml.freeze_layers(model, ['roberta.embeddings.'] + [f'roberta.encoder.layer.{i}.' for i in range(2)], True)
     layer_prefix_names = set(layer_prefix_names)
     for n, p in model.named_parameters():
         requires_grad = True
@@ -160,7 +159,7 @@ def freeze_layers(model: Module, layer_prefix_names: List[str], verbose: bool = 
                 break
         p.requires_grad_(requires_grad)
         if verbose:
-            logger.info(f"Setting {n}.requires_grad: {requires_grad}")
+            logger.info(f'Setting {n}.requires_grad: {requires_grad}')
 
 
 def activate_layers(model: Module, layer_suffix_names: Optional[List[str]] = None, verbose: bool = True) -> None:
@@ -183,7 +182,7 @@ def activate_layers(model: Module, layer_suffix_names: Optional[List[str]] = Non
         else:
             requires_grad = p.requires_grad
         if verbose:
-            logger.info(f"Setting {n}.requires_grad: {requires_grad}")
+            logger.info(f'Setting {n}.requires_grad: {requires_grad}')
 
 
 def stat_array(x: ndarray) -> Tuple[Tuple[float, float, float, float, int], str]:
@@ -193,11 +192,11 @@ def stat_array(x: ndarray) -> Tuple[Tuple[float, float, float, float, int], str]
     min_ = x.min().item()
     max_ = x.max().item()
     len_ = sum(x.shape)
-    stat_str = f"{mean:.6f}±{std:.6f}, min={min_:.6f}, max={max_:.6f}, len={len_}"
+    stat_str = f'{mean:.6f}±{std:.6f}, min={min_:.6f}, max={max_:.6f}, len={len_}'
     return (mean, std, min_, max_, len_), stat_str
 
 
-_T = TypeVar("_T")
+_T = TypeVar('_T')
 
 
 def test_time(func: Callable[[], _T], number: int = 1, warmup: int = 0,
@@ -220,7 +219,7 @@ def test_time(func: Callable[[], _T], number: int = 1, warmup: int = 0,
     ts = np.array(ts)
     _, stat_str = stat_array(ts)
     # print
-    logger.info(f"time[number={number}]: {stat_str}")
+    logger.info(f'time[number={number}]: {stat_str}')
     return res
 
 
@@ -236,7 +235,7 @@ def seed_everything(seed: Optional[int] = None, gpu_dtm: bool = False) -> int:
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
-    logger.info(f"Global seed set to {seed}")
+    logger.info(f'Global seed set to {seed}')
 
     if gpu_dtm:
         # True: cudnn selects the deterministic convolution algorithm
@@ -245,7 +244,7 @@ def seed_everything(seed: Optional[int] = None, gpu_dtm: bool = False) -> int:
         # If Deterministic =True, Benchmark must be False
         # Ref: https://pytorch.org/docs/stable/backends.html#torch.backends.cudnn.torch.backends.cudnn.benchmark
         torch.backends.cudnn.benchmark = False
-        logger.info(f"Setting deterministic: {True}, benchmark: {False}")
+        logger.info(f'Setting deterministic: {True}, benchmark: {False}')
 
     return seed
 
@@ -268,11 +267,11 @@ def print_model_info(model: Module, name: Optional[str] = None, inputs: Optional
     n_grads /= 1e6
     n_buffers /= 1e6
     s = [
-        f"{name}: ",
-        f"{n_layers} Layers, ",
-        # Grads: Trainable Params (no freeze). Params-Grads: freeze
-        f"{n_params:.4f}M Params ({n_grads:.4f}M Grads), ",
-        f"{n_buffers:.4f}M Buffers",
+        f'{name}: ',
+        f'{n_layers} Layers, ',
+        # Trainable: no freeze
+        f'{n_params:.4f}M Params ({n_grads:.4f}M Trainable), ',
+        f'{n_buffers:.4f}M Buffers',
     ]
     if inputs is not None:
         # FLOPs
@@ -280,40 +279,40 @@ def print_model_info(model: Module, name: Optional[str] = None, inputs: Optional
         macs, _ = profile(deepcopy(model), inputs, verbose=False)
         flops = macs * 2
         flops /= 1e9
-        s += f", {flops:.4f}G FLOPs"
-    s += "."
-    logger.info("".join(s))
+        s += f', {flops:.4f}G FLOPs'
+    s += '.'
+    logger.info(''.join(s))
 
 
-def write_to_yaml(obj: Any, fpath: str, encoding: str = "utf-8", mode: str = "w") -> None:
+def write_to_yaml(obj: Any, fpath: str, encoding: str = 'utf-8', mode: str = 'w') -> None:
     with open(fpath, mode, encoding=encoding) as f:
         yaml.dump(obj, f, allow_unicode=True)
 
 
-def read_from_yaml(fpath: str, encoding: str = "utf-8", loader=None) -> Any:
+def read_from_yaml(fpath: str, encoding: str = 'utf-8', loader=None) -> Any:
     loader = yaml.SafeLoader if loader is None else loader
-    with open(fpath, "r", encoding=encoding) as f:
+    with open(fpath, 'r', encoding=encoding) as f:
         res = yaml.load(f, loader)
     return res
 
 
 def write_to_csv(obj: List[List[Any]], fpath: str, *,
-                 sep: str = ",", mode="w", encoding: str = "utf-8") -> None:
-    with open(fpath, mode, encoding=encoding, newline="") as f:
+                 sep: str = ',', mode='w', encoding: str = 'utf-8') -> None:
+    with open(fpath, mode, encoding=encoding, newline='') as f:
         writer = csv.writer(f, delimiter=sep)
         writer.writerows(obj)
 
 
-def get_date_now(fmt: str = "%Y-%m-%d %H:%M:%S.%f") -> Tuple[Dict[str, int], str]:
+def get_date_now(fmt: str = '%Y-%m-%d %H:%M:%S.%f') -> Tuple[Dict[str, int], str]:
     date = dt.datetime.now()
     mes = {
-        "year": date.year,
-        "month": date.month,  # [1..12]
-        "day": date.day,
-        "hour": date.hour,  # [0..23]
-        "minute": date.minute,
-        "second": date.second,
-        "microsecond": date.microsecond
+        'year': date.year,
+        'month': date.month,  # [1..12]
+        'day': date.day,
+        'hour': date.hour,  # [0..23]
+        'minute': date.minute,
+        'second': date.second,
+        'microsecond': date.microsecond
     }
     return mes, date.strftime(fmt)
 
@@ -327,14 +326,14 @@ def save_ckpt(
     **kwargs
 ) -> None:
     ckpt: Dict[str, Any] = {
-        "models": models_sd,
-        "optimizers": [o.state_dict() for o in optimizers],
-        "lr_schedulers": [lr_s.state_dict() for lr_s in lr_schedulers]
+        'models': models_sd,
+        'optimizers': [o.state_dict() for o in optimizers],
+        'lr_schedulers': [lr_s.state_dict() for lr_s in lr_schedulers]
     }
     #
-    kwargs["date"] = get_date_now()[1]
+    kwargs['date'] = get_date_now()[1]
     #
-    ckpt["mes"] = kwargs
+    ckpt['mes'] = kwargs
     torch.save(ckpt, fpath)
 
 
@@ -344,25 +343,25 @@ StateDict = Dict[str, Any]
 def load_ckpt(fpath: str, map_location: Optional[Device] = None) -> \
         Tuple[Dict[str, StateDict], List[StateDict], List[StateDict], Dict[str, Any]]:
     ckpt: Dict[str, Any] = torch.load(fpath, map_location=map_location)
-    models_sd = ckpt["models"]
-    optimizers_sd = ckpt.get("optimizers", [])
-    lr_s_sd = ckpt.get("lr_schedulers", [])
-    return models_sd, optimizers_sd, lr_s_sd, ckpt["mes"]
+    models_sd = ckpt['models']
+    optimizers_sd = ckpt.get('optimizers', [])
+    lr_s_sd = ckpt.get('lr_schedulers', [])
+    return models_sd, optimizers_sd, lr_s_sd, ckpt['mes']
 
 
 class ModelCheckpoint:
     def __init__(
         self,
         # Define what is a good model (for model saving)
-        core_metric_name: Optional[str] = None,  # e.g. "acc".
+        core_metric_name: Optional[str] = None,  # e.g. 'acc'.
         higher_is_better: Optional[bool] = None,  # e.g. True
         # note: the last epoch/step will always be validated
         val_every_n: int = 1,  # val_every_n_epoch or val_every_n_steps. (include saving best model)
-        val_mode: Literal["epoch", "step"] = "epoch",
+        val_mode: Literal['epoch', 'step'] = 'epoch',
         saving_best_model: bool = True,
-        # 
-        saving_last_model_every_n: int = 1, 
-        saving_hf_mode: bool  = False,  
+        #
+        saving_last_model_every_n: int = 1,
+        saving_hf_mode: bool = False,
         # False: for saving memory
         saving_optimizers: bool = False,  # state_dict
         saving_lr_schedulers: bool = True,  # state_dict
@@ -372,25 +371,25 @@ class ModelCheckpoint:
         self.core_metric_name = core_metric_name
         self.higher_is_better = higher_is_better
         self.val_every_n = val_every_n
-        self.val_mode: Literal["epoch", "step"] = val_mode
+        self.val_mode: Literal['epoch', 'step'] = val_mode
         #
         self.saving_best_model = saving_best_model
         self.saving_last_model_every_n = saving_last_model_every_n
         if not self.saving_best_model and not self.saving_last_model_every_n:
             if saving_optimizers:
                 saving_optimizers = False
-                logger.warning(f"Setting saving_optimizers: {saving_optimizers}")
+                logger.warning(f'Setting saving_optimizers: {saving_optimizers}')
             if saving_lr_schedulers:
                 saving_lr_schedulers = False
-                logger.warning(f"Setting saving_lr_schedulers: {saving_lr_schedulers}")
+                logger.warning(f'Setting saving_lr_schedulers: {saving_lr_schedulers}')
         self.saving_hf_mode = saving_hf_mode
         self.saving_optimizers = saving_optimizers
         self.saving_lr_schedulers = saving_lr_schedulers
         self.write_result_csv = write_result_csv
 
     def __repr__(self) -> str:
-        attr_str = ", ".join([f"{k}={v!r}" for k, v in self.__dict__.items()])
-        return f"{self.__class__.__name__}({attr_str})"
+        attr_str = ', '.join([f'{k}={v!r}' for k, v in self.__dict__.items()])
+        return f'{self.__class__.__name__}({attr_str})'
 
 
 class ResumeFromCkpt:
@@ -407,13 +406,13 @@ class ResumeFromCkpt:
         self.load_message = load_message
 
     def __repr__(self) -> str:
-        attr_str = ", ".join([f"{k}={v!r}" for k, v in self.__dict__.items()])
-        return f"{self.__class__.__name__}({attr_str})"
+        attr_str = ', '.join([f'{k}={v!r}' for k, v in self.__dict__.items()])
+        return f'{self.__class__.__name__}({attr_str})'
 
 
 def parse_device_ids() -> List[int]:
     parser = ArgumentParser()
-    parser.add_argument("--device_ids", "-d", nargs="*", type=int,
-                        default=[0], help="e.g. [], [0], [0, 1, 2]. --device_ids; --device_ids 0; -d 0 1 2")
+    parser.add_argument('--device_ids', '-d', nargs='*', type=int,
+                        default=[0], help='e.g. [], [0], [0, 1, 2]. --device_ids; --device_ids 0; -d 0 1 2')
     opt: Namespace = parser.parse_args()  # options
     return opt.device_ids

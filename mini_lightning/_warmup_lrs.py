@@ -3,13 +3,13 @@
 # Date:
 
 from ._types import *
-__all__ = ["get_T_max", "warmup_decorator", "_lr_scheduler_rerun"]
+__all__ = ['get_T_max', 'warmup_decorator', '_lr_scheduler_rerun']
 
 
 def get_T_max(dataset_len: int, batch_size: int, max_epochs: int,
               n_accumulate_grad: Union[int, Dict[int, int]] = 1,
               world_size: int = 1, drop_last: bool = True) -> int:
-    """Calculate T_max(iteration step) in cosine_annealing_lr"""
+    """Calculate T_max in CosineAnnealingLR"""
     batch_size *= world_size
     if isinstance(n_accumulate_grad, int):
         if drop_last:
@@ -47,7 +47,7 @@ def _lr_scheduler_rerun(lr_s: LRScheduler) -> None:
 def warmup_decorator(lr_s: LRScheduler, warmup: int) -> LRScheduler:
     #
     _lrs_before_warmup: Optional[List[int]] = None
-    if hasattr(lr_s, "_get_closed_form_lr"):
+    if hasattr(lr_s, '_get_closed_form_lr'):
         _get_lr = lr_s._get_closed_form_lr
     else:
         _get_lr = lr_s.get_lr
@@ -58,7 +58,7 @@ def warmup_decorator(lr_s: LRScheduler, warmup: int) -> LRScheduler:
         # recover
         if _lrs_before_warmup is not None:
             for p, lr in zip(self.optimizer.param_groups, _lrs_before_warmup):
-                p["lr"] = lr
+                p['lr'] = lr
         #
         last_epoch = self.last_epoch
         lr_list: List[float] = _get_lr()
