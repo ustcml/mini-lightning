@@ -129,7 +129,7 @@ if __name__ == '__main__':
     dataset_en = dataset_en.remove_columns(['text'])
     dataset: HFDataset = concatenate_datasets([dataset_zh, dataset_en])
     #
-    dataset = dataset.select(range(1000))
+    # dataset = dataset.select(range(1000))
     dataset = dataset.map(partial(tokenize_function, tokenizer=tokenizer))
     dataset = dataset.remove_columns(['instruction', 'input', 'output'])
     #
