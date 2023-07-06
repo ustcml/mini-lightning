@@ -1,5 +1,5 @@
+from _pre_nlp import *
 from datasets import Dataset as HFDataset
-from pre_nlp import *
 from modelscope import snapshot_download, MsDataset, read_config, Model
 from modelscope.models.nlp.chatglm2 import ChatGLM2Tokenizer
 from modelscope.utils.config import Config, ConfigDict
@@ -32,7 +32,6 @@ def get_baichuan_model_tokenizer(model_dir: Optional[str] = None,
                                                     device_map='auto', torch_dtype=torch.float16)
     #
     return model, tokenizer
-get_baichuan_model_tokenizer()
 
 
 def get_chatglm2_model_tokenizer(model_dir: Optional[str] = None,

@@ -1,7 +1,7 @@
 # Author: Jintao Huang
 # Email: huangjintao@mail.ustc.edu.cn
 # Date:
-from pre_nlp import *
+from _pre_nlp import *
 #
 RUNS_DIR = os.path.join(RUNS_DIR, "nlp_gpt_zh_stf_adapter")
 os.makedirs(RUNS_DIR, exist_ok=True)

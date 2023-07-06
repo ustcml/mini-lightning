@@ -2,7 +2,7 @@
 # Email: huangjintao@mail.ustc.edu.cn
 # Date:
 
-from pre import *
+from _pre import *
 #
 from PIL import Image
 import torchvision.transforms as tvt

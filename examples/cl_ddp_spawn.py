@@ -8,7 +8,7 @@ recommend to use torchrun in `cl_ddp.py`. spawn is slower(maybe, I feel)
 """
 
 # Ref: https://pytorch-lightning.readthedocs.io/en/stable/notebooks/course_UvA-DL/13-contrastive-learning.html
-from pre_cv import *
+from _pre_cv import *
 from sklearn.manifold import TSNE
 #
 RUNS_DIR = os.path.join(RUNS_DIR, "cl_ddp")
