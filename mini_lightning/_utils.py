@@ -360,7 +360,7 @@ class ModelCheckpoint:
         val_mode: Literal['epoch', 'step'] = 'epoch',
         saving_best_model: bool = True,
         #
-        saving_last_model_every_n: int = 1,
+        saving_last_model_every_n: Optional[int] = None,
         saving_hf_mode: bool = False,
         # False: for saving memory
         saving_optimizers: bool = False,  # state_dict
@@ -368,6 +368,8 @@ class ModelCheckpoint:
         write_result_csv: bool = True,
     ) -> None:
         #
+        if saving_last_model_every_n is None:
+            saving_last_model_every_n = val_every_n
         self.core_metric_name = core_metric_name
         self.higher_is_better = higher_is_better
         self.val_every_n = val_every_n

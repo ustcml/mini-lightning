@@ -2,7 +2,7 @@
 # Author: Jintao Huang
 # Email: huangjintao@mail.ustc.edu.cn
 # Date:
-from pre_nlp import *
+from _pre_nlp import *
 #
 RUNS_DIR = os.path.join(RUNS_DIR, "nlp_chatglm2_sft_lora")
 os.makedirs(RUNS_DIR, exist_ok=True)
@@ -117,6 +117,7 @@ class MyLModule(ml.LModule):
         loss, y_pred, labels = self._calculate_loss_prob_pred(batch)
         self.metrics["loss"].update(loss)
         self.metrics["acc"].update(y_pred, labels)
+
 
 if __name__ == "__main__":
     ml.seed_everything(42, gpu_dtm=False)

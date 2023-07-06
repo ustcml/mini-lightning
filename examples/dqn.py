@@ -4,7 +4,7 @@
 
 # Ref: https://pytorch-lightning.readthedocs.io/en/stable/notebooks/lightning_examples/reinforce-learning-DQN.html
 
-from pre import *
+from _pre import *
 import gym
 from gym import Env
 

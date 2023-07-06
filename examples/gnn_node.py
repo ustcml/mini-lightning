@@ -5,7 +5,7 @@
 # Ref: https://pytorch-lightning.readthedocs.io/en/stable/notebooks/course_UvA-DL/06-graph-neural-networks.html
 # Node-Level Task
 
-from pre import *
+from _pre import *
 import torch_geometric.data as pygd
 import torch_geometric.datasets as pygds
 import torch_geometric.nn as pygnn

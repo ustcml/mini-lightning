@@ -4,7 +4,7 @@
 
 # Ref: https://pytorch-lightning.readthedocs.io/en/latest/notebooks/course_UvA-DL/08-deep-autoencoders.html
 #   Application of AutoEncoder: Data Compression, Search, Denoising
-from pre_cv import *
+from _pre_cv import *
 from sklearn.manifold import TSNE
 #
 RUNS_DIR = os.path.join(RUNS_DIR, "ae")

@@ -6,7 +6,7 @@
 #   https://github.com/pyg-team/pytorch_geometric/blob/master/examples/link_pred.py
 # Edge-Level Task. Link Prediction
 
-from pre import *
+from _pre import *
 import torch_geometric.data as pygd
 import torch_geometric.datasets as pygds
 import torch_geometric.nn as pygnn

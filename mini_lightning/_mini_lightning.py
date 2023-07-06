@@ -317,6 +317,7 @@ class Trainer:
         runs_dir: str,
         model_checkpoint: Optional[ModelCheckpoint] = None,
         n_accumulate_grad: Union[int, Dict[int, int]] = 1,
+        # When amp=True, you do not need to call `half()` or `bfloat16()`` on the model or input
         amp: bool = False,
         gradient_clip_norm: Optional[float] = None,
         sync_bn: bool = False,
@@ -324,6 +325,7 @@ class Trainer:
         resume_from_ckpt: Union[str, ResumeFromCkpt, None] = None,
         #
         use_dp: bool = False,  # This parameter is valid only when len(device_ids) is >1
+        amp_dtype: Optional[Dtype] = None,
         tb_every_n_steps: int = 5,
         prog_bar_n_steps: int = 1,
         deterministic:  Optional[bool] = None,
@@ -443,7 +445,11 @@ class Trainer:
         self.parallel_mode: Literal['DP', 'DDP', None] = parallel_mode
         self.sync_bn = sync_bn
         self.amp = amp
-        logger.info(f'Using amp: {amp}')
+        if not amp and self.amp_dtype is not None:
+            self.amp_dtype = None
+            logger.warning(f'Setting self.amp_dtype: None, because self.amp: {amp}')
+        self.amp_dtype = amp_dtype
+        logger.info(f'Using amp: {amp}, amp_dtype: {amp_dtype}')
         #
         self.max_epochs = max_epochs
         self.n_accumulate_grad = n_accumulate_grad
@@ -482,7 +488,7 @@ class Trainer:
         self._mean_metrics_train: Dict[str, MeanMetric] = {}
         self._tb_mean_metrics_train: Dict[str, MeanMetric] = {}
         #
-        self._saveing_n: int = 0  # nums of saving last models (epoch/step mode)
+        self._saving_n: int = 0  # nums of saving last models (epoch/step mode)
         #
         self.model_checkpoint = model_checkpoint if model_checkpoint is not None else ModelCheckpoint()
         self.resume_from_ckpt = resume_from_ckpt
@@ -713,8 +719,8 @@ class Trainer:
                 self._save_ckpt(self.best_ckpt_path)
                 logger.info((f'Best model, saving model `{ckpt_fname}`'))
         #
-        self._saveing_n += 1
-        if mc.saving_last_model_every_n and self._saveing_n % mc.saving_last_model_every_n == 0:
+        self._saving_n += 1
+        if mc.saving_last_model_every_n and self._saving_n % mc.saving_last_model_every_n == 0:
             self._remove_ckpt('last')
             ckpt_fname = f'last-{mc.val_mode}={val_mode_val}{metric_str}.ckpt'
             self.last_ckpt_path = os.path.join(self.ckpt_dir, ckpt_fname)
@@ -858,7 +864,7 @@ class Trainer:
             for opt_idx in range(len(lmodel.optimizers)):
                 if len(lmodel.optimizers) > 1:
                     lmodel.toggle_optimizer(opt_idx)
-                with autocast(device_type=self.device.type, dtype=None, enabled=self.amp):
+                with autocast(device_type=self.device.type, dtype=self.amp_dtype, enabled=self.amp):
                     loss = lmodel.training_step(batch, opt_idx)
                 #
                 loss.div_(n_accumulate_grad)

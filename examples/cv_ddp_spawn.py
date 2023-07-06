@@ -7,7 +7,7 @@ recommend to use torchrun in `cv_ddp.py`. spawn is slower(maybe, I feel)
     Ref: https://github.com/pytorch/pytorch/issues/47587
 """
 
-from pre_cv import *
+from _pre_cv import *
 #
 RUNS_DIR = os.path.join(RUNS_DIR, "cv_ddp")
 os.makedirs(RUNS_DIR, exist_ok=True)

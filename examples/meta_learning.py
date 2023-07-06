@@ -3,7 +3,7 @@
 # Date:
 
 # Ref: https://pytorch-lightning.readthedocs.io/en/latest/notebooks/course_UvA-DL/12-meta-learning.html
-from pre_cv import *
+from _pre_cv import *
 #
 RUNS_DIR = os.path.join(RUNS_DIR, "meta_learning")
 os.makedirs(RUNS_DIR, exist_ok=True)

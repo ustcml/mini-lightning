@@ -6,7 +6,7 @@
 #   https://github.com/eriklindernoren/PyTorch-GAN/blob/master/implementations/dcgan/dcgan.py
 
 
-from pre_cv import *
+from _pre_cv import *
 #
 RUNS_DIR = os.path.join(RUNS_DIR, "gan")
 os.makedirs(RUNS_DIR, exist_ok=True)

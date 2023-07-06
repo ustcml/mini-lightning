@@ -2,7 +2,7 @@
 # Email: huangjintao@mail.ustc.edu.cn
 # Date:
 
-from pre import *
+from _pre import *
 from torch.optim.lr_scheduler import MultiStepLR
 RUNS_DIR = os.path.join(RUNS_DIR, "test_env")
 os.makedirs(RUNS_DIR, exist_ok=True)

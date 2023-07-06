@@ -8,7 +8,7 @@ torchrun Ref: https://pytorch.org/docs/stable/elastic/run.html
 """
 
 # Ref: https://pytorch-lightning.readthedocs.io/en/stable/notebooks/course_UvA-DL/13-contrastive-learning.html
-from pre_cv import *
+from _pre_cv import *
 from sklearn.manifold import TSNE
 #
 RUNS_DIR = os.path.join(RUNS_DIR, "cl_ddp")

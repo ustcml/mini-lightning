@@ -2,7 +2,7 @@
 # Email: huangjintao@mail.ustc.edu.cn
 # Date:
 
-from pre_cv import *
+from _pre_cv import *
 #
 RUNS_DIR = os.path.join(RUNS_DIR, "cv")
 os.makedirs(RUNS_DIR, exist_ok=True)

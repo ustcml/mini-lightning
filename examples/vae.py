@@ -8,7 +8,7 @@
 #   https://github.com/ethanluoyc/pytorch-vae
 
 
-from pre_cv import *
+from _pre_cv import *
 #
 RUNS_DIR = os.path.join(RUNS_DIR, "vae")
 os.makedirs(RUNS_DIR, exist_ok=True)

@@ -7,7 +7,7 @@ torchrun support multi-node. (recommended)
 torchrun Ref: https://pytorch.org/docs/stable/elastic/run.html
 """
 
-from pre_cv import *
+from _pre_cv import *
 #
 RUNS_DIR = os.path.join(RUNS_DIR, "cv_ddp")
 os.makedirs(RUNS_DIR, exist_ok=True)
