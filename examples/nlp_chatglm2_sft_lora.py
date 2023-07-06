@@ -145,3 +145,5 @@ if __name__ == '__main__':
     lmodel = MyLModule(model, hparams)
     trainer = ml.Trainer(lmodel, **hparams.trainer_hparams)
     trainer.fit(ldm.train_dataloader, ldm.val_dataloader)
+    #
+    ml.plot_image(trainer.tb_dir, ['train_loss', 'train_acc', 'grad_norm'])
