@@ -12,11 +12,11 @@ import torch_geometric.nn as pygnn
 import torch_geometric.loader as pygl
 
 #
-RUNS_DIR = os.path.join(RUNS_DIR, "gnn3")
+RUNS_DIR = os.path.join(RUNS_DIR, 'gnn3')
 os.makedirs(RUNS_DIR, exist_ok=True)
 #
 device_ids = [0]
-gnn_layers: Dict[str, type] = {"GCN": pygnn.GCNConv, "GAT": pygnn.GATConv, "GraphConv": pygnn.GraphConv}
+gnn_layers: Dict[str, type] = {'GCN': pygnn.GCNConv, 'GAT': pygnn.GATConv, 'GraphConv': pygnn.GraphConv}
 
 max_epochs = 250
 batch_size = 256
@@ -26,23 +26,23 @@ hidden_channels = 256
 class HParams(HParamsBase):
     def __init__(self, in_channels: int, out_channels: int) -> None:
         self.model_hparams = {
-            "in_channels": in_channels,
-            "hidden_channels": hidden_channels,
-            "out_channels": out_channels,
-            "layer_name": "GraphConv"
+            'in_channels': in_channels,
+            'hidden_channels': hidden_channels,
+            'out_channels': out_channels,
+            'layer_name': 'GraphConv'
         }
         #
-        dataloader_hparams = {"batch_size": batch_size}
-        optim_name = "AdamW"
-        optim_hparams = {"lr": 1e-3, "weight_decay": 1}
+        dataloader_hparams = {'batch_size': batch_size}
+        optim_name = 'AdamW'
+        optim_hparams = {'lr': 1e-3, 'weight_decay': 1}
         trainer_hparams = {
-            "max_epochs": max_epochs,
-            "model_checkpoint": ml.ModelCheckpoint("acc", True, 10),
-            "verbose": True,
+            'max_epochs': max_epochs,
+            'model_checkpoint': ml.ModelCheckpoint('acc', True, 10),
+            'verbose': True,
         }
         lrs_hparams = {
-            "T_max": max_epochs,
-            "eta_min": 1e-4
+            'T_max': max_epochs,
+            'eta_min': 1e-4
         }
         super().__init__(device_ids, dataloader_hparams, optim_name, optim_hparams, trainer_hparams, None, lrs_hparams)
 
@@ -89,8 +89,8 @@ class MyLModule(ml.LModule):
         optimizer: Optimizer = getattr(optim, hparams.optim_name)(model.parameters(), **hparams.optim_hparams)
         lr_s: LRScheduler = lrs.CosineAnnealingLR(optimizer, **hparams.lrs_hparams)
         metrics = {
-            "loss": MeanMetric(),
-            "acc":  Accuracy("binary"),
+            'loss': MeanMetric(),
+            'acc':  Accuracy('binary'),
         }
         #
         super().__init__([optimizer], [lr_s], metrics, hparams)
@@ -117,26 +117,26 @@ class MyLModule(ml.LModule):
 
     def training_step(self, batch: pygd.Data, opt_idx: int) -> Tensor:
         loss, y_pred, y_label = self._calculate_loss_pred_label(batch)
-        acc = accuracy(y_pred, y_label, "binary")
-        self.log("train_loss", loss)
-        self.log("train_acc", acc)
+        acc = accuracy(y_pred, y_label, 'binary')
+        self.log('train_loss', loss)
+        self.log('train_acc', acc)
         return loss
 
     def validation_step(self, batch: pygd.Data) -> None:
         loss, y_pred, y_label = self._calculate_loss_pred_label(batch)
-        self.metrics["loss"].update(loss)
-        self.metrics["acc"].update(y_pred, y_label)
+        self.metrics['loss'].update(loss)
+        self.metrics['acc'].update(y_pred, y_label)
 
 
-if __name__ == "__main__":
-    dataset = pygds.TUDataset(root=DATASETS_PATH, name="MUTAG")
+if __name__ == '__main__':
+    dataset = pygds.TUDataset(root=DATASETS_PATH, name='MUTAG')
     ml.seed_everything(42, gpu_dtm=False)
     dataset = dataset.shuffle()
     train_dataset: pygd.Dataset = dataset[:150]
     test_dataset: pygd.Dataset = dataset[150:]
     #
     in_channels = dataset.data.x.shape[1]
-    out_channels = dataset.data.y.max()  # "binary"
+    out_channels = dataset.data.y.max()  # 'binary'
     hparams = HParams(in_channels, out_channels)
     #
     ml.seed_everything(42, gpu_dtm=False)

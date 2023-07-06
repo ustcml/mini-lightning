@@ -4,7 +4,7 @@
 
 from _pre import *
 from torch.optim.lr_scheduler import MultiStepLR
-RUNS_DIR = os.path.join(RUNS_DIR, "test_env")
+RUNS_DIR = os.path.join(RUNS_DIR, 'test_env')
 os.makedirs(RUNS_DIR, exist_ok=True)
 
 
@@ -48,7 +48,7 @@ class XORDataset(Dataset):
 
 class MyLModule(ml.LModule):
     def __init__(self, model: Module, optimizers: List[Optimizer], lr_schedulers: List[LRScheduler]) -> None:
-        metrics = {"loss": MeanMetric(), "acc": Accuracy("binary")}
+        metrics = {'loss': MeanMetric(), 'acc': Accuracy('binary')}
         super().__init__(optimizers, lr_schedulers, metrics)
         self.model = model
         self.loss_fn = nn.BCEWithLogitsLoss()
@@ -63,23 +63,23 @@ class MyLModule(ml.LModule):
     def training_step(self, batch: Tuple[Tensor, Tensor], opt_idx: int) -> Tensor:
         y_batch = batch[1]
         loss, y_pred = self._calculate_loss_pred(batch)
-        acc = accuracy(y_pred, y_batch, "binary")
-        self.log("train_loss", loss)
-        self.log("train_acc", acc)
+        acc = accuracy(y_pred, y_batch, 'binary')
+        self.log('train_loss', loss)
+        self.log('train_acc', acc)
         return loss
 
     def validation_step(self, batch: Tuple[Tensor, Tensor]) -> None:
         y_batch = batch[1]
         loss, y_pred = self._calculate_loss_pred(batch)
-        self.metrics["loss"].update(loss)
-        self.metrics["acc"].update(y_pred, y_batch)
+        self.metrics['loss'].update(loss)
+        self.metrics['acc'].update(y_pred, y_batch)
     #
 
     def training_epoch_end(self) -> None:
         self.lr_schedulers[0].step()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     ml.select_device([0])
     ml.seed_everything(2, gpu_dtm=True)
     train_dataset = XORDataset(512)
@@ -93,7 +93,7 @@ if __name__ == "__main__":
     lr_s = ml.warmup_decorator(lr_s, 5)
     lmodel = MyLModule(model, [optimizer], [lr_s])
     trainer = ml.Trainer(lmodel, [], 40, RUNS_DIR, ml.ModelCheckpoint(
-        "acc", True, 100, "step", saving_optimizers=True), 
+        'acc', True, 100, 'step', saving_optimizers=True), 
         gradient_clip_norm=10, verbose=True, n_accumulate_grad=1)
     trainer.test(ldm.val_dataloader, True, True)
     trainer.fit(ldm.train_dataloader, ldm.val_dataloader)
@@ -110,7 +110,7 @@ if __name__ == "__main__":
     lr_s = ml.warmup_decorator(lr_s, 5)
     lmodel = MyLModule(model, [optimizer], [lr_s])
     trainer = ml.Trainer(lmodel, [0], 100, RUNS_DIR, ml.ModelCheckpoint(
-        "loss", False, 10), gradient_clip_norm=10, verbose=True,
+        'loss', False, 10), gradient_clip_norm=10, verbose=True,
         resume_from_ckpt=ml.ResumeFromCkpt(ckpt_path, True, True, True))
     trainer.test(ldm.val_dataloader, True, True)
     trainer.fit(ldm.train_dataloader, ldm.val_dataloader)
@@ -126,7 +126,7 @@ if __name__ == "__main__":
     lr_s = MultiStepLR(optimizer, [10, 50], 0.1)
     lr_s = ml.warmup_decorator(lr_s, 5)
     lmodel = MyLModule(model, [optimizer], [lr_s])
-    trainer = ml.Trainer(lmodel, [0], 20, RUNS_DIR, ml.ModelCheckpoint("loss", False, 10),
+    trainer = ml.Trainer(lmodel, [0], 20, RUNS_DIR, ml.ModelCheckpoint('loss', False, 10),
                          gradient_clip_norm=10, verbose=True, resume_from_ckpt=ckpt_path)
     trainer.test(ldm.val_dataloader, True, True)
     trainer.fit(ldm.train_dataloader, ldm.val_dataloader)
@@ -140,5 +140,5 @@ if __name__ == "__main__":
     ldm = ml.LDataModule(train_dataset, val_dataset, test_dataset, 64)
     lmodel = MyLModule(model, [], [])
     trainer = ml.Trainer(lmodel, [], None, RUNS_DIR, ml.ModelCheckpoint(
-        "loss", False), resume_from_ckpt=ckpt_path)
+        'loss', False), resume_from_ckpt=ckpt_path)
     trainer.test(ldm.test_dataloader, True, True)

@@ -20,8 +20,8 @@ It will warm up memory pool at first. Fill in some memory.
 """
 
 
-RENDER_MODE: Literal["human", None] = "human"
-RUNS_DIR = os.path.join(RUNS_DIR, "dqn")
+RENDER_MODE: Literal['human', None] = 'human'
+RUNS_DIR = os.path.join(RUNS_DIR, 'dqn')
 os.makedirs(RUNS_DIR, exist_ok=True)
 
 #
@@ -34,21 +34,21 @@ class HParams(HParamsBase):
     def __init__(self) -> None:
         self.memo_capacity = 1000
         self.dataset_len = 5000
-        self.env_name = "CartPole-v1"  # "LunarLander-v2"
+        self.env_name = 'CartPole-v1'  # 'LunarLander-v2'
         self.model_hidden_size = 128
         self.rand_p = {
-            "eta_max": 1,
-            "eta_min": 0,
-            "T_max": ...
+            'eta_max': 1,
+            'eta_min': 0,
+            'T_max': ...
         }
         self.sync_steps = 50  # synchronization frequency of old_model
         self.warmup_memory_steps = 1000  # warm up and fill the memory pool
         self.gamma = 0.99  # reward decay
         #
-        dataloader_hparams = {"batch_size": batch_size}
-        optim_name = "SGD"
-        optim_hparams = {"lr": 1e-2}
-        trainer_hparams = {"max_epochs": max_epochs, "gradient_clip_norm": 20, "verbose": False}
+        dataloader_hparams = {'batch_size': batch_size}
+        optim_name = 'SGD'
+        optim_hparams = {'lr': 1e-2}
+        trainer_hparams = {'max_epochs': max_epochs, 'gradient_clip_norm': 20, 'verbose': False}
         super().__init__(device_ids, dataloader_hparams, optim_name, optim_hparams, trainer_hparams)
 
 
@@ -66,9 +66,9 @@ class DQN(nn.Module):
 
 
 Memory = namedtuple(
-    "Memory",
+    'Memory',
     # ndarray, int, float, bool, ndarray
-    ["state", "action", "reward", "done", "next_state"]
+    ['state', 'action', 'reward', 'done', 'next_state']
 )
 
 
@@ -145,7 +145,7 @@ def _get_offset_func(fa: float, fb: float, ga: float, gb: float) -> Callable[[fl
     # (a, fa) -> (a, ga); (b, fb) -> (b, gb)
     # Generate a linear function of curve translation and scaling. gx=s*fx+t
     if fa == fb:
-        raise ValueError("fa == fb")
+        raise ValueError('fa == fb')
     s = (gb-ga) / (fb-fa)
     t = ga - fa * s
 
@@ -212,7 +212,7 @@ class MyLModule(ml.LModule):
         self.episode_reward = 0  # reward in a episode
 
     def _warmup_memo(self, steps: int) -> None:
-        for _ in tqdm(range(steps), desc=f"Warmup: "):
+        for _ in tqdm(range(steps), desc=f'Warmup: '):
             self.agent.step(rand_p=1)
 
     def _train_step(self, batch: Tuple[Tensor, Tensor, Tensor, Tensor, Tensor]) -> Tensor:
@@ -256,20 +256,20 @@ class MyLModule(ml.LModule):
         # agent step in env
         _, _, rand_p = self._agent_step()
         # log
-        self.log("rand_p", rand_p, prog_bar_mean=False)
-        self.log("episode_reward", self.episode_reward, prog_bar_mean=False)
-        self.log("loss", loss)
+        self.log('rand_p', rand_p, prog_bar_mean=False)
+        self.log('episode_reward', self.episode_reward, prog_bar_mean=False)
+        self.log('loss', loss)
         return loss
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     ml.seed_everything(42, gpu_dtm=False)
     hparams = HParams()
     memo_pool = MemoryPool(hparams.memo_capacity)
     dataset = MyDataset(memo_pool, hparams.dataset_len)
     ldm = ml.LDataModule(
         dataset, None, None, **hparams.dataloader_hparams, shuffle_train=False, num_workers=1)
-    hparams.rand_p["T_max"] = ml.get_T_max(len(dataset), batch_size, max_epochs, 1)
+    hparams.rand_p['T_max'] = ml.get_T_max(len(dataset), batch_size, max_epochs, 1)
 
     lmodel = MyLModule(memo_pool, hparams)
     trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams.trainer_hparams)

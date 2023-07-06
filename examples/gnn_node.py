@@ -12,11 +12,11 @@ import torch_geometric.nn as pygnn
 import torch_geometric.loader as pygl
 
 #
-RUNS_DIR = os.path.join(RUNS_DIR, "gnn")
+RUNS_DIR = os.path.join(RUNS_DIR, 'gnn')
 os.makedirs(RUNS_DIR, exist_ok=True)
 #
 device_ids = [0]
-gnn_layers: Dict[str, type] = {"GCN": pygnn.GCNConv, "GAT": pygnn.GATConv, "GraphConv": pygnn.GraphConv}
+gnn_layers: Dict[str, type] = {'GCN': pygnn.GCNConv, 'GAT': pygnn.GATConv, 'GraphConv': pygnn.GraphConv}
 max_epochs = 250
 batch_size = 1
 hidden_channels = 16
@@ -24,25 +24,25 @@ hidden_channels = 16
 
 class HParams(HParamsBase):
     def __init__(self, in_channels: int, out_channels: int) -> None:
-        self.model_name: Literal["gnn", "mlp"] = "gnn"
+        self.model_name: Literal['gnn', 'mlp'] = 'gnn'
         self.model_hparams = {
-            "in_channels": in_channels,
-            "hidden_channels": hidden_channels,
-            "out_channels": out_channels,
-            "layer_name": "GCN",
+            'in_channels': in_channels,
+            'hidden_channels': hidden_channels,
+            'out_channels': out_channels,
+            'layer_name': 'GCN',
         }
         #
-        dataloader_hparams = {"batch_size": batch_size}
-        optim_name = "SGD"
-        optim_hparams = {"lr": 1e-1, "weight_decay": 1e-4, "momentum": 0.9}
+        dataloader_hparams = {'batch_size': batch_size}
+        optim_name = 'SGD'
+        optim_hparams = {'lr': 1e-1, 'weight_decay': 1e-4, 'momentum': 0.9}
         trainer_hparams = {
-            "max_epochs": max_epochs,
-            "model_checkpoint": ml.ModelCheckpoint("acc", True, 10),
-            "verbose": True,
+            'max_epochs': max_epochs,
+            'model_checkpoint': ml.ModelCheckpoint('acc', True, 10),
+            'verbose': True,
         }
         lrs_hparams = {
-            "T_max": max_epochs,
-            "eta_min": 1e-2
+            'T_max': max_epochs,
+            'eta_min': 1e-2
         }
         super().__init__(device_ids, dataloader_hparams, optim_name, optim_hparams, trainer_hparams, None, lrs_hparams)
 
@@ -91,27 +91,27 @@ class MLP(nn.Sequential):
 
 class MyLModule(ml.LModule):
     def __init__(self, hparams: HParams) -> None:
-        self.model_name: Literal["gnn", "mlp"] = hparams.model_name
-        num_classes = hparams.model_hparams["out_channels"]
-        if self.model_name == "mlp":
+        self.model_name: Literal['gnn', 'mlp'] = hparams.model_name
+        num_classes = hparams.model_hparams['out_channels']
+        if self.model_name == 'mlp':
             model = MLP(**hparams.model_hparams)
-        elif self.model_name == "gnn":
+        elif self.model_name == 'gnn':
             model = GNN(**hparams.model_hparams)
         else:
-            raise ValueError(f"self.model_name: {self.model_name}")
+            raise ValueError(f'self.model_name: {self.model_name}')
         #
         optimizer: Optimizer = getattr(optim, hparams.optim_name)(model.parameters(), **hparams.optim_hparams)
         lr_s: LRScheduler = lrs.CosineAnnealingLR(optimizer, **hparams.lrs_hparams)
         metrics = {
-            "loss": MeanMetric(),
-            "acc":  Accuracy("multiclass", num_classes=num_classes),
+            'loss': MeanMetric(),
+            'acc':  Accuracy('multiclass', num_classes=num_classes),
         }
         #
         super().__init__([optimizer], [lr_s], metrics, hparams)
         self.model = model
         self.loss_fn = nn.CrossEntropyLoss()
         self.acc_func: Callable[[Tensor, Tensor], Tensor] = partial(
-            accuracy, task="multiclass", num_classes=num_classes)
+            accuracy, task='multiclass', num_classes=num_classes)
 
     def optimizer_step(self, opt_idx: int) -> None:
         super().optimizer_step(opt_idx)
@@ -120,22 +120,22 @@ class MyLModule(ml.LModule):
     def _calculate_loss_pred_label(
         self,
         batch: pygd.Data,
-        mode: Literal["train", "val", "test"]
+        mode: Literal['train', 'val', 'test']
     ) -> Tuple[Tensor, Tensor, Tensor]:
         x: Tensor = batch.x
         edge_index: Tensor = batch.edge_index
         y: Tensor = batch.y
         mask: Tensor
-        if mode == "train":
+        if mode == 'train':
             mask = batch.train_mask
-        elif mode == "val":
+        elif mode == 'val':
             mask = batch.val_mask
-        elif mode == "test":
+        elif mode == 'test':
             mask = batch.test_mask
         else:
-            raise ValueError(f"mode: {mode}")
+            raise ValueError(f'mode: {mode}')
         y_logits: Tensor
-        if self.model_name == "mlp":
+        if self.model_name == 'mlp':
             y_logits = self.model(x)
         else:
             y_logits = self.model(x, edge_index)
@@ -147,24 +147,24 @@ class MyLModule(ml.LModule):
         return loss, y_pred, y
 
     def training_step(self, batch: pygd.Data, opt_idx: int) -> Tensor:
-        loss, y_pred, y_label = self._calculate_loss_pred_label(batch, "train")
+        loss, y_pred, y_label = self._calculate_loss_pred_label(batch, 'train')
         acc = self.acc_func(y_pred, y_label)
-        self.log("train_loss", loss)
-        self.log("train_acc", acc)
+        self.log('train_loss', loss)
+        self.log('train_acc', acc)
         return loss
 
-    def validation_step(self, batch: pygd.Data, mode: Literal["val", "test"] = "val") -> None:
+    def validation_step(self, batch: pygd.Data, mode: Literal['val', 'test'] = 'val') -> None:
         loss, y_pred, y_label = self._calculate_loss_pred_label(batch, mode)
-        self.metrics["loss"].update(loss)
-        self.metrics["acc"].update(y_pred, y_label)
+        self.metrics['loss'].update(loss)
+        self.metrics['acc'].update(y_pred, y_label)
 
     def test_step(self, batch: Any) -> None:
-        return self.validation_step(batch, "test")
+        return self.validation_step(batch, 'test')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     ml.seed_everything(42, gpu_dtm=False)
-    dataset = pygds.Planetoid(root=DATASETS_PATH, name="Cora")
+    dataset = pygds.Planetoid(root=DATASETS_PATH, name='Cora')
     hparams = HParams(dataset[0].x.shape[1], dataset[0].y.shape[0])
     # ########## GNN
     lmodel = MyLModule(hparams)
@@ -173,8 +173,8 @@ if __name__ == "__main__":
     trainer.fit(loader, loader)
     trainer.test(loader, True, True)
     # ########## MLP
-    hparams.model_name = "mlp"
-    hparams.model_hparams.pop("layer_name")
+    hparams.model_name = 'mlp'
+    hparams.model_hparams.pop('layer_name')
     lmodel = MyLModule(hparams)
     trainer = ml.Trainer(lmodel, device_ids, runs_dir=RUNS_DIR, **hparams.trainer_hparams)
     trainer.fit(loader, loader)

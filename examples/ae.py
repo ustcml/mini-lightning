@@ -7,7 +7,7 @@
 from _pre_cv import *
 from sklearn.manifold import TSNE
 #
-RUNS_DIR = os.path.join(RUNS_DIR, "ae")
+RUNS_DIR = os.path.join(RUNS_DIR, 'ae')
 os.makedirs(RUNS_DIR, exist_ok=True)
 
 #
@@ -22,21 +22,21 @@ class HParams:
     def __init__(self) -> None:
         self.device_ids = device_ids
         self.z_channels = z_channels
-        self.dataloader_hparams = {"batch_size": batch_size, "num_workers": 4}
-        self.optim_name = "AdamW"
-        self.optim_hparams = {"lr": 5e-4, "weight_decay": 1e-2}
+        self.dataloader_hparams = {'batch_size': batch_size, 'num_workers': 4}
+        self.optim_name = 'AdamW'
+        self.optim_hparams = {'lr': 5e-4, 'weight_decay': 1e-2}
         self.trainer_hparams = {
-            "max_epochs": max_epochs,
-            "gradient_clip_norm": 100,
-            "model_checkpoint": ml.ModelCheckpoint("loss", False, 10),
-            "n_accumulate_grad": n_accumulate_grad,
-            "amp": True,
-            "verbose": True,
+            'max_epochs': max_epochs,
+            'gradient_clip_norm': 100,
+            'model_checkpoint': ml.ModelCheckpoint('loss', False, 10),
+            'n_accumulate_grad': n_accumulate_grad,
+            'amp': True,
+            'verbose': True,
         }
         self.warmup = 100
         self.lrs_hparams = {
-            "T_max": ...,
-            "eta_min": 4e-5
+            'T_max': ...,
+            'eta_min': 4e-5
         }
 
 
@@ -105,13 +105,13 @@ class AutoEncoder(ml.LModule):
         lr_s: LRScheduler = lrs.CosineAnnealingLR(optimizer, **hparams.lrs_hparams)
         lr_s = ml.warmup_decorator(lr_s, hparams.warmup)
         metrics: Dict[str, Metric] = {
-            "loss": MeanMetric(),
+            'loss': MeanMetric(),
         }
         #
         super().__init__([optimizer], [lr_s], metrics, hparams)
         self.encoder = encoder
         self.decoder = decoder
-        self.loss_fn = nn.MSELoss(reduction="none")
+        self.loss_fn = nn.MSELoss(reduction='none')
 
     def optimizer_step(self, opt_idx: int) -> None:
         super().optimizer_step(opt_idx)
@@ -129,15 +129,15 @@ class AutoEncoder(ml.LModule):
 
     def training_step(self, batch: Tuple[List[Tensor], Tensor], opt_idx: int) -> Tensor:
         loss = self._calculate(batch)
-        self.log("train_loss", loss)
+        self.log('train_loss', loss)
         return loss
 
     def validation_step(self, batch: Tuple[List[Tensor], Tensor]) -> None:
         loss = self._calculate(batch)
-        self.metrics["loss"].update(loss)
+        self.metrics['loss'].update(loss)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     ml.seed_everything(42, gpu_dtm=False)
     hparams = HParams()
     # 
@@ -149,7 +149,7 @@ if __name__ == "__main__":
                            transform=transforms, download=True)
     #
 
-    hparams.lrs_hparams["T_max"] = ml.get_T_max(len(train_dataset), batch_size, max_epochs, n_accumulate_grad)
+    hparams.lrs_hparams['T_max'] = ml.get_T_max(len(train_dataset), batch_size, max_epochs, n_accumulate_grad)
     #
     ldm = ml.LDataModule(
         train_dataset, val_dataset, None, **hparams.dataloader_hparams)
@@ -164,7 +164,7 @@ if __name__ == "__main__":
     imgs: ndarray = test_dataset.data
     imgs = imgs.transpose(0, 3, 1, 2)
     test_dataset = prepare_features(encoder, test_dataset, Device(device_ids[0]))
-    fpath = os.path.join(runs_dir, f"similar_images.png")
-    tsne_fpath = os.path.join(runs_dir, f"tsne.png")
+    fpath = os.path.join(runs_dir, f'similar_images.png')
+    tsne_fpath = os.path.join(runs_dir, f'tsne.png')
     draw_similar_images(test_dataset, imgs, 10, fpath)
     draw_tsne(test_dataset, tsne_fpath, TSNE)

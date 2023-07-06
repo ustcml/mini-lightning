@@ -394,7 +394,7 @@ class Trainer:
         if self.rank in {-1, 0}:
             runs_dir = os.path.abspath(runs_dir)
             self.version = self._get_version(runs_dir)
-            time = dt.datetime.now().strftime('%Y%m%d-%H%M%S.%f')  # window not support `:`
+            time = dt.datetime.now().strftime('%Y%m%d-%H%M%S')  # window not support `:`
             runs_dir = os.path.join(runs_dir, f'v{self.version}-{time}')
             #
             self.runs_dir = runs_dir

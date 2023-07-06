@@ -10,7 +10,7 @@ class TestSelectDevice(ut.TestCase):
         ml.select_device([0])
         x = torch.randn((10,))
         ml.select_device([0])
-        x = torch.randn((10,), device="cuda:0")
+        x = torch.randn((10,), device='cuda:0')
         ml.select_device([0])
 
 
@@ -20,5 +20,5 @@ class TestSelectDevice(ut.TestCase):
 [WARNING: mini-lightning] CUDA has been initialized! Device selection fails!
 """
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     ut.main()

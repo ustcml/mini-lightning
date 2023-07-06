@@ -28,7 +28,7 @@ def prepare_features(model: Module, dataset: Dataset, device: Device) -> TensorD
     model.eval()
     model.to(device)
     features, labels = [], []
-    for x, y in tqdm(loader, desc="Prepare Features"):
+    for x, y in tqdm(loader, desc='Prepare Features'):
         x, y = ml.LModule.batch_to_device((x, y), device=device)
         f: Tensor = model(x)
         features.append(f)
@@ -56,7 +56,7 @@ def draw_similar_images(dataset: TensorDataset,
     cos_sim = pairwise_cosine_similarity(qx, x)
     idxs = cos_sim.topk(topk, dim=1)[1]
     save_image(imgs[idxs].flatten(0, 1), fpath, nrow=topk, padding=2, value_range=(-1, 1), pad_value=1)
-    logger.info(f"`draw_similar_images` Done. The image is saved in `{fpath}`")
+    logger.info(f'`draw_similar_images` Done. The image is saved in `{fpath}`')
 
 
 def draw_tsne(dataset: TensorDataset, tsne_fpath: str, TSNE: type) -> None:
@@ -64,14 +64,14 @@ def draw_tsne(dataset: TensorDataset, tsne_fpath: str, TSNE: type) -> None:
     dataset: x: [N, F] float. y: [N] long
     """
     x, y = dataset.tensors
-    tsne = TSNE(2, learning_rate="auto", init="random", n_jobs=4)
+    tsne = TSNE(2, learning_rate='auto', init='random', n_jobs=4)
     x_2d = tsne.fit_transform(x.numpy())
     for label in range(10):
         plt.scatter(x_2d[:, 0][y == label], x_2d[:, 1][y == label], s=20, alpha=0.5, label=label)
     plt.legend()
-    plt.savefig(tsne_fpath, bbox_inches="tight")
+    plt.savefig(tsne_fpath, bbox_inches='tight')
     plt.close()
-    logger.info(f"`draw_tsne` Done. The image is saved in `{tsne_fpath}`")
+    logger.info(f'`draw_tsne` Done. The image is saved in `{tsne_fpath}`')
 
 # for meta-learning
 
@@ -106,7 +106,7 @@ def load_densenet_state_dict(
 ) -> IncompatibleKeys:
     """copy from `torchvision.models.densenet`"""
     pattern = re.compile(
-        r"^(.*denselayer\d+\.(?:norm|relu|conv))\.((?:[12])\.(?:weight|bias|running_mean|running_var))$"
+        r'^(.*denselayer\d+\.(?:norm|relu|conv))\.((?:[12])\.(?:weight|bias|running_mean|running_var))$'
     )
     for key in list(state_dict.keys()):
         res = pattern.match(key)
@@ -174,8 +174,8 @@ def pairwise_euclidean_distance(
     Y: shape[N2, F]. FloatTensor
     return: shape[N1, N2]
     """
-    XX = torch.einsum("ij,ij->i", X, X)
-    YY = torch.einsum("ij,ij->i", Y, Y)
+    XX = torch.einsum('ij,ij->i', X, X)
+    YY = torch.einsum('ij,ij->i', Y, Y)
     # 
     res = X @ Y.T
     res.mul_(-2).add_(XX[:, None]).add_(YY)

@@ -20,7 +20,7 @@ class TestUtils(ut.TestCase):
         m2 = nn.SyncBatchNorm.convert_sync_batchnorm(m)
         self.assertTrue(m == m2)
         self.assertTrue(m[1] == m2[1])
-        m3 = ml.de_sync_batchnorm(m, "2d")
+        m3 = ml.de_sync_batchnorm(m, '2d')
         self.assertTrue(m == m2 == m3)
         self.assertTrue(m[1] == m2[1] == m3[1])
         del m, m2, m3
@@ -28,7 +28,7 @@ class TestUtils(ut.TestCase):
         m = nn.BatchNorm2d(10)
         m2 = nn.SyncBatchNorm.convert_sync_batchnorm(m)
         self.assertTrue(m != m2)
-        m3 = ml.de_sync_batchnorm(m, "2d")
+        m3 = ml.de_sync_batchnorm(m, '2d')
         self.assertTrue(m != m2 and m2 != m3)
         self.assertTrue(m == m3)
 
@@ -37,7 +37,7 @@ class TestUtils(ut.TestCase):
         s = ml.seed_everything(3234335211)
         print(s)
         # test time_synchronize
-        x = torch.randn(10000, 10000, device="cuda")
+        x = torch.randn(10000, 10000, device='cuda')
         # test test_time
         res = ml.test_time(lambda: x @ x, 10, 0, ml.time_synchronize)
 
@@ -48,8 +48,8 @@ class TestUtils(ut.TestCase):
         model = resnet50()
         input = torch.randn(1, 3, 224, 224)
         ml.print_model_info(model, None, (input, ))
-        ml.print_model_info(model, "resnet", )
-        ml.print_model_info(model, "resnet", (input, ))
+        ml.print_model_info(model, 'resnet', )
+        ml.print_model_info(model, 'resnet', (input, ))
 
     def test_ckpt(self) -> None:
         model = resnet18()
@@ -71,14 +71,14 @@ class TestUtils(ut.TestCase):
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-        os.makedirs("asset", exist_ok=True)
-        ml.save_ckpt("asset/tmp.ckpt", {"model": model.state_dict()}, [], [])
-        ml.save_ckpt("asset/tmp2.ckpt", {"model": model.state_dict()}, [optimizer], [lr_s])
+        os.makedirs('asset', exist_ok=True)
+        ml.save_ckpt('asset/tmp.ckpt', {'model': model.state_dict()}, [], [])
+        ml.save_ckpt('asset/tmp2.ckpt', {'model': model.state_dict()}, [optimizer], [lr_s])
         #
-        models_state_dict, _, _,  mes = ml.load_ckpt("asset/tmp.ckpt")
-        model = models_state_dict["model"]
+        models_state_dict, _, _,  mes = ml.load_ckpt('asset/tmp.ckpt')
+        model = models_state_dict['model']
         print(mes)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     ut.main()

@@ -10,7 +10,7 @@
 
 from _pre_cv import *
 #
-RUNS_DIR = os.path.join(RUNS_DIR, "vae")
+RUNS_DIR = os.path.join(RUNS_DIR, 'vae')
 os.makedirs(RUNS_DIR, exist_ok=True)
 
 #
@@ -27,21 +27,21 @@ class HParams(HParamsBase):
         self.z_channels = z_channels
         self.alpha = alpha
         #
-        dataloader_hparams = {"batch_size": batch_size, "num_workers": 4}
-        optim_name = "AdamW"
-        optim_hparams = {"lr": 5e-4, "weight_decay": 1e-2}
+        dataloader_hparams = {'batch_size': batch_size, 'num_workers': 4}
+        optim_name = 'AdamW'
+        optim_hparams = {'lr': 5e-4, 'weight_decay': 1e-2}
         trainer_hparams = {
-            "max_epochs": max_epochs,
-            "model_checkpoint": ml.ModelCheckpoint("loss", False, 5),
-            "gradient_clip_norm": 100,
-            "n_accumulate_grad": n_accumulate_grad,
-            "amp": True,
-            "verbose": True,
+            'max_epochs': max_epochs,
+            'model_checkpoint': ml.ModelCheckpoint('loss', False, 5),
+            'gradient_clip_norm': 100,
+            'n_accumulate_grad': n_accumulate_grad,
+            'amp': True,
+            'verbose': True,
         }
         warmup = 100
         lrs_hparams = {
-            "T_max": ...,
-            "eta_min": 4e-5
+            'T_max': ...,
+            'eta_min': 4e-5
         }
         super().__init__(device_ids, dataloader_hparams, optim_name, optim_hparams, trainer_hparams, warmup, lrs_hparams)
 
@@ -150,9 +150,9 @@ class AutoEncoder(ml.LModule):
         lr_s: LRScheduler = lrs.CosineAnnealingLR(optimizer, **hparams.lrs_hparams)
         lr_s = ml.warmup_decorator(lr_s, hparams.warmup)
         metrics: Dict[str, Metric] = {
-            "mse_loss": MeanMetric(),
-            "kl_loss": MeanMetric(),
-            "loss": MeanMetric(),
+            'mse_loss': MeanMetric(),
+            'kl_loss': MeanMetric(),
+            'loss': MeanMetric(),
         }
         #
         super().__init__([optimizer], [lr_s], metrics, hparams)
@@ -168,10 +168,10 @@ class AutoEncoder(ml.LModule):
         """
         return self.decoder(z)
 
-    def trainer_init(self, trainer: "ml.Trainer") -> None:
-        self.images_dir = os.path.join(trainer.runs_dir, "images")
+    def trainer_init(self, trainer: 'ml.Trainer') -> None:
+        self.images_dir = os.path.join(trainer.runs_dir, 'images')
         os.makedirs(self.images_dir, exist_ok=True)
-        logger.info(f"images_dir: {self.images_dir}")
+        logger.info(f'images_dir: {self.images_dir}')
         self.example_z = self.example_z.to(trainer.device)
         return super().trainer_init(trainer)
 
@@ -195,28 +195,28 @@ class AutoEncoder(ml.LModule):
         mse_loss, kl_loss = self._calculate(batch)
         kl_loss *= self.alpha
         loss = mse_loss + kl_loss
-        self.log("train_mse_loss", mse_loss)
-        self.log("train_kl_loss", kl_loss)
-        self.log("train_loss", loss)
+        self.log('train_mse_loss', mse_loss)
+        self.log('train_kl_loss', kl_loss)
+        self.log('train_loss', loss)
         return loss
 
     def validation_step(self, batch: Tuple[List[Tensor], Tensor]) -> None:
         mse_loss, kl_loss = self._calculate(batch)
         kl_loss *= self.alpha
         loss = mse_loss + kl_loss
-        self.metrics["mse_loss"].update(mse_loss)
-        self.metrics["kl_loss"].update(kl_loss)
-        self.metrics["loss"].update(loss)
+        self.metrics['mse_loss'].update(mse_loss)
+        self.metrics['kl_loss'].update(kl_loss)
+        self.metrics['loss'].update(loss)
 
     def validation_epoch_end(self) -> Dict[str, float]:
         # no grad; eval
         fake_img = self(self.example_z)
-        fpath = os.path.join(self.images_dir, f"epoch{self.global_epoch}.png")
+        fpath = os.path.join(self.images_dir, f'epoch{self.global_epoch}.png')
         save_image(fake_img, fpath, nrow=8, padding=2, normalize=True, value_range=(-1, 1), pad_value=1)
         return super().validation_epoch_end()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     ml.seed_everything(42, gpu_dtm=False)
     hparams = HParams()
 
@@ -227,7 +227,7 @@ if __name__ == "__main__":
     test_dataset = MNIST(root=DATASETS_PATH, train=False,
                          transform=transforms, download=True)
     #
-    hparams.lrs_hparams["T_max"] = ml.get_T_max(len(train_dataset), batch_size, max_epochs, n_accumulate_grad)
+    hparams.lrs_hparams['T_max'] = ml.get_T_max(len(train_dataset), batch_size, max_epochs, n_accumulate_grad)
     #
     ldm = ml.LDataModule(
         train_dataset, val_dataset, None, **hparams.dataloader_hparams)

@@ -1,10 +1,9 @@
 # Author: Jintao Huang
 # Email: huangjintao@mail.ustc.edu.cn
 # Date:
-
 from ._types import *
 
-__all__ = ['tensorboard_smoothing', 'read_tensorboard_file']
+__all__ = ['tensorboard_smoothing', 'read_tensorboard_file', 'plot_image']
 Item = Dict[str, float]  # e.g. keys of Item: step, value
 COLOR, COLOR_S = '#FFE2D9', '#FF7043'
 
@@ -45,17 +44,30 @@ def tensorboard_smoothing(values: List[float], smooth: float = 0.9) -> List[floa
     return res
 
 
-def plot_image(data: Dict[str, List[Item]], key_name: str, smooth: float,
-               figsize: Tuple[int, int] = (8, 5), dpi: int = 100) -> Figure:
-    _data = data[key_name]
-    steps = [d['step'] for d in _data]
-    values = [d['value'] for d in _data]
-    fig, ax = plt.subplots(1, 1, squeeze=True, figsize=figsize, dpi=dpi)
-    ax.set_title(key_name)
-    if smooth != 0:
-        ax.plot(steps, values, color=COLOR)
-        values_s = tensorboard_smoothing(values, smooth)
-        ax.plot(steps, values_s, color=COLOR_S)
-    else:
-        ax.plot(steps, values, color=COLOR_S)
-    return fig
+def plot_image(tb_dir: str, smooth_key: List[str], smooth_val: float = 0.9,
+               figsize: Tuple[int, int] = (8, 5), dpi: int = 100) -> None:
+    image_dir = os.path.join(os.path.dirname(tb_dir), 'images')
+    os.makedirs(image_dir, exist_ok=True)
+    #
+    fname = os.listdir(tb_dir)[0]
+    tb_path = os.path.join(tb_dir, fname)
+    data = read_tensorboard_file(tb_path)
+    #
+    for k in data.keys():
+        _data = data[k]
+        steps = [d['step'] for d in _data]
+        values = [d['value'] for d in _data]
+        if len(values) == 0:
+            continue
+        _, ax = plt.subplots(1, 1, squeeze=True, figsize=figsize, dpi=dpi)
+        ax.set_title(k)
+        if len(values) == 1:
+            ax.scatter(steps, values, color=COLOR_S)
+        elif k in smooth_key:
+            ax.plot(steps, values, color=COLOR)
+            values_s = tensorboard_smoothing(values, smooth_val)
+            ax.plot(steps, values_s, color=COLOR_S)
+        else:
+            ax.plot(steps, values, color=COLOR_S)
+        fpath = os.path.join(image_dir, k)
+        plt.savefig(fpath, dpi=dpi, bbox_inches='tight')

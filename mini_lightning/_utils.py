@@ -11,7 +11,7 @@ __all__ = [
     'test_time', 'seed_everything', 'time_synchronize',
     'print_model_info', 'write_to_yaml', 'read_from_yaml', 'write_to_csv',
     'get_date_now', 'load_ckpt', 'save_ckpt',
-    'ModelCheckpoint', 'ResumeFromCkpt', 'parse_device_ids',
+    'ModelCheckpoint', 'ResumeFromCkpt', 'parse_device_ids'
 ]
 #
 _T = TypeVar('_T')
@@ -186,14 +186,14 @@ def activate_layers(model: Module, layer_suffix_names: Optional[List[str]] = Non
 
 
 def stat_array(x: ndarray) -> Tuple[Tuple[float, float, float, float, int], str]:
-    """statistics. return: (mean, std, min_, max_, _len), stat_str"""
+    """statistics. return: (mean, std, min_, max_, size), stat_str"""
     mean = x.mean().item()
     std = x.std().item()
     min_ = x.min().item()
     max_ = x.max().item()
-    len_ = sum(x.shape)
-    stat_str = f'{mean:.6f}±{std:.6f}, min={min_:.6f}, max={max_:.6f}, len={len_}'
-    return (mean, std, min_, max_, len_), stat_str
+    size = sum(x.shape)
+    stat_str = f'{mean:.6f}±{std:.6f}, min={min_:.6f}, max={max_:.6f}, size={size}'
+    return (mean, std, min_, max_, size), stat_str
 
 
 _T = TypeVar('_T')

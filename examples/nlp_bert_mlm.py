@@ -4,36 +4,35 @@
 from _pre_nlp import *
 
 #
-RUNS_DIR = os.path.join(RUNS_DIR, "nlp_bert_mlm")
+RUNS_DIR = os.path.join(RUNS_DIR, 'nlp_bert_mlm')
 os.makedirs(RUNS_DIR, exist_ok=True)
-os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
 #
 device_ids = [0]
 max_epochs = 10
 batch_size = 32
 n_accumulate_grad = 4
-model_id = "roberta-base"
+model_id = 'roberta-base'
 
 
 class HParams(HParamsBase):
     def __init__(self, collate_fn: Callable[[List[Any]], Any]) -> None:
         self.model_id = model_id
         #
-        dataloader_hparams = {"batch_size": batch_size, "num_workers": 4, "collate_fn": collate_fn}
-        optim_name = "AdamW"
-        optim_hparams = {"lr": 1e-4, "weight_decay": 0.1}
+        dataloader_hparams = {'batch_size': batch_size, 'num_workers': 4, 'collate_fn': collate_fn}
+        optim_name = 'AdamW'
+        optim_hparams = {'lr': 1e-4, 'weight_decay': 0.1}
         trainer_hparams = {
-            "max_epochs": max_epochs,
-            "model_checkpoint": ml.ModelCheckpoint("acc", True),
-            "gradient_clip_norm": 10,
-            "amp": True,
-            "n_accumulate_grad": n_accumulate_grad
+            'max_epochs': max_epochs,
+            'model_checkpoint': ml.ModelCheckpoint('acc', True),
+            'gradient_clip_norm': 10,
+            'amp': True,
+            'n_accumulate_grad': n_accumulate_grad
         }
         warmup = 30
         lrs_hparams = {
-            "T_max": ...,
-            "eta_min": 4e-5
+            'T_max': ...,
+            'eta_min': 4e-5
         }
         super().__init__(device_ids, dataloader_hparams, optim_name, optim_hparams, trainer_hparams, warmup, lrs_hparams)
 
@@ -43,13 +42,13 @@ class MyLModule(ml.LModule):
         config = RobertaConfig.from_pretrained(model_id)
         logger.info(config)
         model = RobertaForMaskedLM.from_pretrained(model_id, config=config)
-        ml.freeze_layers(model, ["roberta.embeddings."] +
-                         [f"roberta.encoder.layer.{i}." for i in range(2)], verbose=False)
+        ml.freeze_layers(model, ['roberta.embeddings.'] +
+                         [f'roberta.encoder.layer.{i}.' for i in range(2)], verbose=False)
         optimizer = getattr(optim, hparams.optim_name)(model.parameters(), **hparams.optim_hparams)
         self.vocab_size = model.config.vocab_size
         metrics: Dict[str, Metric] = {
-            "loss": MeanMetric(),
-            "acc":  Accuracy("multiclass", num_classes=self.vocab_size),
+            'loss': MeanMetric(),
+            'acc':  Accuracy('multiclass', num_classes=self.vocab_size),
         }
         lr_s: LRScheduler = lrs.CosineAnnealingLR(optimizer, **hparams.lrs_hparams)
         lr_s = ml.warmup_decorator(lr_s, hparams.warmup)
@@ -65,9 +64,9 @@ class MyLModule(ml.LModule):
         self.lr_schedulers[opt_idx].step()
 
     def _calculate_loss_prob_pred(self, batch: Dict[str, Tensor]) -> Tuple[Tensor, Tensor, Tensor]:
-        labels = batch["labels"]
+        labels = batch['labels']
         labels_mask = labels != -100
-        y = self.model(batch["input_ids"], batch["attention_mask"])
+        y = self.model(batch['input_ids'], batch['attention_mask'])
         logits = y.logits[labels_mask]  # save memory
         logits = self.decoder(logits)
         labels = labels[labels_mask]
@@ -77,37 +76,37 @@ class MyLModule(ml.LModule):
 
     def training_step(self, batch: Dict[str, Tensor], opt_idx: int) -> Tensor:
         loss, y_pred, labels = self._calculate_loss_prob_pred(batch)
-        acc = accuracy(y_pred, labels, "multiclass", num_classes=self.vocab_size)
-        self.log("train_loss", loss)
-        self.log("train_acc", acc)
+        acc = accuracy(y_pred, labels, 'multiclass', num_classes=self.vocab_size)
+        self.log('train_loss', loss)
+        self.log('train_acc', acc)
         return loss
 
     def validation_step(self, batch: Dict[str, Tensor]) -> None:
         loss, y_pred, labels = self._calculate_loss_prob_pred(batch)
-        self.metrics["loss"].update(loss)
-        self.metrics["acc"].update(y_pred, labels)
+        self.metrics['loss'].update(loss)
+        self.metrics['acc'].update(y_pred, labels)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     ml.seed_everything(42, gpu_dtm=False)
-    dataset = load_dataset("glue", "mrpc")  # for examples
+    dataset = load_dataset('glue', 'mrpc')  # for examples
     tokenizer = RobertaTokenizerFast.from_pretrained(model_id)
-    tokenizer.deprecation_warnings["Asking-to-pad-a-fast-tokenizer"] = True
+    tokenizer.deprecation_warnings['Asking-to-pad-a-fast-tokenizer'] = True
 
     def tokenize_function(example):
         # example: Dict[str, List[Any]]. key: sentence1, sentence2, label, idx
-        return tokenizer(example["sentence1"], example["sentence2"], truncation=True)
+        return tokenizer(example['sentence1'], example['sentence2'], truncation=True)
 
     dataset = dataset.map(tokenize_function, batched=True)
-    dataset = dataset.remove_columns(["sentence1", "sentence2", "idx", "label"])
-    collate_fn = DataCollatorForLanguageModeling(tokenizer, True, 0.15, return_tensors="pt")
+    dataset = dataset.remove_columns(['sentence1', 'sentence2', 'idx', 'label'])
+    collate_fn = DataCollatorForLanguageModeling(tokenizer, True, 0.15, return_tensors='pt')
     #
     hparams = HParams(collate_fn)
-    hparams.lrs_hparams["T_max"] = ml.get_T_max(
-        len(dataset["train"]), batch_size, max_epochs, n_accumulate_grad)
+    hparams.lrs_hparams['T_max'] = ml.get_T_max(
+        len(dataset['train']), batch_size, max_epochs, n_accumulate_grad)
     #
     ldm = ml.LDataModule(
-        dataset["train"], dataset["validation"], dataset["test"], **hparams.dataloader_hparams)
+        dataset['train'], dataset['validation'], dataset['test'], **hparams.dataloader_hparams)
     #
 
     lmodel = MyLModule(hparams)

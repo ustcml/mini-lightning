@@ -8,7 +8,7 @@
 
 from _pre_cv import *
 #
-RUNS_DIR = os.path.join(RUNS_DIR, "gan")
+RUNS_DIR = os.path.join(RUNS_DIR, 'gan')
 os.makedirs(RUNS_DIR, exist_ok=True)
 #
 device_ids = [0]
@@ -20,19 +20,19 @@ img_shape = (1, 28, 28)
 
 class HParams:
     def __init__(self) -> None:
-        self.G_hparams = {"in_channels": 100, "img_shape": img_shape}
-        self.D_hparams = {"img_shape": img_shape}
-        self.dataloader_hparams = {"batch_size": batch_size, "num_workers": 4}
-        self.opt_G_name = "Adam"
-        self.opt_D_name = "Adam"
-        self.opt_G_hparams = {"lr": 2e-4, "betas": (0.5, 0.999)}
-        self.opt_D_hparams = {"lr": 2e-4, "betas": (0.5, 0.999)}
+        self.G_hparams = {'in_channels': 100, 'img_shape': img_shape}
+        self.D_hparams = {'img_shape': img_shape}
+        self.dataloader_hparams = {'batch_size': batch_size, 'num_workers': 4}
+        self.opt_G_name = 'Adam'
+        self.opt_D_name = 'Adam'
+        self.opt_G_hparams = {'lr': 2e-4, 'betas': (0.5, 0.999)}
+        self.opt_D_hparams = {'lr': 2e-4, 'betas': (0.5, 0.999)}
         self.trainer_hparams = {
-            "max_epochs": max_epochs,
-            "gradient_clip_norm": 10,
-            "amp": True,
-            "n_accumulate_grad": n_accumulate_grad,
-            "verbose": True
+            'max_epochs': max_epochs,
+            'gradient_clip_norm': 10,
+            'amp': True,
+            'n_accumulate_grad': n_accumulate_grad,
+            'verbose': True
         }
 
 
@@ -97,7 +97,7 @@ class Discriminator(nn.Module):
 
 class GAN(ml.LModule):
     def __init__(self, hparams: HParams) -> None:
-        self.in_channels = hparams.G_hparams["in_channels"]
+        self.in_channels = hparams.G_hparams['in_channels']
         G, D = Generator(**hparams.G_hparams), Discriminator(**hparams.D_hparams)
         opt_G = getattr(optim, hparams.opt_G_name)(G.parameters(), **hparams.opt_G_hparams)
         opt_D = getattr(optim, hparams.opt_D_name)(D.parameters(), **hparams.opt_D_hparams)
@@ -110,10 +110,10 @@ class GAN(ml.LModule):
     def forward(self, z: Tensor) -> Tensor:
         return self.G(z)
 
-    def trainer_init(self, trainer: "ml.Trainer") -> None:
-        self.images_dir = os.path.join(trainer.runs_dir, "images")
+    def trainer_init(self, trainer: 'ml.Trainer') -> None:
+        self.images_dir = os.path.join(trainer.runs_dir, 'images')
         os.makedirs(self.images_dir, exist_ok=True)
-        logger.info(f"images_dir: {self.images_dir}")
+        logger.info(f'images_dir: {self.images_dir}')
         self.example_z = self.example_z.to(trainer.device)
         return super().trainer_init(trainer)
 
@@ -127,7 +127,7 @@ class GAN(ml.LModule):
             _1 = torch.ones(N).type_as(true_img)
             pred = self.D(fake_img)[:, 0]
             g_loss = self.loss_fn(pred, _1)
-            self.log("g_loss", g_loss)
+            self.log('g_loss', g_loss)
             return g_loss
         else:
             # true_img -> true; fake_img -> false
@@ -140,18 +140,18 @@ class GAN(ml.LModule):
             pred2 = self.D(fake_img)[:, 0]
             loss2 = self.loss_fn(pred2, _0)
             d_loss = (loss1 + loss2) / 2
-            self.log("d_loss", d_loss)
+            self.log('d_loss', d_loss)
             return d_loss
 
     def validation_epoch_end(self) -> Dict[str, float]:
         # no grad; eval
         fake_img = self(self.example_z)
-        fpath = os.path.join(self.images_dir, f"epoch{self.global_epoch}.png")
+        fpath = os.path.join(self.images_dir, f'epoch{self.global_epoch}.png')
         save_image(fake_img, fpath, nrow=8, padding=2, normalize=True, value_range=(-1, 1), pad_value=1)
         return super().validation_epoch_end()  # {}
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     hparams = HParams()
     transform = tvt.Compose(
         [
