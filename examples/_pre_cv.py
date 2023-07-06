@@ -18,7 +18,6 @@ ResNet = tvm.ResNet
 DenseNet = tvm.DenseNet
 
 
-
 @torch.no_grad()
 def prepare_features(model: Module, dataset: Dataset, device: Device) -> TensorDataset:
     """
@@ -176,7 +175,7 @@ def pairwise_euclidean_distance(
     """
     XX = torch.einsum('ij,ij->i', X, X)
     YY = torch.einsum('ij,ij->i', Y, Y)
-    # 
+    #
     res = X @ Y.T
     res.mul_(-2).add_(XX[:, None]).add_(YY)
     res.clamp_min_(0.)

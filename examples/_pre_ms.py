@@ -36,7 +36,7 @@ def get_baichuan_model_tokenizer(
     model = None
     if load_model:
         model = BaiChuanForCausalLM.from_pretrained(model_dir, config=model_config,
-                                      device_map='auto', torch_dtype=torch.float16)
+                                                    device_map='auto', torch_dtype=torch.float16)
     if add_special_token and tokenizer.pad_token_id is None:
         tokenizer.pad_token_id = tokenizer.eos_token_id
     tokenizer.deprecation_warnings['Asking-to-pad-a-fast-tokenizer'] = True
@@ -74,7 +74,7 @@ PROMPT = """### 用户
 """
 
 
-def tokenize_function(example: Dict[str, str], 
+def tokenize_function(example: Dict[str, str],
                       tokenizer: PreTrainedTokenizerBase) -> Dict[str, Any]:
     # example: Dict[str, str]. key: 'instruction', 'input', 'output'
     instruction = example['instruction']
@@ -99,7 +99,7 @@ def tokenize_function(example: Dict[str, str],
     return {'input_ids': input_ids, 'labels': labels}
 
 
-def data_collate_fn(batch: List[Dict[str, Any]], 
+def data_collate_fn(batch: List[Dict[str, Any]],
                     tokenizer: PreTrainedTokenizerBase) -> Dict[str, Any]:
     input_ids = [torch.tensor(b['input_ids']) for b in batch]
     labels = [torch.tensor(b['labels']) for b in batch]

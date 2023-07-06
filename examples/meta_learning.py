@@ -193,7 +193,8 @@ class ProtoNet(ml.LModule):
         support_feats, query_feats = self._split_support_query(feats)
         support_targets, query_targets = self._split_support_query(targets)
         prototypes, proto_labels = self._calculate_prototypes(support_feats, support_targets)  # [N_WAY, E], [N_WAY]
-        dist, labels = self._classify_to_prototypes(prototypes, proto_labels, query_feats, query_targets)  # [N_WAY*N_SHOT, N_WAY], [N_WAY*N_SHOT]
+        dist, labels = self._classify_to_prototypes(
+            prototypes, proto_labels, query_feats, query_targets)  # [N_WAY*N_SHOT, N_WAY], [N_WAY*N_SHOT]
         loss = self._calculate_loss(dist, labels)
         y_pred = dist.argmin(dim=1)
         return loss, y_pred, labels
