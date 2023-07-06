@@ -26,17 +26,15 @@ def get_baichuan_model_tokenizer(
     model_dir = get_model_dir(model_id, None)
     #
     sys.path.insert(0, model_dir)
-    from configuration_baichuan import BaiChuanConfig
-    from modeling_baichuan import BaiChuanForCausalLM
-    from tokenization_baichuan import BaiChuanTokenizer
-    model_config = BaiChuanConfig.from_pretrained(model_dir)
+    model_config = AutoConfig.from_pretrained(model_dir, trust_remote_code=True)
     model_config.torch_dtype = torch.float16
     logger.info(f'model_config: {model_config}')
-    tokenizer = BaiChuanTokenizer.from_pretrained(model_dir)
+    tokenizer = AutoTokenizer.from_pretrained(model_dir, trust_remote_code=True)
     model = None
     if load_model:
-        model = BaiChuanForCausalLM.from_pretrained(model_dir, config=model_config,
-                                                    device_map='auto', torch_dtype=torch.float16)
+        model = AutoModelForCausalLM.from_pretrained(
+            model_dir, config=model_config, device_map='auto',
+            torch_dtype=torch.float16, trust_remote_code=True)
     if add_special_token and tokenizer.pad_token_id is None:
         tokenizer.pad_token_id = tokenizer.eos_token_id
     tokenizer.deprecation_warnings['Asking-to-pad-a-fast-tokenizer'] = True
@@ -92,7 +90,7 @@ def tokenize_function(example: Dict[str, str],
     tgt_input_ids: List[int] = tokenizer(output, return_attention_mask=False,
                                          add_special_tokens=False)['input_ids']
     src_input_ids.append(tokenizer.bos_token_id)
-    src_input_ids.append(tokenizer.eos_token_id)
+    tgt_input_ids.append(tokenizer.eos_token_id)
     #
     input_ids = src_input_ids + tgt_input_ids
     labels = [-100] * len(src_input_ids) + tgt_input_ids

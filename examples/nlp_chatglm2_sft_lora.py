@@ -135,6 +135,8 @@ if __name__ == '__main__':
     dataset = dataset.remove_columns(['instruction', 'input', 'output'])
     #
     dataset = dataset.train_test_split(hparams.test_split_p, seed=hparams.split_seed)
+    print_examples(dataset['train'][0], tokenizer)
+    #
     hparams.lrs_hparams['T_max'] = ml.get_T_max(
         len(dataset['train']), hparams.batch_size, hparams.max_epochs, hparams.n_accumulate_grad)
     ldm = ml.LDataModule(
