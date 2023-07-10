@@ -12,7 +12,7 @@ def get_model_dir(model_id: str, model_revision: Optional[str] = None) -> str:
 
 def get_alpaca_en_zh_dataset() -> Tuple[HFDataset, HFDataset]:
     dataset_en: HFDataset = MsDataset.load(
-        'AI-ModelScope/alpaca-gpt4', split='train').to_hf_dataset()
+        'AI-ModelScope/alpaca-gpt4-data-en', split='train').to_hf_dataset()
     dataset_zh: HFDataset = MsDataset.load(
         'AI-ModelScope/alpaca-gpt4-data-zh', split='train').to_hf_dataset()
     return dataset_en, dataset_zh

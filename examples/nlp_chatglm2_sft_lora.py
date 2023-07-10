@@ -7,7 +7,8 @@ from _pre_ms import *
 
 class HParams(HParamsBase):
     def __init__(self) -> None:
-        device_ids = list(range(min(4, torch.cuda.device_count())))
+        # need 40GB graphics memory
+        device_ids = [0, 1, 2, 3]
         self.model_id = 'ZhipuAI/chatglm2-6b'
         ml.select_device(device_ids)
         self.prompt = PROMPT
