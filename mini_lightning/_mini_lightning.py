@@ -445,9 +445,9 @@ class Trainer:
         self.parallel_mode: Literal['DP', 'DDP', None] = parallel_mode
         self.sync_bn = sync_bn
         self.amp = amp
-        if not amp and self.amp_dtype is not None:
-            self.amp_dtype = None
-            logger.warning(f'Setting self.amp_dtype: None, because self.amp: {amp}')
+        if not amp and amp_dtype is not None:
+            amp_dtype = None
+            logger.warning(f'Setting amp_dtype: None, because amp: {amp}')
         self.amp_dtype = amp_dtype
         logger.info(f'Using amp: {amp}, amp_dtype: {amp_dtype}')
         #
@@ -487,8 +487,6 @@ class Trainer:
         self._rec_mes_train: Dict[str, float] = {}
         self._mean_metrics_train: Dict[str, MeanMetric] = {}
         self._tb_mean_metrics_train: Dict[str, MeanMetric] = {}
-        #
-        self._saving_n: int = 0  # nums of saving last models (epoch/step mode)
         #
         self.model_checkpoint = model_checkpoint if model_checkpoint is not None else ModelCheckpoint()
         self.resume_from_ckpt = resume_from_ckpt
@@ -700,14 +698,16 @@ class Trainer:
         if self.rank not in {-1, 0}:
             return
         #
-        metric_str = ''
         mc = self.model_checkpoint
+        if not mc.saving_model:
+            return
+        metric_str = ''
         if mc.val_mode == 'epoch':
             val_mode_val = self.global_epoch
         else:
             val_mode_val = self.global_step
         #
-        if mc.saving_best_model and core_metric is not None:
+        if core_metric is not None:
             assert mc.higher_is_better is not None
             tag = '+' if mc.higher_is_better else '-'
             metric_str = f'-{mc.core_metric_name}[{tag}]={core_metric:.6f}'
@@ -719,12 +719,10 @@ class Trainer:
                 self._save_ckpt(self.best_ckpt_path)
                 logger.info((f'Best model, saving model `{ckpt_fname}`'))
         #
-        self._saving_n += 1
-        if mc.saving_last_model_every_n and self._saving_n % mc.saving_last_model_every_n == 0:
-            self._remove_ckpt('last')
-            ckpt_fname = f'last-{mc.val_mode}={val_mode_val}{metric_str}.ckpt'
-            self.last_ckpt_path = os.path.join(self.ckpt_dir, ckpt_fname)
-            self._save_ckpt(self.last_ckpt_path)
+        self._remove_ckpt('last')
+        ckpt_fname = f'last-{mc.val_mode}={val_mode_val}{metric_str}.ckpt'
+        self.last_ckpt_path = os.path.join(self.ckpt_dir, ckpt_fname)
+        self._save_ckpt(self.last_ckpt_path)
 
     def _get_res_mes(self, mean_metrics: Dict[str, MeanMetric], rec_mes: Dict[str, float],
                      mode: Literal['tb', 'result', 'prog_bar']) -> Dict[str, float]:
