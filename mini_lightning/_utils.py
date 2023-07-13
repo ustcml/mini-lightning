@@ -103,27 +103,34 @@ def de_sync_batchnorm(module: Module, bn_type: Literal['1d', '2d', '3d']) -> Mod
     return module
 
 
-def select_device(device_ids: List[int]) -> Device:
+def select_device(device: Union[List[int], str]) -> Device:
     """Call this function before cuda is initialized.
     device: e.g. []: 'cpu', [0], [0, 1, 2]
-    Return: master device
+        e.g. '-1': 'cpu', '0', '0,1,2'
     """
     if torch.cuda.is_initialized():
         logger.warning('CUDA has been initialized! Device selection fails!')
         return torch.device('cuda:0')
     #
-    log_s = 'Using device: '
-    if len(device_ids) == 0:  # cpu
-        os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
-        device: str = 'cpu'
-        log_s += device
+    if isinstance(device, list):
+        device_ids = device
+        device_str = ','.join([str(d) for d in device])
     else:
-        os.environ['CUDA_VISIBLE_DEVICES'] = ','.join([str(d) for d in device_ids])
+        device_ids =[int(d) for d in device.split(',') if d != '-1']
+        device_str = device
+    device_str = device_str.replace(' ', '')
+    #
+    os.environ['CUDA_VISIBLE_DEVICES'] = device_str
+    log_s = 'Using device: '
+    if len(device_ids) == 0:
+        master_device: str = 'cpu'
+        log_s += 'cpu'
+    else:
         assert torch.cuda.is_available() and torch.cuda.device_count() >= len(device_ids)
-        log_s += f'cuda:{",".join([str(d) for d in device_ids])}'  # e.g. 'cuda:1,7,8'
-        device = 'cuda:0'
+        master_device = 'cuda:0'
+        log_s += f'cuda:{device_str}'
     logger.info(log_s)
-    return torch.device(device)
+    return torch.device(master_device)
 
 
 def _remove_keys(state_dict: Dict[str, _T], prefix_keys: List[str]) -> Dict[str, _T]:
