@@ -70,7 +70,7 @@ python examples/gan.py
 pip install "torchvision>=0.13" "scikit-learn>=1.2"
 python examples/cl.py
 # cl+ddp
-torchrun --nproc_per_node 2 examples/cl_ddp.py --device_ids 0 1
+torchrun --nproc_per_node 2 examples/cl_ddp.py --device 0,1
 
 ### gnn
 # download torch_geometric
@@ -98,13 +98,13 @@ python examples/meta_learning.py
 # spawn
 #   Ref: https://pytorch.org/docs/stable/notes/ddp.html
 ## single-node, multi-gpu
-torchrun --nproc_per_node 2 examples/cv_ddp.py --device_ids 0 1
+torchrun --nproc_per_node 2 examples/cv_ddp.py --device 0,1
 python cv_ddp_spawn.py  # setting device_ids=[0, 1]
 
 ## multi-node
 # default: --master_port 29500, or set master_port to prevents port conflicts.
-torchrun --nnodes 2 --node_rank 0 --master_addr 127.0.0.1 --nproc_per_node 4 examples/cv_ddp.py --device_ids 0 1 2 3
-torchrun --nnodes 2 --node_rank 1 --master_addr xxx.xxx.xxx.xxx --nproc_per_node 4 examples/cv_ddp.py --device_ids 0 1 2 3
+torchrun --nnodes 2 --node_rank 0 --master_addr 127.0.0.1 --nproc_per_node 4 examples/cv_ddp.py --device 0,1,2,3
+torchrun --nnodes 2 --node_rank 1 --master_addr xxx.xxx.xxx.xxx --nproc_per_node 4 examples/cv_ddp.py --device 0,1,2,3
 ```
 
 

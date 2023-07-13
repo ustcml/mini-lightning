@@ -11,7 +11,7 @@ __all__ = [
     'test_time', 'seed_everything', 'time_synchronize',
     'print_model_info', 'write_to_yaml', 'read_from_yaml', 'write_to_csv',
     'get_date_now', 'load_ckpt', 'save_ckpt',
-    'ModelCheckpoint', 'ResumeFromCkpt', 'parse_device_ids'
+    'ModelCheckpoint', 'ResumeFromCkpt', 'parse_device'
 ]
 #
 _T = TypeVar('_T')
@@ -103,6 +103,17 @@ def de_sync_batchnorm(module: Module, bn_type: Literal['1d', '2d', '3d']) -> Mod
     return module
 
 
+def _format_device(device: Union[List[int], str]) -> Tuple[List[int], str]:
+    if isinstance(device, list):
+        device_ids = device
+        device_str = ','.join([str(d) for d in device])
+    else:
+        device_ids = [int(d) for d in device.split(',') if d != '-1']
+        device_str = device
+    device_str = device_str.replace(' ', '')
+    return device_ids, device_str
+
+
 def select_device(device: Union[List[int], str]) -> Device:
     """Call this function before cuda is initialized.
     device: e.g. []: 'cpu', [0], [0, 1, 2]
@@ -112,13 +123,7 @@ def select_device(device: Union[List[int], str]) -> Device:
         logger.warning('CUDA has been initialized! Device selection fails!')
         return torch.device('cuda:0')
     #
-    if isinstance(device, list):
-        device_ids = device
-        device_str = ','.join([str(d) for d in device])
-    else:
-        device_ids =[int(d) for d in device.split(',') if d != '-1']
-        device_str = device
-    device_str = device_str.replace(' ', '')
+    device_ids, device_str = _format_device(device)
     #
     os.environ['CUDA_VISIBLE_DEVICES'] = device_str
     log_s = 'Using device: '
@@ -415,9 +420,9 @@ class ResumeFromCkpt:
         return f'{self.__class__.__name__}({attr_str})'
 
 
-def parse_device_ids() -> List[int]:
+def parse_device() -> List[int]:
     parser = ArgumentParser()
-    parser.add_argument('--device_ids', '-d', nargs='*', type=int,
-                        default=[0], help='e.g. [], [0], [0, 1, 2]. --device_ids; --device_ids 0; -d 0 1 2')
+    parser.add_argument('--device', '-d', type=str, default='0', help='e.g. -1; 0; 0,1,2')
     opt: Namespace = parser.parse_args()  # options
-    return opt.device_ids
+    device_ids, _ = _format_device(opt.device)
+    return device_ids
