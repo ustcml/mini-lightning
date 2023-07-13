@@ -13,6 +13,7 @@ batch_size = 32
 n_accumulate_grad = 2
 model_id = 'IDEA-CCNL/Wenzhong-GPT2-110M'
 
+
 class HParams(HParamsBase):
     def __init__(self, collate_fn: Callable[[List[Any]], Any]) -> None:
         self.model_id = model_id
@@ -24,7 +25,7 @@ class HParams(HParamsBase):
         self.max_length = 512
         self.adapter_n_layer = 1
         self.dropout_p = 0
-        self.replace_gelu = True  # same function, faster. 
+        self.replace_gelu = True  # same function, faster.
         self.load_state_last_layer = True
         self.verbose_freeze = True
         self.test_split_p = 0.02
@@ -62,13 +63,13 @@ class MyLModule(ml.LModule):
                 config.activation_function = 'gelu_pytorch_tanh'
             logger.info(config)
         model = GPT2LMHeadModel.from_pretrained(model_id, config=config)
-        if hparams.load_state_last_layer :
+        if hparams.load_state_last_layer:
             layer_state_dict = model.transformer.h[old_n_layer-1].state_dict()
             for i in range(hparams.adapter_n_layer):
                 logger.info(model.transformer.h[old_n_layer + i].load_state_dict(layer_state_dict))
         ml.freeze_layers(model, ['transformer.wte.', 'transformer.wpe.', 'transformer.drop.'] +
-                         [f'transformer.h.{i}.' for i in range(old_n_layer)] + 
-                         ['transformer.ln_f.'], 
+                         [f'transformer.h.{i}.' for i in range(old_n_layer)] +
+                         ['transformer.ln_f.'],
                          verbose=hparams.verbose_freeze)
         optimizer = getattr(optim, hparams.optim_name)(model.parameters(), **hparams.optim_hparams)
         self.vocab_size = model.config.vocab_size
@@ -93,7 +94,7 @@ class MyLModule(ml.LModule):
         labels = batch['labels']
         labels = labels[:, 1:]
         labels_mask = labels != -100
-        y = self.model(batch['input_ids'],attention_mask=batch['attention_mask'])
+        y = self.model(batch['input_ids'], attention_mask=batch['attention_mask'])
         logits = y.logits[:, :-1][labels_mask]  # save memory
         logits = self.lm_head(logits)
         labels = labels[labels_mask]
@@ -113,6 +114,7 @@ class MyLModule(ml.LModule):
         self.metrics['loss'].update(loss)
         self.metrics['acc'].update(y_pred, labels)
 
+
 if __name__ == '__main__':
     ml.seed_everything(42, gpu_dtm=False)
     dataset = load_dataset('c-s-ale/alpaca-gpt4-data-zh')['train']
@@ -120,6 +122,7 @@ if __name__ == '__main__':
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.deprecation_warnings['Asking-to-pad-a-fast-tokenizer'] = True
     _data_collator = DataCollatorWithPadding(tokenizer)
+
     def data_collate_fn(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
         input_ids = [torch.tensor(b['input_ids']) for b in batch]
         labels = [torch.tensor(b['labels']) for b in batch]
@@ -129,6 +132,7 @@ if __name__ == '__main__':
         return res
     hparams = HParams(data_collate_fn)
     #
+
     def tokenize_function(example: Dict[str, str]) -> Dict[str, Any]:
         # example: Dict[str, str]. key: 'instruction', 'input', 'output'
         instruction = example['instruction']
@@ -140,9 +144,9 @@ if __name__ == '__main__':
                 instruction = instruction + _input
         output = example['output']
         src_text = hparams.prompt.format(instruction=instruction, add_special_tokens=False)
-        src_input_ids: List[int] = tokenizer(src_text, return_attention_mask=False, 
+        src_input_ids: List[int] = tokenizer(src_text, return_attention_mask=False,
                                              add_special_tokens=False)['input_ids']
-        tgt_input_ids: List[int] = tokenizer(output, return_attention_mask=False, 
+        tgt_input_ids: List[int] = tokenizer(output, return_attention_mask=False,
                                              add_special_tokens=False)['input_ids']
         tgt_input_ids.append(tokenizer.eos_token_id)
         #
@@ -152,7 +156,7 @@ if __name__ == '__main__':
 
     dataset = dataset.map(tokenize_function)
     dataset = dataset.remove_columns(['instruction', 'input', 'output'])
-    # 
+    #
     dataset = dataset.train_test_split(hparams.test_split_p, seed=hparams.split_seed)
     hparams.lrs_hparams['T_max'] = ml.get_T_max(
         len(dataset['train']), batch_size, max_epochs, n_accumulate_grad)

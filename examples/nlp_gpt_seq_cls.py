@@ -92,7 +92,6 @@ class MyLModule(ml.LModule):
                 metric.update(y_pred, batch['labels'])
 
 
-
 if __name__ == '__main__':
     ml.seed_everything(42, gpu_dtm=False)
     dataset = load_dataset('glue', 'mrpc')  # for examples

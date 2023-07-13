@@ -93,7 +93,7 @@ if __name__ == '__main__':
     lr_s = ml.warmup_decorator(lr_s, 5)
     lmodel = MyLModule(model, [optimizer], [lr_s])
     trainer = ml.Trainer(lmodel, [], 40, RUNS_DIR, ml.ModelCheckpoint(
-        'acc', True, 100, 'step', saving_optimizers=True), 
+        'acc', True, 100, 'step', saving_optimizers=True),
         gradient_clip_norm=10, verbose=True, n_accumulate_grad=1)
     trainer.test(ldm.val_dataloader, True, True)
     trainer.fit(ldm.train_dataloader, ldm.val_dataloader)

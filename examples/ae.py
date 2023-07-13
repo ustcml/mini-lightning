@@ -140,7 +140,7 @@ class AutoEncoder(ml.LModule):
 if __name__ == '__main__':
     ml.seed_everything(42, gpu_dtm=False)
     hparams = HParams()
-    # 
+    #
     transforms = tvt.Compose([tvt.ToTensor(), tvt.Normalize((0.5,), (0.5,))])  # [0, 1] -> [-1, 1]
     train_dataset = CIFAR10(root=DATASETS_PATH, train=True,
                             transform=transforms, download=True)

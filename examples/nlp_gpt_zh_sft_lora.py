@@ -14,6 +14,7 @@ batch_size = 16
 n_accumulate_grad = 4
 model_id = 'IDEA-CCNL/Wenzhong-GPT2-110M'
 
+
 class HParams(HParamsBase):
     def __init__(self, collate_fn: Callable[[List[Any]], Any]) -> None:
         self.model_id = model_id
@@ -59,14 +60,14 @@ class MyLModule(ml.LModule):
         config.resid_pdrop = hparams.dropout_p
         config.summary_first_dropout = hparams.dropout_p
         if hparams.replace_gelu:
-          if config.activation_function in {'gelu_fast', 'gelu_new'}:
-              config.activation_function = 'gelu_pytorch_tanh'
+            if config.activation_function in {'gelu_fast', 'gelu_new'}:
+                config.activation_function = 'gelu_pytorch_tanh'
         logger.info(config)
         model = GPT2LMHeadModel.from_pretrained(model_id, config=config)
         ml.freeze_layers(model, [''], verbose=False)  # all freeze
-        config = LoraConfig(base_model_name_or_path=model_id, lora_dropout=hparams.lora_dropout_p, 
-                            lora_alpha=hparams.lora_alpha, r=hparams.lora_r, target_modules=hparams.lora_target_modules, 
-                            inference_mode=False) 
+        config = LoraConfig(base_model_name_or_path=model_id, lora_dropout=hparams.lora_dropout_p,
+                            lora_alpha=hparams.lora_alpha, r=hparams.lora_r, target_modules=hparams.lora_target_modules,
+                            inference_mode=False)
         model = PeftModelForCausalLM(model, config)
         if hparams.verbose_freeze:
             ml.activate_layers(model, None)
@@ -113,6 +114,7 @@ class MyLModule(ml.LModule):
         self.metrics['loss'].update(loss)
         self.metrics['acc'].update(y_pred, labels)
 
+
 if __name__ == '__main__':
     ml.seed_everything(42, gpu_dtm=False)
     dataset = load_dataset('c-s-ale/alpaca-gpt4-data-zh')['train']
@@ -120,6 +122,7 @@ if __name__ == '__main__':
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.deprecation_warnings['Asking-to-pad-a-fast-tokenizer'] = True
     _data_collator = DataCollatorWithPadding(tokenizer)
+
     def data_collate_fn(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
         input_ids = [torch.tensor(b['input_ids']) for b in batch]
         labels = [torch.tensor(b['labels']) for b in batch]
@@ -129,6 +132,7 @@ if __name__ == '__main__':
         return res
     hparams = HParams(data_collate_fn)
     #
+
     def tokenize_function(example: Dict[str, str]) -> Dict[str, Any]:
         # example: Dict[str, str]. key: 'instruction', 'input', 'output'
         instruction = example['instruction']
@@ -140,9 +144,9 @@ if __name__ == '__main__':
                 instruction = instruction + _input
         output = example['output']
         src_text = hparams.prompt.format(instruction=instruction, add_special_tokens=False)
-        src_input_ids: List[int] = tokenizer(src_text, return_attention_mask=False, 
+        src_input_ids: List[int] = tokenizer(src_text, return_attention_mask=False,
                                              add_special_tokens=False)['input_ids']
-        tgt_input_ids: List[int] = tokenizer(output, return_attention_mask=False, 
+        tgt_input_ids: List[int] = tokenizer(output, return_attention_mask=False,
                                              add_special_tokens=False)['input_ids']
         tgt_input_ids.append(tokenizer.eos_token_id)
         #
@@ -152,7 +156,7 @@ if __name__ == '__main__':
 
     dataset = dataset.map(tokenize_function)
     dataset = dataset.remove_columns(['instruction', 'input', 'output'])
-    # 
+    #
     dataset = dataset.train_test_split(hparams.test_split_p, seed=hparams.split_seed)
     hparams.lrs_hparams['T_max'] = ml.get_T_max(
         len(dataset['train']), batch_size, max_epochs, n_accumulate_grad)

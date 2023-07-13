@@ -7,7 +7,8 @@ from _pre_ms import *
 
 class HParams(HParamsBase):
     def __init__(self) -> None:
-        device_ids = list(range(min(4, torch.cuda.device_count())))
+        # need 40GB graphics memory
+        device_ids = [0, 1, 2, 3]
         self.model_id = 'ZhipuAI/chatglm2-6b'
         ml.select_device(device_ids)
         self.prompt = PROMPT
@@ -50,7 +51,7 @@ class HParams(HParamsBase):
             'T_max': ...,
             'eta_min': 1e-5
         }
-        super().__init__(device_ids, dataloader_hparams, optim_name, 
+        super().__init__(device_ids, dataloader_hparams, optim_name,
                          optim_hparams, trainer_hparams, warmup, lrs_hparams)
 
 
@@ -130,11 +131,13 @@ if __name__ == '__main__':
     dataset_en = dataset_en.remove_columns(['text'])
     dataset = concatenate_datasets([dataset_zh, dataset_en])
     #
-    dataset = dataset.select(range(1000))
+    # dataset = dataset.select(range(1000))
     dataset = dataset.map(partial(tokenize_function, tokenizer=tokenizer))
     dataset = dataset.remove_columns(['instruction', 'input', 'output'])
     #
     dataset = dataset.train_test_split(hparams.test_split_p, seed=hparams.split_seed)
+    print_examples(dataset['train'][0], tokenizer)
+    #
     hparams.lrs_hparams['T_max'] = ml.get_T_max(
         len(dataset['train']), hparams.batch_size, hparams.max_epochs, hparams.n_accumulate_grad)
     ldm = ml.LDataModule(
@@ -143,3 +146,5 @@ if __name__ == '__main__':
     lmodel = MyLModule(model, hparams)
     trainer = ml.Trainer(lmodel, **hparams.trainer_hparams)
     trainer.fit(ldm.train_dataloader, ldm.val_dataloader)
+    #
+    ml.plot_image(trainer.tb_dir, ['train_loss', 'train_acc', 'grad_norm'])

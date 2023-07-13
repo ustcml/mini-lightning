@@ -36,7 +36,11 @@ def tensorboard_smoothing(values: List[float], smooth: float = 0.9) -> List[floa
     x = 0
     res = []
     for i in range(len(values)):
-        x = x * smooth + values[i]  # Exponential decay
+        if math.isnan(values[i]):
+            res.append(float('nan'))
+            continue
+        v = values[i]
+        x = x * smooth + v  # Exponential decay
         res.append(x / norm_factor)
         #
         norm_factor *= smooth
