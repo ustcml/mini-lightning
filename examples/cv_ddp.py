@@ -90,7 +90,7 @@ class MyLModule(ml.LModule):
 
 
 if __name__ == '__main__':
-    device_ids: List[int] = ml.parse_device_ids()
+    device_ids: List[int] = ml.parse_device()
     hparams = HParams(device_ids)
     # Calculating mean std
     train_dataset = CIFAR10(root=DATASETS_PATH, train=True, download=True)

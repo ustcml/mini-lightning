@@ -114,7 +114,7 @@ class SimCLR(ml.LModule):
 
 
 if __name__ == '__main__':
-    device_ids: List[int] = ml.parse_device_ids()
+    device_ids: List[int] = ml.parse_device()
     rank, _, world_size = ml.get_dist_setting()
     ml.seed_everything(42+rank, gpu_dtm=False)
     hparams = HParams(device_ids)
