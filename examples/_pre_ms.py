@@ -5,11 +5,6 @@ from modelscope.models.nlp.chatglm2 import ChatGLM2Tokenizer
 from modelscope.utils.config import Config, ConfigDict
 
 
-def get_model_dir(model_id: str, model_revision: Optional[str] = None) -> str:
-    model_dir = snapshot_download(model_id, model_revision)
-    return model_dir
-
-
 def get_alpaca_en_zh_dataset() -> Tuple[HFDataset, HFDataset]:
     dataset_en: HFDataset = MsDataset.load(
         'AI-ModelScope/alpaca-gpt4-data-en', split='train').to_hf_dataset()
@@ -23,7 +18,7 @@ def get_baichuan_model_tokenizer(
     add_special_token: bool = True
 ) -> Tuple[Optional[PreTrainedModel], PreTrainedTokenizerBase]:
     model_id = 'baichuan-inc/baichuan-7B'
-    model_dir = get_model_dir(model_id, None)
+    model_dir = snapshot_download(model_id, None)
     #
     sys.path.insert(0, model_dir)
     model_config = AutoConfig.from_pretrained(model_dir, trust_remote_code=True)
