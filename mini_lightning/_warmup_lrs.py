@@ -68,6 +68,6 @@ def warmup_decorator(lr_s: LRScheduler, warmup: int) -> LRScheduler:
         if last_epoch < warmup:
             scale = (last_epoch + 1) / (warmup + 1)
         return [lr * scale for lr in lr_list]
-    lr_s.__class__.get_lr = get_lr.__get__(lr_s)  # bind self
+    lr_s.__class__.get_lr = MethodType(get_lr, lr_s)  # bind self
     _lr_scheduler_rerun(lr_s)
     return lr_s

@@ -4,15 +4,7 @@
 
 
 from ._types import *
-__all__ = [
-    'get_dist_setting', 'logger',
-    'en_parallel', 'de_parallel', 'de_sync_batchnorm', 'select_device',
-    '_remove_keys', '_key_add_suffix', 'freeze_layers', 'activate_layers', 'stat_array',
-    'test_time', 'seed_everything', 'time_synchronize',
-    'print_model_info', 'write_to_yaml', 'read_from_yaml', 'write_to_csv',
-    'get_date_now', 'load_ckpt', 'save_ckpt',
-    'ModelCheckpoint', 'ResumeFromCkpt', 'parse_device_ids'
-]
+
 #
 _T = TypeVar('_T')
 
@@ -103,27 +95,39 @@ def de_sync_batchnorm(module: Module, bn_type: Literal['1d', '2d', '3d']) -> Mod
     return module
 
 
-def select_device(device_ids: List[int]) -> Device:
+def _format_device(device: Union[List[int], str]) -> Tuple[List[int], str]:
+    if isinstance(device, list):
+        device_ids = device
+        device_str = ','.join([str(d) for d in device])
+    else:
+        device_ids = [int(d) for d in device.split(',') if d != '-1']
+        device_str = device
+    device_str = device_str.replace(' ', '')
+    return device_ids, device_str
+
+
+def select_device(device: Union[List[int], str]) -> Device:
     """Call this function before cuda is initialized.
     device: e.g. []: 'cpu', [0], [0, 1, 2]
-    Return: master device
+        e.g. '-1': 'cpu', '0', '0,1,2'
     """
     if torch.cuda.is_initialized():
         logger.warning('CUDA has been initialized! Device selection fails!')
         return torch.device('cuda:0')
     #
+    device_ids, device_str = _format_device(device)
+    #
+    os.environ['CUDA_VISIBLE_DEVICES'] = device_str
     log_s = 'Using device: '
-    if len(device_ids) == 0:  # cpu
-        os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
-        device: str = 'cpu'
-        log_s += device
+    if len(device_ids) == 0:
+        master_device: str = 'cpu'
+        log_s += 'cpu'
     else:
-        os.environ['CUDA_VISIBLE_DEVICES'] = ','.join([str(d) for d in device_ids])
         assert torch.cuda.is_available() and torch.cuda.device_count() >= len(device_ids)
-        log_s += f'cuda:{",".join([str(d) for d in device_ids])}'  # e.g. 'cuda:1,7,8'
-        device = 'cuda:0'
+        master_device = 'cuda:0'
+        log_s += f'cuda:{device_str}'
     logger.info(log_s)
-    return torch.device(device)
+    return torch.device(master_device)
 
 
 def _remove_keys(state_dict: Dict[str, _T], prefix_keys: List[str]) -> Dict[str, _T]:
@@ -408,9 +412,34 @@ class ResumeFromCkpt:
         return f'{self.__class__.__name__}({attr_str})'
 
 
-def parse_device_ids() -> List[int]:
+def parse_device() -> List[int]:
     parser = ArgumentParser()
-    parser.add_argument('--device_ids', '-d', nargs='*', type=int,
-                        default=[0], help='e.g. [], [0], [0, 1, 2]. --device_ids; --device_ids 0; -d 0 1 2')
+    parser.add_argument('--device', '-d', type=str, default='0', help='e.g. -1; 0; 0,1,2')
     opt: Namespace = parser.parse_args()  # options
-    return opt.device_ids
+    device_ids, _ = _format_device(opt.device)
+    return device_ids
+
+
+def _get_version(work_dir: str) -> int:
+    if os.path.isdir(work_dir):
+        fnames = os.listdir(work_dir)
+    else:
+        fnames = []
+    v_list = [-1]
+    for fname in fnames:
+        m = re.match(r'v(\d+)', fname)
+        if m is None:
+            continue
+        v = m.group(1)
+        v_list.append(int(v))
+    return max(v_list) + 1
+
+
+def get_runs_dir(runs_dir: str) -> str:
+    """add version"""
+    runs_dir = os.path.abspath(runs_dir)
+    version = _get_version(runs_dir)
+    time = dt.datetime.now().strftime('%Y%m%d-%H%M%S')
+    #
+    runs_dir = os.path.join(runs_dir, f'v{version}-{time}')
+    return runs_dir

@@ -13,6 +13,7 @@ from collections import defaultdict
 from copy import deepcopy
 from inspect import ismethod
 from logging import Handler, Logger
+from types import MethodType
 from typing import (Any, Callable, Dict, List, Literal, Mapping, Optional,
                     Sequence, Set, Tuple, TypeVar, Union)
 

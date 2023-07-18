@@ -6,7 +6,7 @@ from ._types import *
 from ._warmup_lrs import _lr_scheduler_rerun
 from ._utils import (
     en_parallel, de_parallel, get_dist_setting, select_device,
-    logger, write_to_yaml, write_to_csv, read_from_yaml,
+    logger, write_to_yaml, write_to_csv, read_from_yaml, get_runs_dir,
     print_model_info, load_ckpt, save_ckpt, ModelCheckpoint, ResumeFromCkpt
 )
 
@@ -392,11 +392,7 @@ class Trainer:
         self.rank, self.local_rank, self.world_size = get_dist_setting()
         self.version = None
         if self.rank in {-1, 0}:
-            runs_dir = os.path.abspath(runs_dir)
-            self.version = self._get_version(runs_dir)
-            time = dt.datetime.now().strftime('%Y%m%d-%H%M%S')  # window not support `:`
-            runs_dir = os.path.join(runs_dir, f'v{self.version}-{time}')
-            #
+            runs_dir = get_runs_dir(runs_dir)
             self.runs_dir = runs_dir
             self.ckpt_dir = os.path.join(runs_dir, 'checkpoints')
             self.tb_dir = os.path.join(runs_dir, 'runs')  # tensorboard
@@ -507,21 +503,6 @@ class Trainer:
         for s in lmodel._models:
             model: Module = getattr(lmodel, s)
             print_model_info(model, s, None)
-
-    @staticmethod
-    def _get_version(work_dir: str) -> int:
-        if os.path.isdir(work_dir):
-            fnames = os.listdir(work_dir)
-        else:
-            fnames = []
-        v_list = [-1]
-        for fname in fnames:
-            m = re.match(r'v(\d+)', fname)
-            if m is None:
-                continue
-            v = m.group(1)
-            v_list.append(int(v))
-        return max(v_list) + 1
 
     @classmethod
     def _check_hparams(cls, hparams: Any) -> Any:
