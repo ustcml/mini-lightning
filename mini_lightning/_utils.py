@@ -4,15 +4,7 @@
 
 
 from ._types import *
-__all__ = [
-    'get_dist_setting', 'logger',
-    'en_parallel', 'de_parallel', 'de_sync_batchnorm', 'select_device',
-    '_remove_keys', '_key_add_suffix', 'freeze_layers', 'activate_layers', 'stat_array',
-    'test_time', 'seed_everything', 'time_synchronize',
-    'print_model_info', 'write_to_yaml', 'read_from_yaml', 'write_to_csv',
-    'get_date_now', 'load_ckpt', 'save_ckpt',
-    'ModelCheckpoint', 'ResumeFromCkpt', 'parse_device'
-]
+
 #
 _T = TypeVar('_T')
 
@@ -426,3 +418,28 @@ def parse_device() -> List[int]:
     opt: Namespace = parser.parse_args()  # options
     device_ids, _ = _format_device(opt.device)
     return device_ids
+
+
+def _get_version(work_dir: str) -> int:
+    if os.path.isdir(work_dir):
+        fnames = os.listdir(work_dir)
+    else:
+        fnames = []
+    v_list = [-1]
+    for fname in fnames:
+        m = re.match(r'v(\d+)', fname)
+        if m is None:
+            continue
+        v = m.group(1)
+        v_list.append(int(v))
+    return max(v_list) + 1
+
+
+def get_runs_dir(runs_dir: str) -> str:
+    """add version"""
+    runs_dir = os.path.abspath(runs_dir)
+    version = _get_version(runs_dir)
+    time = dt.datetime.now().strftime('%Y%m%d-%H%M%S')
+    #
+    runs_dir = os.path.join(runs_dir, f'v{version}-{time}')
+    return runs_dir
